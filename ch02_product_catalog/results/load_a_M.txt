@@ -1,0 +1,90 @@
+# 採取日時: 2026-09-18 08:18:57 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案A: 属性ごとに列を足す。種類に関係のない列は NULL になる
+CREATE SCHEMA ch02_a;
+CREATE SCHEMA
+CREATE TABLE ch02_a.products (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  kind        text        NOT NULL
+              CHECK (kind IN ('apparel', 'appliance', 'book')),
+  name        text        NOT NULL,
+  price       int         NOT NULL CHECK (price >= 0),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  -- 衣料
+  color text, size text, material text,
+  season text, fit text, sleeve_cm int, length_cm int, chest_cm int,
+  weight_g int, pockets int,
+  -- 家電
+  watt int, voltage int, warranty_months int,
+  width_mm int, depth_mm int, height_mm int, weight_kg int,
+  noise_db int, cord_cm int, energy_rank int,
+  -- 書籍
+  author text, isbn text, pages int,
+  publisher text, published_year int, edition int, series_no int,
+  thickness_mm int, age_from int, chapters int,
+  -- 種類ごとの必須の項目
+  CONSTRAINT apparel_required CHECK (kind <> 'apparel'
+    OR (color IS NOT NULL AND size IS NOT NULL AND material IS NOT NULL)),
+  CONSTRAINT appliance_required CHECK (kind <> 'appliance'
+    OR (watt IS NOT NULL AND voltage IS NOT NULL AND warranty_months IS NOT NULL)),
+  CONSTRAINT book_required CHECK (kind <> 'book'
+    OR (author IS NOT NULL AND isbn IS NOT NULL AND pages IS NOT NULL))
+);
+CREATE TABLE
+-- 元データ（ch02_r.src）を id の順に写す。先に r_source/ の 2 つのファイルを実行しておく
+-- 元データが空のまま写すと、空のテーブルで測ることになる。何も消す前に止める
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM ch02_r.src) THEN
+    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行する';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+DROP STATISTICS IF EXISTS ch02_a.products_color_size;
+psql:/tmp/run-sql-6163.sql:10: NOTICE:  statistics object "ch02_a.products_color_size" does not exist, skipping
+DROP STATISTICS
+Time: 0.178 ms
+DROP INDEX IF EXISTS ch02_a.products_created, ch02_a.products_color_size_created;
+psql:/tmp/run-sql-6163.sql:11: NOTICE:  index "products_created" does not exist, skipping
+psql:/tmp/run-sql-6163.sql:11: NOTICE:  index "products_color_size_created" does not exist, skipping
+DROP INDEX
+Time: 0.104 ms
+TRUNCATE ch02_a.products RESTART IDENTITY;
+TRUNCATE TABLE
+Time: 1.932 ms
+-- 列の並びが元データと同じなので、SELECT * で写せる。
+-- id を指定して入れるので OVERRIDING SYSTEM VALUE が要る
+INSERT INTO ch02_a.products OVERRIDING SYSTEM VALUE
+SELECT * FROM ch02_r.src ORDER BY id;
+INSERT 0 1000000
+Time: 1337.692 ms (00:01.338)
+-- id を指定して入れても、自動採番の続きは進まない。最大の id に合わせる
+SELECT setval(pg_get_serial_sequence('ch02_a.products', 'id'),
+              (SELECT max(id) FROM ch02_a.products));
+ setval  
+---------
+ 1000000
+(1 row)
+
+Time: 2.451 ms
+-- インデックスは、データを入れた後に作る
+CREATE INDEX products_created ON ch02_a.products (created_at DESC);
+CREATE INDEX
+Time: 254.040 ms
+CREATE INDEX products_color_size_created
+  ON ch02_a.products (color, size, created_at DESC);
+CREATE INDEX
+Time: 650.214 ms
+VACUUM (ANALYZE) ch02_a.products;
+VACUUM
+Time: 201.338 ms

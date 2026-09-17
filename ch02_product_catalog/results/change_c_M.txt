@@ -1,0 +1,79 @@
+# 採取日時: 2026-09-18 08:20:33 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 変更の手数（案C）: 衣料に属性「原産国」を足す → 必須にする → 絞り込めるようにする。
+-- 案A と同じ文を、衣料の子テーブルだけに実行する。ロックを取るのも衣料の子テーブルだけ
+\timing on
+Timing is on.
+SELECT pg_relation_filenode('ch02_c.apparel') AS filenode_before \gset
+Time: 0.470 ms
+BEGIN;
+BEGIN
+Time: 0.074 ms
+ALTER TABLE ch02_c.apparel ADD COLUMN origin text DEFAULT 'JP';
+ALTER TABLE
+Time: 0.829 ms
+SELECT relation::regclass, mode FROM pg_locks
+WHERE relation IN ('ch02_c.apparel'::regclass, 'ch02_c.products'::regclass)
+  AND pid = pg_backend_pid();
+ relation |        mode         
+----------+---------------------
+ apparel  | AccessExclusiveLock
+(1 row)
+
+Time: 0.711 ms
+SELECT pg_relation_filenode('ch02_c.apparel') = :filenode_before AS not_rewritten;
+ not_rewritten 
+---------------
+ t
+(1 row)
+
+Time: 0.349 ms
+COMMIT;
+COMMIT
+Time: 1.485 ms
+BEGIN;
+BEGIN
+Time: 0.080 ms
+ALTER TABLE ch02_c.apparel ADD CONSTRAINT apparel_origin_nn NOT NULL origin NOT VALID;
+ALTER TABLE
+Time: 0.437 ms
+COMMIT;
+COMMIT
+Time: 0.285 ms
+BEGIN;
+BEGIN
+Time: 0.078 ms
+ALTER TABLE ch02_c.apparel VALIDATE CONSTRAINT apparel_origin_nn;
+ALTER TABLE
+Time: 45.302 ms
+SELECT relation::regclass, mode FROM pg_locks
+WHERE relation IN ('ch02_c.apparel'::regclass, 'ch02_c.products'::regclass)
+  AND pid = pg_backend_pid();
+ relation |           mode           
+----------+--------------------------
+ apparel  | ShareUpdateExclusiveLock
+(1 row)
+
+Time: 0.299 ms
+COMMIT;
+COMMIT
+Time: 1.105 ms
+CREATE INDEX apparel_origin ON ch02_c.apparel (origin);
+CREATE INDEX
+Time: 85.314 ms
+-- 元に戻す
+DROP INDEX ch02_c.apparel_origin;
+DROP INDEX
+Time: 0.894 ms
+ALTER TABLE ch02_c.apparel DROP COLUMN origin;
+ALTER TABLE
+Time: 0.441 ms

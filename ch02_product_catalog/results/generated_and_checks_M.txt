@@ -1,0 +1,211 @@
+# 採取日時: 2026-09-18 08:19:34 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- run-as: book_owner
+-- expect-error: indexes on virtual generated columns are not supported
+-- 17 以前の記事の書き方から STORED を省いて写した場合。18 では、書かなければ仮想の生成列になる。
+-- エラーで止まるとトランザクションごと取り消されるので、足した列は残らない
+BEGIN;
+BEGIN
+ALTER TABLE ch02_b.products
+  ADD COLUMN color text GENERATED ALWAYS AS (attrs->>'color');
+ALTER TABLE
+-- attgenerated が v なら仮想（VIRTUAL）、s なら保存（STORED）
+SELECT attname, attgenerated FROM pg_attribute
+WHERE attrelid = 'ch02_b.products'::regclass AND attname = 'color';
+ attname | attgenerated 
+---------+--------------
+ color   | v
+(1 row)
+
+CREATE INDEX products_color ON ch02_b.products (color);
+psql:/tmp/run-sql-7361.sql:11: ERROR:  indexes on virtual generated columns are not supported
+-- run-as: book_owner
+-- 仮想の生成列にはインデックスを付けられないが、同じ式の式インデックスは使われる。
+-- 仮想の生成列には統計が無いので、式インデックスを作ったあとに ANALYZE して式の統計を取る
+BEGIN;
+BEGIN
+ALTER TABLE ch02_b.products
+  ADD COLUMN color text GENERATED ALWAYS AS (attrs->>'color') VIRTUAL,
+  ADD COLUMN size  text GENERATED ALWAYS AS (attrs->>'size')  VIRTUAL;
+ALTER TABLE
+EXPLAIN (ANALYZE)
+SELECT id FROM products WHERE color = 'teal';
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31904.00 rows=5000 width=8) (actual time=0.529..44.546 rows=2949.00 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=12141 read=12013
+   ->  Parallel Seq Scan on products  (cost=0.00..30404.00 rows=2083 width=8) (actual time=0.217..40.313 rows=983.00 loops=3)
+         Filter: ((attrs ->> 'color'::text) = 'teal'::text)
+         Rows Removed by Filter: 332350
+         Buffers: shared hit=12141 read=12013
+ Planning:
+   Buffers: shared hit=82 read=2
+ Planning Time: 0.215 ms
+ Execution Time: 44.709 ms
+(12 rows)
+
+CREATE INDEX products_color_size_expr_idx
+  ON ch02_b.products ((attrs->>'color'), (attrs->>'size'), created_at DESC);
+CREATE INDEX
+ANALYZE ch02_b.products;
+ANALYZE
+EXPLAIN (ANALYZE)
+SELECT id FROM products WHERE color = 'teal';
+                                                                  QUERY PLAN                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=71.67..8518.30 rows=3000 width=8) (actual time=0.541..5.219 rows=2949.00 loops=1)
+   Recheck Cond: ((attrs ->> 'color'::text) = 'teal'::text)
+   Heap Blocks: exact=2782
+   Buffers: shared hit=1462 read=1334
+   ->  Bitmap Index Scan on products_color_size_expr_idx  (cost=0.00..70.92 rows=3000 width=0) (actual time=0.225..0.225 rows=2949.00 loops=1)
+         Index Cond: ((attrs ->> 'color'::text) = 'teal'::text)
+         Index Searches: 1
+         Buffers: shared read=14
+ Planning:
+   Buffers: shared hit=8 read=1
+ Planning Time: 0.110 ms
+ Execution Time: 5.319 ms
+(12 rows)
+
+EXPLAIN (ANALYZE)
+SELECT id, name, price, created_at
+FROM products
+WHERE color = 'yellow' AND size = 'XL'
+ORDER BY created_at DESC
+LIMIT 20;
+                                                                      QUERY PLAN                                                                       
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..78.09 rows=20 width=34) (actual time=0.027..0.045 rows=20.00 loops=1)
+   Buffers: shared hit=21 read=2
+   ->  Index Scan using products_color_size_expr_idx on products  (cost=0.42..3005.88 rows=774 width=34) (actual time=0.026..0.043 rows=20.00 loops=1)
+         Index Cond: (((attrs ->> 'color'::text) = 'yellow'::text) AND ((attrs ->> 'size'::text) = 'XL'::text))
+         Index Searches: 1
+         Buffers: shared hit=21 read=2
+ Planning:
+   Buffers: shared hit=41
+ Planning Time: 0.108 ms
+ Execution Time: 0.053 ms
+(10 rows)
+
+ROLLBACK;
+ROLLBACK
+-- run-as: book_owner
+-- STORED の生成列は値をテーブルに保存するので、インデックスも統計も普通の列と同じに使える。
+-- 足すときにテーブル全体を書き換える（ファイル番号が変わる）
+\timing on
+Timing is on.
+SELECT pg_relation_filenode('ch02_b.products') AS filenode_before \gset
+Time: 0.296 ms
+BEGIN;
+BEGIN
+Time: 0.096 ms
+ALTER TABLE ch02_b.products
+  ADD COLUMN color text GENERATED ALWAYS AS (attrs->>'color') STORED,
+  ADD COLUMN size  text GENERATED ALWAYS AS (attrs->>'size')  STORED;
+ALTER TABLE
+Time: 1979.493 ms (00:01.979)
+SELECT mode FROM pg_locks
+WHERE relation = 'ch02_b.products'::regclass AND pid = pg_backend_pid();
+        mode         
+---------------------
+ ShareLock
+ AccessExclusiveLock
+(2 rows)
+
+Time: 0.749 ms
+SELECT pg_relation_filenode('ch02_b.products') = :filenode_before AS not_rewritten;
+ not_rewritten 
+---------------
+ f
+(1 row)
+
+Time: 0.093 ms
+CREATE INDEX products_color_size_created
+  ON ch02_b.products (color, size, created_at DESC);
+CREATE INDEX
+Time: 630.153 ms
+ANALYZE ch02_b.products;
+ANALYZE
+Time: 181.155 ms
+EXPLAIN (ANALYZE)
+SELECT id, name, price, created_at
+FROM products
+WHERE color = 'yellow' AND size = 'XL'
+ORDER BY created_at DESC
+LIMIT 20;
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..78.08 rows=20 width=34) (actual time=0.039..0.062 rows=20.00 loops=1)
+   Buffers: shared hit=20 read=3
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3203.62 rows=825 width=34) (actual time=0.038..0.060 rows=20.00 loops=1)
+         Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
+         Index Searches: 1
+         Buffers: shared hit=20 read=3
+ Planning:
+   Buffers: shared hit=57 read=4
+ Planning Time: 0.158 ms
+ Execution Time: 0.071 ms
+(10 rows)
+
+Time: 0.484 ms
+ROLLBACK;
+ROLLBACK
+Time: 13.994 ms
+-- expect-error: attrs_is_object
+-- attrs に配列を入れようとすると、CHECK (attrs IS JSON OBJECT) が断る
+INSERT INTO products (kind, name, price, attrs)
+VALUES ('book', 'book-x', 1000, '[1, 2]');
+psql:/tmp/run-sql-7466.sql:4: ERROR:  new row for relation "products" violates check constraint "attrs_is_object"
+DETAIL:  Failing row contains (1000001, book, book-x, 1000, 2026-09-17 23:19:39.483952+00, [1, 2]).
+-- expect-error: apparel_required
+-- 衣料なのに size が無い
+INSERT INTO products (kind, name, price, attrs)
+VALUES ('apparel', 'apparel-x', 1000, '{"color": "black", "material": "cotton"}');
+psql:/tmp/run-sql-7477.sql:4: ERROR:  new row for relation "products" violates check constraint "apparel_required"
+DETAIL:  Failing row contains (1000002, apparel, apparel-x, 1000, 2026-09-17 23:19:39.700207+00, {"color": "black", "material": "cotton"}).
+-- expect-error: watt_is_number
+-- 数値の項目に文字列が入っている
+INSERT INTO products (kind, name, price, attrs)
+VALUES ('appliance', 'appliance-x', 1000,
+        '{"watt": "1200W", "voltage": 100, "warranty_months": 12}');
+psql:/tmp/run-sql-7483.sql:5: ERROR:  new row for relation "products" violates check constraint "watt_is_number"
+DETAIL:  Failing row contains (1000003, appliance, appliance-x, 1000, 2026-09-17 23:19:39.929075+00, {"watt": "1200W", "voltage": 100, "warranty_months": 12}).
+-- 値を型つきで取り出す。-> は jsonb、->> は text、JSON_VALUE は RETURNING で指定した型を返す
+SELECT attrs->'watt'   AS as_jsonb,  pg_typeof(attrs->'watt'),
+       attrs->>'watt'  AS as_text,   pg_typeof(attrs->>'watt'),
+       JSON_VALUE(attrs, '$.watt' RETURNING int) AS as_int,
+       pg_typeof(JSON_VALUE(attrs, '$.watt' RETURNING int))
+FROM products WHERE kind = 'appliance' ORDER BY id LIMIT 1;
+ as_jsonb | pg_typeof | as_text | pg_typeof | as_int | pg_typeof 
+----------+-----------+---------+-----------+--------+-----------
+ 650      | jsonb     | 650     | text      |    650 | integer
+(1 row)
+
+-- 18 では、jsonb の null を数値の型に変換すると NULL になる（17 まではエラー）
+SELECT ('{"watt": null}'::jsonb->'watt')::int AS null_to_int;
+ null_to_int 
+-------------
+            
+(1 row)
+
+-- JSON_VALUE は、変換できない値でも既定では NULL を返す。エラーにしたいときは ERROR ON ERROR
+SELECT JSON_VALUE('{"watt": "1200W"}'::jsonb, '$.watt' RETURNING int) AS silently_null;
+ silently_null 
+---------------
+              
+(1 row)
+
+-- expect-error: 22P02
+SELECT JSON_VALUE('{"watt": "1200W"}'::jsonb, '$.watt' RETURNING int ERROR ON ERROR);
+psql:/tmp/run-sql-7495.sql:2: ERROR:  invalid input syntax for type integer: "1200W"

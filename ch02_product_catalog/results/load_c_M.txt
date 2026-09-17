@@ -1,0 +1,105 @@
+# 採取日時: 2026-09-18 08:19:11 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案C: 共通の項目を親テーブルに、種類ごとの項目を子テーブルに分ける。
+-- 子テーブルの主キーは、親の id を指す外部キーを兼ねる
+CREATE SCHEMA ch02_c;
+CREATE SCHEMA
+CREATE TABLE ch02_c.products (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  kind        text        NOT NULL
+              CHECK (kind IN ('apparel', 'appliance', 'book')),
+  name        text        NOT NULL,
+  price       int         NOT NULL CHECK (price >= 0),
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE TABLE ch02_c.apparel (
+  product_id  bigint PRIMARY KEY REFERENCES ch02_c.products (id) ON DELETE CASCADE,
+  color text NOT NULL, size text NOT NULL, material text NOT NULL,
+  season text, fit text, sleeve_cm int, length_cm int, chest_cm int,
+  weight_g int, pockets int
+);
+CREATE TABLE
+CREATE TABLE ch02_c.appliance (
+  product_id  bigint PRIMARY KEY REFERENCES ch02_c.products (id) ON DELETE CASCADE,
+  watt int NOT NULL, voltage int NOT NULL, warranty_months int NOT NULL,
+  width_mm int, depth_mm int, height_mm int, weight_kg int,
+  noise_db int, cord_cm int, energy_rank int
+);
+CREATE TABLE
+CREATE TABLE ch02_c.book (
+  product_id  bigint PRIMARY KEY REFERENCES ch02_c.products (id) ON DELETE CASCADE,
+  author text NOT NULL, isbn text NOT NULL, pages int NOT NULL,
+  publisher text, published_year int, edition int, series_no int,
+  thickness_mm int, age_from int, chapters int
+);
+CREATE TABLE
+-- 元データ（ch02_r.src）を id の順に写す。先に r_source/ の 2 つのファイルを実行しておく
+-- 元データが空のまま写すと、空のテーブルで測ることになる。何も消す前に止める
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM ch02_r.src) THEN
+    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行する';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+DROP INDEX IF EXISTS ch02_c.products_created, ch02_c.apparel_color_size;
+psql:/tmp/run-sql-6510.sql:10: NOTICE:  index "products_created" does not exist, skipping
+psql:/tmp/run-sql-6510.sql:10: NOTICE:  index "apparel_color_size" does not exist, skipping
+DROP INDEX
+Time: 0.146 ms
+TRUNCATE ch02_c.products RESTART IDENTITY CASCADE;
+psql:/tmp/run-sql-6510.sql:11: NOTICE:  truncate cascades to table "apparel"
+psql:/tmp/run-sql-6510.sql:11: NOTICE:  truncate cascades to table "appliance"
+psql:/tmp/run-sql-6510.sql:11: NOTICE:  truncate cascades to table "book"
+TRUNCATE TABLE
+Time: 3.971 ms
+INSERT INTO ch02_c.products OVERRIDING SYSTEM VALUE
+SELECT id, kind, name, price, created_at FROM ch02_r.src ORDER BY id;
+INSERT 0 1000000
+Time: 1100.628 ms (00:01.101)
+SELECT setval(pg_get_serial_sequence('ch02_c.products', 'id'),
+              (SELECT max(id) FROM ch02_c.products));
+ setval  
+---------
+ 1000000
+(1 row)
+
+Time: 0.912 ms
+INSERT INTO ch02_c.apparel
+SELECT id, color, size, material, season, fit, sleeve_cm, length_cm, chest_cm,
+       weight_g, pockets
+FROM ch02_r.src WHERE kind = 'apparel' ORDER BY id;
+INSERT 0 600000
+Time: 2522.602 ms (00:02.523)
+INSERT INTO ch02_c.appliance
+SELECT id, watt, voltage, warranty_months, width_mm, depth_mm, height_mm,
+       weight_kg, noise_db, cord_cm, energy_rank
+FROM ch02_r.src WHERE kind = 'appliance' ORDER BY id;
+INSERT 0 99799
+Time: 506.691 ms
+INSERT INTO ch02_c.book
+SELECT id, author, isbn, pages, publisher, published_year, edition, series_no,
+       thickness_mm, age_from, chapters
+FROM ch02_r.src WHERE kind = 'book' ORDER BY id;
+INSERT 0 300201
+Time: 1196.030 ms (00:01.196)
+CREATE INDEX products_created ON ch02_c.products (created_at DESC);
+CREATE INDEX
+Time: 151.738 ms
+CREATE INDEX apparel_color_size ON ch02_c.apparel (color, size);
+CREATE INDEX
+Time: 402.761 ms
+VACUUM (ANALYZE) ch02_c.products, ch02_c.apparel, ch02_c.appliance, ch02_c.book;
+VACUUM
+Time: 362.854 ms

@@ -1,0 +1,135 @@
+# 採取日時: 2026-09-18 08:19:58 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 変更の手数（案B）: 属性「原産国」を足す → 必須にする → 絞り込めるようにする。
+-- 文ごとに取るロックを分けて見るために、手順ごとにトランザクションを確定し、最後に元へ戻す
+\timing on
+Timing is on.
+-- 1. 属性を足す。テーブルの定義は変えない（0 文）。新しい商品の attrs にキーを入れるだけ。
+--    既存の商品にも値を持たせるなら、全行の UPDATE になる
+SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_before;
+ total_before 
+--------------
+ 262 MB
+(1 row)
+
+Time: 0.663 ms
+UPDATE ch02_b.products SET attrs = attrs || '{"origin": "JP"}';
+UPDATE 1000000
+Time: 7363.474 ms (00:07.363)
+-- 更新前の行の回収と、GIN インデックスの未整理の項目の取り込みを済ませてから測る
+VACUUM (ANALYZE) ch02_b.products;
+VACUUM
+Time: 1317.417 ms (00:01.317)
+SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_after;
+ total_after 
+-------------
+ 530 MB
+(1 row)
+
+Time: 0.250 ms
+-- 2. 必須にする。「キーがある」と「文字列である」で CHECK が 2 つ要る
+BEGIN;
+BEGIN
+Time: 0.113 ms
+ALTER TABLE ch02_b.products
+  ADD CONSTRAINT attrs_has_origin CHECK (attrs ? 'origin') NOT VALID,
+  ADD CONSTRAINT origin_is_string
+      CHECK (jsonb_typeof(attrs->'origin') = 'string') NOT VALID;
+ALTER TABLE
+Time: 0.627 ms
+SELECT mode FROM pg_locks
+WHERE relation = 'ch02_b.products'::regclass AND pid = pg_backend_pid();
+        mode         
+---------------------
+ AccessExclusiveLock
+(1 row)
+
+Time: 0.673 ms
+COMMIT;
+COMMIT
+Time: 0.387 ms
+BEGIN;
+BEGIN
+Time: 0.055 ms
+ALTER TABLE ch02_b.products VALIDATE CONSTRAINT attrs_has_origin;
+ALTER TABLE
+Time: 112.166 ms
+ALTER TABLE ch02_b.products VALIDATE CONSTRAINT origin_is_string;
+ALTER TABLE
+Time: 191.856 ms
+SELECT mode FROM pg_locks
+WHERE relation = 'ch02_b.products'::regclass AND pid = pg_backend_pid();
+           mode           
+--------------------------
+ ShareUpdateExclusiveLock
+(1 row)
+
+Time: 0.306 ms
+COMMIT;
+COMMIT
+Time: 1.891 ms
+-- 3. 絞り込めるようにする。@> の検索なら、いまある GIN インデックスがそのまま使われる（0 文）。
+--    ただし、全商品が持つキーを条件に入れると、GIN はその全商品ぶんの項目を読む。
+--    比べるのは Bitmap Index Scan の時間。先に 1 回実行して、読むページを共有バッファに載せておく
+SELECT count(*) FROM products WHERE attrs @> '{"color": "teal"}';
+ count 
+-------
+  2949
+(1 row)
+
+Time: 17.965 ms
+EXPLAIN (ANALYZE)
+SELECT id FROM products WHERE attrs @> '{"color": "teal"}';
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=17.60..386.40 rows=95 width=8) (actual time=0.444..3.021 rows=2949.00 loops=1)
+   Recheck Cond: (attrs @> '{"color": "teal"}'::jsonb)
+   Heap Blocks: exact=2788
+   Buffers: shared hit=2795
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..17.57 rows=95 width=0) (actual time=0.221..0.221 rows=2949.00 loops=1)
+         Index Cond: (attrs @> '{"color": "teal"}'::jsonb)
+         Index Searches: 1
+         Buffers: shared hit=7
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.093 ms
+ Execution Time: 3.118 ms
+(12 rows)
+
+Time: 3.444 ms
+EXPLAIN (ANALYZE)
+SELECT id FROM products WHERE attrs @> '{"origin": "JP", "color": "teal"}';
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=30.57..399.37 rows=95 width=8) (actual time=3.072..4.606 rows=2949.00 loops=1)
+   Recheck Cond: (attrs @> '{"color": "teal", "origin": "JP"}'::jsonb)
+   Heap Blocks: exact=2788
+   Buffers: shared hit=2944 read=136 written=118
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.55 rows=95 width=0) (actual time=2.865..2.865 rows=2949.00 loops=1)
+         Index Cond: (attrs @> '{"color": "teal", "origin": "JP"}'::jsonb)
+         Index Searches: 1
+         Buffers: shared hit=156 read=136 written=118
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.067 ms
+ Execution Time: 4.692 ms
+(12 rows)
+
+Time: 4.910 ms
+-- 元に戻す。全行を 2 回更新したのでテーブルが大きくなっている。測定を続けるときは load.sql で入れ直す
+ALTER TABLE ch02_b.products
+  DROP CONSTRAINT attrs_has_origin, DROP CONSTRAINT origin_is_string;
+ALTER TABLE
+Time: 0.811 ms
+UPDATE ch02_b.products SET attrs = attrs - 'origin';
+UPDATE 1000000
+Time: 6350.571 ms (00:06.351)

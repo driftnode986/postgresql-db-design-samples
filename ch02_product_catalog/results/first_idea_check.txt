@@ -1,0 +1,26 @@
+# 採取日時: 2026-09-18 08:19:40 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- run-as: book_owner
+-- expect-error: 0A000
+-- 採取した案の 1 つは、子テーブルの CHECK で親の種類を問い合わせていた。
+-- PostgreSQL の CHECK には副問い合わせを書けないので、テーブルを作る時点でエラーになる
+CREATE TABLE ch02_c.clothing (
+  product_id bigint PRIMARY KEY REFERENCES ch02_c.products (id) ON DELETE CASCADE,
+  color varchar(100) NOT NULL,
+  size  varchar(50)  NOT NULL,
+  CONSTRAINT clothing_product_category CHECK (
+    (SELECT kind FROM ch02_c.products WHERE id = product_id) = 'apparel'
+  )
+);
+psql:/tmp/run-sql-7532.sql:12: ERROR:  cannot use subquery in check constraint
+LINE 6:     (SELECT kind FROM ch02_c.products WHERE id = product_id)...
+            ^

@@ -1,0 +1,65 @@
+# 採取日時: 2026-09-18 08:19:29 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- run-as: book_owner
+-- ->> で取り出した値には統計が無い。式を対象にした拡張統計を足すと、
+-- 見積もりと、選ばれる実行計画がどう変わるかを見る。インデックスは足さない。
+-- ほかの測定に影響しないように、最後に ROLLBACK で元に戻す
+BEGIN;
+BEGIN
+CREATE STATISTICS products_color_size_expr (mcv)
+  ON (attrs->>'color'), (attrs->>'size') FROM ch02_b.products;
+CREATE STATISTICS
+ANALYZE ch02_b.products;
+ANALYZE
+EXPLAIN (ANALYZE)
+SELECT id
+FROM products
+WHERE attrs->>'color' = 'black' AND attrs->>'size' = 'M';
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..40627.33 rows=71400 width=8) (actual time=0.283..42.349 rows=71884.00 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=256 read=23898
+   ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=29750 width=8) (actual time=0.105..38.617 rows=23961.33 loops=3)
+         Filter: (((attrs ->> 'color'::text) = 'black'::text) AND ((attrs ->> 'size'::text) = 'M'::text))
+         Rows Removed by Filter: 309372
+         Buffers: shared hit=256 read=23898
+ Planning:
+   Buffers: shared hit=20 read=2
+ Planning Time: 0.115 ms
+ Execution Time: 44.551 ms
+(12 rows)
+
+EXPLAIN (ANALYZE)
+SELECT id, name, price, created_at
+FROM products
+WHERE attrs->>'color' = 'black' AND attrs->>'size' = 'M'
+ORDER BY created_at DESC
+LIMIT 20;
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..17.27 rows=20 width=34) (actual time=0.037..0.093 rows=20.00 loops=1)
+   Buffers: shared hit=9 read=3
+   ->  Index Scan using products_created on products  (cost=0.42..60138.25 rows=71400 width=34) (actual time=0.036..0.090 rows=20.00 loops=1)
+         Filter: (((attrs ->> 'color'::text) = 'black'::text) AND ((attrs ->> 'size'::text) = 'M'::text))
+         Rows Removed by Filter: 223
+         Index Searches: 1
+         Buffers: shared hit=9 read=3
+ Planning:
+   Buffers: shared hit=36
+ Planning Time: 0.120 ms
+ Execution Time: 0.101 ms
+(11 rows)
+
+ROLLBACK;
+ROLLBACK

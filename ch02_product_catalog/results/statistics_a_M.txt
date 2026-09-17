@@ -1,0 +1,43 @@
+# 採取日時: 2026-09-18 08:19:29 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- run-as: book_owner
+-- 色とサイズは「衣料のときだけ両方に値が入る」ので、独立ではない。
+-- 列の組の統計（拡張統計）を足すと、見積もりがどう変わるかを見る。
+-- ほかの測定に影響しないように、最後に ROLLBACK で元に戻す
+BEGIN;
+BEGIN
+CREATE STATISTICS products_color_size (mcv) ON color, size FROM ch02_a.products;
+CREATE STATISTICS
+ANALYZE ch02_a.products;
+ANALYZE
+EXPLAIN (ANALYZE)
+SELECT id
+FROM products
+WHERE color = 'black' AND size = 'M';
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=1866.76..17028.26 rows=72033 width=8) (actual time=5.350..28.043 rows=71884.00 loops=1)
+   Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
+   Heap Blocks: exact=14004
+   Buffers: shared read=14282 written=4
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1848.75 rows=72033 width=0) (actual time=3.829..3.829 rows=71884.00 loops=1)
+         Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
+         Index Searches: 1
+         Buffers: shared read=278
+ Planning:
+   Buffers: shared hit=27 read=3
+ Planning Time: 0.164 ms
+ Execution Time: 30.159 ms
+(12 rows)
+
+ROLLBACK;
+ROLLBACK

@@ -1,0 +1,109 @@
+# 採取日時: 2026-09-18 08:19:31 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- run-as: book_owner
+-- GIN インデックスの 2 つの種類（演算子クラス）で、サイズと、使える検索を比べる
+\timing on
+Timing is on.
+BEGIN;
+BEGIN
+Time: 0.086 ms
+CREATE INDEX products_attrs_ops ON ch02_b.products USING gin (attrs);  -- 既定は jsonb_ops
+CREATE INDEX
+Time: 2312.791 ms (00:02.313)
+SELECT pg_size_pretty(pg_relation_size('ch02_b.products_attrs_ops'))  AS jsonb_ops,
+       pg_size_pretty(pg_relation_size('ch02_b.products_attrs_path')) AS jsonb_path_ops;
+ jsonb_ops | jsonb_path_ops 
+-----------+----------------
+ 39 MB     | 31 MB
+(1 row)
+
+Time: 0.383 ms
+-- ?（そのキーを持つか）は jsonb_ops だけが使える
+EXPLAIN (ANALYZE) SELECT id FROM products WHERE attrs ? 'noise_db';
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=276.05..25932.63 rows=38325 width=8) (actual time=3.555..31.661 rows=29937.00 loops=1)
+   Recheck Cond: (attrs ? 'noise_db'::text)
+   Heap Blocks: exact=17313
+   Buffers: shared hit=12 read=17313 written=428
+   ->  Bitmap Index Scan on products_attrs_ops  (cost=0.00..266.47 rows=38325 width=0) (actual time=1.818..1.818 rows=29937.00 loops=1)
+         Index Cond: (attrs ? 'noise_db'::text)
+         Index Searches: 1
+         Buffers: shared hit=12
+ Planning:
+   Buffers: shared hit=74 read=5
+ Planning Time: 0.198 ms
+ Execution Time: 32.512 ms
+(12 rows)
+
+Time: 33.079 ms
+DROP INDEX ch02_b.products_attrs_ops;
+DROP INDEX
+Time: 0.368 ms
+EXPLAIN (ANALYZE) SELECT id FROM products WHERE attrs ? 'noise_db';
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..34194.83 rows=38325 width=8) (actual time=0.173..42.259 rows=29937.00 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=11267 read=12887 written=2
+   ->  Parallel Seq Scan on products  (cost=0.00..29362.33 rows=15969 width=8) (actual time=0.061..38.334 rows=9979.00 loops=3)
+         Filter: (attrs ? 'noise_db'::text)
+         Rows Removed by Filter: 323354
+         Buffers: shared hit=11267 read=12887 written=2
+ Planning:
+   Buffers: shared hit=3
+ Planning Time: 0.073 ms
+ Execution Time: 43.206 ms
+(12 rows)
+
+Time: 43.511 ms
+-- 数値の大小の比較は、どちらの GIN でも使えない
+EXPLAIN (ANALYZE) SELECT id FROM products WHERE attrs @? '$.watt ? (@ == 1400)';
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=17.60..380.91 rows=95 width=8) (actual time=0.243..2.762 rows=685.00 loops=1)
+   Recheck Cond: (attrs @? '$."watt"?(@ == 1400)'::jsonpath)
+   Heap Blocks: exact=676
+   Buffers: shared hit=367 read=313 written=213
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..17.57 rows=95 width=0) (actual time=0.069..0.069 rows=685.00 loops=1)
+         Index Cond: (attrs @? '$."watt"?(@ == 1400)'::jsonpath)
+         Index Searches: 1
+         Buffers: shared hit=1 read=3 written=3
+ Planning:
+   Buffers: shared hit=6 read=1 written=1
+ Planning Time: 0.101 ms
+ Execution Time: 2.796 ms
+(12 rows)
+
+Time: 3.205 ms
+EXPLAIN (ANALYZE) SELECT id FROM products WHERE attrs @? '$.watt ? (@ > 1400)';
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..30371.83 rows=95 width=8) (actual time=0.226..53.324 rows=6625.00 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=11859 read=12295 written=282
+   ->  Parallel Seq Scan on products  (cost=0.00..29362.33 rows=40 width=8) (actual time=0.142..49.920 rows=2208.33 loops=3)
+         Filter: (attrs @? '$."watt"?(@ > 1400)'::jsonpath)
+         Rows Removed by Filter: 331125
+         Buffers: shared hit=11859 read=12295 written=282
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.053 ms
+ Execution Time: 53.600 ms
+(12 rows)
+
+Time: 53.840 ms
+ROLLBACK;
+ROLLBACK
+Time: 2.902 ms

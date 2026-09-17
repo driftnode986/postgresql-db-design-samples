@@ -1,5 +1,5 @@
 -- 属性を 1 つだけ更新したときに書かれる WAL（変更の記録）の量。衣料の先頭 1,000 商品の素材を変える。
--- 同じ更新を 2 回行い、2 回目を見る。1 回目は、チェックポイントの後で初めて触るページを丸ごと
+-- 同じ更新を 2 回行い、2 回目を見る。1 回目は、チェックポイントの後で初めて変更するページの全体を
 -- WAL に書く（wal_fpi）ので、その分が上乗せされる
 SELECT pg_stat_force_next_flush();
 SELECT pg_current_wal_insert_lsn() AS lsn0, wal_records AS rec0, wal_fpi AS fpi0

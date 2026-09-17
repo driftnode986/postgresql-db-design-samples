@@ -27,7 +27,6 @@ save "source$T.txt" source_data
 build() { local p="$1" d; d="$(dir_of "$p")"
   run book_owner "ch02_$p" "$D/$d/schema.sql"
   run book_owner "ch02_$p" "$D/$d/load.sql"
-  run book_app   "ch02_$p" "$D/queries/90_sizes.sql"
 }
 # 実行計画は 3 回取る（本文に載せるのは Execution Time が中央値の回）
 explain3() { local p="$1" d f; d="$(dir_of "$p")"
@@ -37,12 +36,15 @@ explain3() { local p="$1" d f; d="$(dir_of "$p")"
   for f in "$D/$d"/queries/2[0-9]_*.sql; do run book_app "ch02_$p" "$f"; done
 }
 
-for p in a b c; do
-  save "load_${p}$T.txt"    build "$p"
-  save "explain_${p}$T.txt" explain3 "$p"
-done
+# 案A〜C の結果は 1 つのファイルにまとめる（比較図が、1 つの測定ログから数値を取るため）
+for p in a b c; do save "load_${p}$T.txt" build "$p"; done
+all_sizes()   { local p; for p in a b c; do echo "#### ch02_$p"; run book_app "ch02_$p" "$D/queries/90_sizes.sql"; done; }
+all_explain() { local p; for p in a b c; do echo "#### ch02_$p"; explain3 "$p"; done; }
+save "sizes$T.txt"   all_sizes
+save "explain$T.txt" all_explain
 save "statistics_a$T.txt" run book_owner ch02_a $D/a_columns/queries/30_extended_statistics.sql
 save "statistics_b$T.txt" run book_owner ch02_b $D/b_jsonb/queries/30_extended_statistics.sql
+save "copy_created_at_c$T.txt" run book_owner ch02_c $D/c_child_tables/queries/40_copy_created_at.sql
 save "gin_sizes$T.txt"    run book_owner ch02_b $D/b_jsonb/queries/40_gin_sizes.sql
 
 generated() {
@@ -67,6 +69,7 @@ run book_owner ch02_b $D/b_jsonb/load.sql > /dev/null
 eav() {
   SIZE=S run book_owner ch02_r $D/r_source/schema_20_generate.sql
   SIZE=S build d
+  SIZE=S run book_app ch02_d "$D/queries/90_sizes.sql"
   SIZE=S explain3 d
 }
 save "eav_S.txt" eav

@@ -27,7 +27,9 @@ WHERE relation = 'ch02_b.products'::regclass AND pid = pg_backend_pid();
 COMMIT;
 
 -- 3. 絞り込めるようにする。@> の検索なら、いまある GIN インデックスがそのまま使われる（0 文）。
---    ただし、全商品が持つキーを条件に入れると、GIN はその全商品ぶんの項目を読む
+--    ただし、全商品が持つキーを条件に入れると、GIN はその全商品ぶんの項目を読む。
+--    比べるのは Bitmap Index Scan の時間。先に 1 回実行して、読むページを共有バッファに載せておく
+SELECT count(*) FROM products WHERE attrs @> '{"color": "teal"}';
 EXPLAIN (ANALYZE)
 SELECT id FROM products WHERE attrs @> '{"color": "teal"}';
 EXPLAIN (ANALYZE)
