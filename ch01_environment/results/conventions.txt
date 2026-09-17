@@ -1,0 +1,111 @@
+# 採取日時: 2026-09-18 02:42:41 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+## 01_serial_manual.sql [book_app]
+-- serial の列には、値を手で指定して入れられる
+INSERT INTO t_ser (id, v) VALUES (1, 'manual');
+INSERT 0 1
+## 02_serial_auto_fails.sql [book_app]
+-- expect-error: 23505
+-- 次に値を省いて入れると、シーケンスが 1 を出して主キーが衝突する
+INSERT INTO t_ser (v) VALUES ('auto');
+psql:/tmp/run-sql-30179.sql:3: ERROR:  duplicate key value violates unique constraint "t_ser_pkey"
+DETAIL:  Key (id)=(1) already exists.
+## 03_identity_manual_fails.sql [book_app]
+-- expect-error: 428C9
+-- GENERATED ALWAYS の列は、値を手で指定した時点で拒否される
+INSERT INTO t_idn (id, v) VALUES (1, 'manual');
+psql:/tmp/run-sql-30190.sql:3: ERROR:  cannot insert a non-DEFAULT value into column "id"
+DETAIL:  Column "id" is an identity column defined as GENERATED ALWAYS.
+HINT:  Use OVERRIDING SYSTEM VALUE to override.
+## 04_guest_serial_fails.sql [book_guest]
+-- run-as: book_guest
+-- expect-error: permission denied for sequence
+-- INSERT の権限だけでは足りない。serial の裏にあるシーケンスの権限が別に要る
+INSERT INTO t_ser (v) VALUES ('guest');
+psql:/tmp/run-sql-30201.sql:4: ERROR:  permission denied for sequence t_ser_id_seq
+## 05_guest_identity.sql [book_guest]
+-- run-as: book_guest
+-- IDENTITY の列は、INSERT の権限だけで入れられる
+INSERT INTO t_idn (v) VALUES ('guest');
+INSERT 0 1
+## 06_like.sql [book_owner]
+-- run-as: book_owner
+-- テーブルの定義を写して、新しいテーブルを作る
+CREATE TABLE ch01.t_ser_copy (LIKE ch01.t_ser INCLUDING ALL);
+CREATE TABLE
+CREATE TABLE ch01.t_idn_copy (LIKE ch01.t_idn INCLUDING ALL);
+CREATE TABLE
+-- 写したテーブルの id が、どのシーケンスから値を取るか
+SELECT c.relname AS table_name, pg_get_expr(d.adbin, d.adrelid) AS id_default,
+       pg_get_serial_sequence('ch01.' || c.relname, 'id') AS own_sequence
+FROM pg_class c
+LEFT JOIN pg_attrdef d ON d.adrelid = c.oid
+WHERE c.relname IN ('t_ser_copy', 't_idn_copy') AND c.relkind = 'r'
+ORDER BY c.relname;
+ table_name |            id_default             |      own_sequence      
+------------+-----------------------------------+------------------------
+ t_idn_copy |                                   | ch01.t_idn_copy_id_seq
+ t_ser_copy | nextval('t_ser_id_seq'::regclass) | 
+(2 rows)
+
+## 07_drop_serial_fails.sql [book_owner]
+-- run-as: book_owner
+-- expect-error: 2BP01
+-- 写した側が元のシーケンスを使っているので、元のテーブルを消せない
+DROP TABLE ch01.t_ser;
+psql:/tmp/run-sql-30234.sql:4: ERROR:  cannot drop table t_ser because other objects depend on it
+DETAIL:  default value for column id of table t_ser_copy depends on sequence t_ser_id_seq
+HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+## 08_uuidv7.sql [book_app]
+-- UUIDv7 の値からは、作られた時刻が読める。UUIDv4 からは読めない
+SELECT uuid_extract_version(u) AS version,
+       uuid_extract_timestamp(u) AS created_at
+FROM (SELECT uuidv7() AS u) AS s;
+ version |         created_at         
+---------+----------------------------
+       7 | 2026-09-17 17:42:43.611+00
+(1 row)
+
+SELECT uuid_extract_timestamp(uuidv4()) AS created_at;
+ created_at 
+------------
+ 
+(1 row)
+
+## 09_generated.sql [book_owner]
+-- run-as: book_owner
+-- 生成列の 3 つの書き方。STORED も VIRTUAL も書かないと、どちらになるか
+CREATE TABLE ch01.t_gen (
+  price           int NOT NULL,
+  qty             int NOT NULL,
+  amount_default  int GENERATED ALWAYS AS (price * qty),
+  amount_virtual  int GENERATED ALWAYS AS (price * qty) VIRTUAL,
+  amount_stored   int GENERATED ALWAYS AS (price * qty) STORED
+);
+CREATE TABLE
+-- attgenerated が v なら仮想、s なら保存
+SELECT attname, attgenerated
+FROM pg_attribute
+WHERE attrelid = 'ch01.t_gen'::regclass AND attgenerated <> ''
+ORDER BY attnum;
+    attname     | attgenerated 
+----------------+--------------
+ amount_default | v
+ amount_virtual | v
+ amount_stored  | s
+(3 rows)
+
+## 10_index_virtual_fails.sql [book_owner]
+-- run-as: book_owner
+-- expect-error: indexes on virtual generated columns are not supported
+CREATE INDEX ON ch01.t_gen (amount_default);
+psql:/tmp/run-sql-30267.sql:3: ERROR:  indexes on virtual generated columns are not supported

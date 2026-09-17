@@ -1,0 +1,46 @@
+# 採取日時: 2026-09-18 02:47:19 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+DROP DATABASE IF EXISTS book_ext
+NOTICE:  database "book_ext" does not exist, skipping
+CREATE DATABASE book_ext
+CREATE SCHEMA ext;
+CREATE SCHEMA
+CREATE EXTENSION btree_gist SCHEMA ext;
+CREATE EXTENSION
+CREATE EXTENSION ltree SCHEMA ext;
+CREATE EXTENSION
+CREATE SCHEMA trial;
+CREATE SCHEMA
+SET search_path = trial, public;
+SET
+-- ext は search_path に無い。btree_gist の演算子クラスは見つかるか
+CREATE TABLE resv (
+  room_id int, period tstzrange,
+  PRIMARY KEY (room_id, period WITHOUT OVERLAPS));
+CREATE TABLE
+-- ltree の型は見つかるか
+SELECT 'a.b'::ltree;
+psql:/tmp/ext_placement.sql:11: ERROR:  type "ltree" does not exist
+LINE 1: SELECT 'a.b'::ltree;
+                      ^
+SELECT 'a.b.c'::ext.ltree <@ 'a.b'::ext.ltree;
+psql:/tmp/ext_placement.sql:12: ERROR:  operator does not exist: ext.ltree <@ ext.ltree
+LINE 1: SELECT 'a.b.c'::ext.ltree <@ 'a.b'::ext.ltree;
+                                  ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+SELECT 'a.b.c'::ext.ltree OPERATOR(ext.<@) 'a.b'::ext.ltree AS is_descendant;
+ is_descendant 
+---------------
+ t
+(1 row)
+
+DROP DATABASE book_ext

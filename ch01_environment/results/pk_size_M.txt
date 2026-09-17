@@ -1,0 +1,40 @@
+# 採取日時: 2026-09-18 02:57:50 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 親子 4 テーブルの合計を、主キーの型ごとに比べる
+SELECT split_part(relname, '_', 1) AS pk_type,
+       sum(pg_relation_size(oid)) AS heap_bytes,
+       sum(pg_indexes_size(oid))  AS index_bytes,
+       sum(pg_total_relation_size(oid)) AS total_bytes,
+       pg_size_pretty(sum(pg_total_relation_size(oid))) AS total
+FROM pg_class
+WHERE relnamespace = 'ch01'::regnamespace AND relkind = 'r'
+  AND relname ~ '^(b|u7|u4)_(orders|items|payments|shipments)$'
+GROUP BY 1
+ORDER BY total_bytes;
+ pk_type | heap_bytes | index_bytes | total_bytes | total  
+---------+------------+-------------+-------------+--------
+ b       |   61046784 |    45989888 |   107167744 | 102 MB
+ u7      |   78708736 |    62382080 |   141230080 | 135 MB
+ u4      |   78708736 |    82337792 |   161185792 | 154 MB
+(3 rows)
+
+-- 明細の主キーのインデックスの、葉のページの充填率
+SELECT 'b_items' AS table_name, avg_leaf_density FROM pgstatindex('b_items_pkey')
+UNION ALL SELECT 'u7_items', avg_leaf_density FROM pgstatindex('u7_items_pkey')
+UNION ALL SELECT 'u4_items', avg_leaf_density FROM pgstatindex('u4_items_pkey');
+ table_name | avg_leaf_density 
+------------+------------------
+ b_items    |               90
+ u7_items   |            89.98
+ u4_items   |            72.02
+(3 rows)
+

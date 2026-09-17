@@ -1,0 +1,30 @@
+# 採取日時: 2026-09-18 02:57:32 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- テナント 1 として数える。テナント 1 の行は 2 行
+SET app.tenant_id = '1';
+SET
+SELECT current_user, count(*) FROM docs;
+ current_user | count 
+--------------+-------
+ book_app     |     2
+(1 row)
+
+-- run-as: book_owner
+-- テナント 1 として数える。テナント 1 の行は 2 行
+SET app.tenant_id = '1';
+SET
+SELECT current_user, count(*) FROM docs;
+ current_user | count 
+--------------+-------
+ book_owner   |     3
+(1 row)
+

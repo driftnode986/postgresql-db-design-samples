@@ -1,0 +1,55 @@
+# 採取日時: 2026-09-18 02:57:51 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 変更の手数を 4 点で記録する: 文の数、テーブルの書き換えの有無、取るロック、所要時間。
+-- 書き換えの有無は、テーブルのファイル番号（pg_relation_filenode）が変わったかで分かる。
+-- 全体を 1 つのトランザクションで行い、最後に ROLLBACK する。列を足して消すだけでも
+-- テーブルに跡が残り、ほかの測定のサイズが変わるため。
+\timing on
+Timing is on.
+SELECT pg_relation_filenode('ch01.order_items') AS filenode_before \gset
+Time: 0.364 ms
+BEGIN;
+BEGIN
+Time: 0.088 ms
+-- 変更1: 固定の既定値を持つ列を足す
+ALTER TABLE ch01.order_items ADD COLUMN gift boolean NOT NULL DEFAULT false;
+ALTER TABLE
+Time: 0.929 ms
+SELECT mode FROM pg_locks
+WHERE relation = 'ch01.order_items'::regclass AND pid = pg_backend_pid();
+        mode         
+---------------------
+ AccessExclusiveLock
+(1 row)
+
+Time: 0.730 ms
+SELECT pg_relation_filenode('ch01.order_items') = :filenode_before AS not_rewritten;
+ not_rewritten 
+---------------
+ t
+(1 row)
+
+Time: 0.093 ms
+-- 変更2: 行ごとに値が変わる既定値を持つ列を足す
+ALTER TABLE ch01.order_items ADD COLUMN public_id uuid NOT NULL DEFAULT uuidv7();
+ALTER TABLE
+Time: 1136.530 ms (00:01.137)
+SELECT pg_relation_filenode('ch01.order_items') = :filenode_before AS not_rewritten;
+ not_rewritten 
+---------------
+ f
+(1 row)
+
+Time: 0.153 ms
+ROLLBACK;
+ROLLBACK
+Time: 5.772 ms

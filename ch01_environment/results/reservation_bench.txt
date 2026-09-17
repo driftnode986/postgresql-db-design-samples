@@ -1,0 +1,196 @@
+# 採取日時: 2026-09-18 02:48:05 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+## run 1 / book_check
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_check.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 977810
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.327 ms
+initial connection time = 6.977 ms
+tps = 48897.846901 (without initial connection time)
+## run 1 / book_excl
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_excl.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 575369
+number of failed transactions: 1 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 1 (0.000%)
+latency average = 0.556 ms (including failures)
+initial connection time = 6.310 ms
+tps = 28770.499898 (without initial connection time)
+## run 1 / overlaps
+ resv_check | 337528 |       10
+ resv_excl  | 227652 |        0
+(2 rows)
+
+## run 2 / book_check
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_check.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 1087771
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.294 ms
+initial connection time = 5.612 ms
+tps = 54391.228768 (without initial connection time)
+## run 2 / book_excl
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_excl.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 376446
+number of failed transactions: 15 (0.004%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 15 (0.004%)
+latency average = 0.877 ms (including failures)
+initial connection time = 6.583 ms
+tps = 18250.837974 (without initial connection time)
+## run 2 / overlaps
+ resv_check | 365203 |       13
+ resv_excl  | 164314 |        0
+(2 rows)
+
+## run 3 / book_check
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_check.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 977389
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.327 ms
+initial connection time = 5.730 ms
+tps = 48870.420078 (without initial connection time)
+## run 3 / book_excl
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_excl.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 569299
+number of failed transactions: 13 (0.002%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 13 (0.002%)
+latency average = 0.724 ms (including failures)
+initial connection time = 6.078 ms
+tps = 22086.551579 (without initial connection time)
+## run 3 / overlaps
+ resv_check | 336948 |       17
+ resv_excl  | 225654 |        0
+(2 rows)
+
+## run 4 / book_check
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_check.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 1314743
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.243 ms
+initial connection time = 5.402 ms
+tps = 65740.732870 (without initial connection time)
+## run 4 / book_excl
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_excl.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 655994
+number of failed transactions: 6 (0.001%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 6 (0.001%)
+latency average = 0.502 ms (including failures)
+initial connection time = 5.295 ms
+tps = 31886.796947 (without initial connection time)
+## run 4 / overlaps
+ resv_check | 419243 |       11
+ resv_excl  | 251092 |        0
+(2 rows)
+
+## run 5 / book_check
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_check.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 1307857
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.245 ms
+initial connection time = 5.921 ms
+tps = 65399.952435 (without initial connection time)
+## run 5 / book_excl
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch01_bench/book_excl.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 482969
+number of failed transactions: 8 (0.002%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 8 (0.002%)
+latency average = 0.948 ms (including failures)
+initial connection time = 5.721 ms
+tps = 16876.944883 (without initial connection time)
+## run 5 / overlaps
+ resv_check | 417863 |       14
+ resv_excl  | 198859 |        0
+(2 rows)
+
