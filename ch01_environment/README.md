@@ -16,7 +16,7 @@ SIZE=S bash scripts/run-sql.sh book_owner ch01 ch01_environment/load_pk_size.sql
 # 3. 全章共通の規約の確認（ファイル名の番号順。先頭のコメントの run-as がロール）
 bash scripts/run-sql.sh book_app ch01 ch01_environment/conv/01_serial_manual.sql
 
-# 4. 測定の結果を results/ に取り直す（M で測る。数分かかる）
+# 4. 測定の結果を results/ に取り直す（order_items と主キーの比較を M で入れ直して測る。数分かかる）
 bash ch01_environment/run_measure.sh
 
 # 5. やり直すときは、この章のスキーマだけを消す

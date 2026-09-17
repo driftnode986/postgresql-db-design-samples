@@ -1,5 +1,12 @@
 -- 親の行数。SIZE=S は 2 万、M は 20 万、L は 100 万。子は親 1 行につき明細 3・支払い 1・出荷 1
-SELECT CASE :'size' WHEN 'S' THEN 20000 WHEN 'M' THEN 200000 ELSE 1000000 END AS n \gset
+SELECT CASE :'size' WHEN 'S' THEN 20000 WHEN 'M' THEN 200000
+                    WHEN 'L' THEN 1000000 END AS n \gset
+SELECT :n AS rows_to_load;   -- S・M・L 以外なら、ここで構文エラーになって止まる（何も消さない）
+
+-- 入れ直しても行が増えないように、先に空にする
+TRUNCATE ch01.b_orders, ch01.b_items, ch01.b_payments, ch01.b_shipments,
+  ch01.u7_orders, ch01.u7_items, ch01.u7_payments, ch01.u7_shipments,
+  ch01.u4_orders, ch01.u4_items, ch01.u4_payments, ch01.u4_shipments RESTART IDENTITY;
 
 -- 3 組に同じ手順で入れる。親を時刻順に入れ、子は親の時刻順に入れる（挿入順を固定する）
 INSERT INTO ch01.b_orders (ordered_at)

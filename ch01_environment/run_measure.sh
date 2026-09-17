@@ -45,6 +45,7 @@ if [ "${WITH_L:-0}" = "1" ]; then
   SIZE=M run book_owner ch01 $D/load_order_items.sql > /dev/null
 fi
 
+SIZE=M run book_owner ch01 $D/load_pk_size.sql > /dev/null   # 親 20 万行を入れ直してから測る
 save pk_size_M.txt run book_app ch01 $D/queries/40_pk_size.sql
 save change.txt    run book_owner ch01 $D/change/01_add_columns.sql
 SIZE=M run book_owner ch01 $D/load_order_items.sql > /dev/null   # 書き換えた後のテーブルを作り直す

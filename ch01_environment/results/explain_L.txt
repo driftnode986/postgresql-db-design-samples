@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 03:06:38 +0900
+# 採取日時: 2026-09-18 03:23:17 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -10,17 +10,24 @@
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
 -- SIZE=S は 10 万行、M は 100 万行、L は 500 万行（L は shared_buffers の 128MB を超える量）
-SELECT CASE :'size' WHEN 'S' THEN 100000 WHEN 'M' THEN 1000000 ELSE 5000000 END AS n \gset
+SELECT CASE :'size' WHEN 'S' THEN 100000 WHEN 'M' THEN 1000000
+                    WHEN 'L' THEN 5000000 END AS n \gset
+SELECT :n AS rows_to_load;   -- S・M・L 以外なら、ここで構文エラーになって止まる（何も消さない）
+ rows_to_load 
+--------------
+      5000000
+(1 row)
+
 \timing on
 Timing is on.
 -- インデックスは、データを入れた後に作り直す。付けたまま入れると、同じデータでも
 -- インデックスのサイズが大きくなる（指標2 で確かめる）
 DROP INDEX IF EXISTS ch01.order_items_product_idx;
 DROP INDEX
-Time: 3.718 ms
-TRUNCATE ch01.order_items;
+Time: 4.186 ms
+TRUNCATE ch01.order_items RESTART IDENTITY;
 TRUNCATE TABLE
-Time: 6.328 ms
+Time: 7.343 ms
 -- 乱数の種を固定する。同じ種なら、同じセッションでは同じ乱数の並びになる
 SELECT setseed(0.42);
  setseed 
@@ -28,7 +35,7 @@ SELECT setseed(0.42);
  
 (1 row)
 
-Time: 0.207 ms
+Time: 0.215 ms
 -- power(random(), 3) で、番号の小さい商品に注文を集中させる（1 万商品）
 INSERT INTO ch01.order_items (product_id, qty, ordered_at)
 SELECT 1 + floor(power(random(), 3) * 10000)::int,
@@ -36,14 +43,14 @@ SELECT 1 + floor(power(random(), 3) * 10000)::int,
        '2026-01-01 00:00+09'::timestamptz + g * interval '1 second'
 FROM generate_series(1, :n) AS g;
 INSERT 0 5000000
-Time: 5250.212 ms (00:05.250)
+Time: 5344.524 ms (00:05.345)
 CREATE INDEX order_items_product_idx
   ON ch01.order_items (product_id, ordered_at);
 CREATE INDEX
-Time: 1454.390 ms (00:01.454)
+Time: 1752.614 ms (00:01.753)
 VACUUM (ANALYZE) ch01.order_items;
 VACUUM
-Time: 419.780 ms
+Time: 445.901 ms
 -- 保存サイズ。テーブル本体、インデックス、合計を分けて見る
 SELECT pg_size_pretty(pg_relation_size('order_items'))       AS heap,
        pg_size_pretty(pg_indexes_size('order_items'))        AS indexes,
@@ -69,26 +76,26 @@ FROM order_items
 GROUP BY product_id;
                                                                      QUERY PLAN                                                                     
 ----------------------------------------------------------------------------------------------------------------------------------------------------
- Finalize HashAggregate  (cost=66412.50..66500.84 rows=8834 width=12) (actual time=241.812..242.481 rows=10000.00 loops=1)
+ Finalize HashAggregate  (cost=66420.04..66508.67 rows=8863 width=12) (actual time=235.044..235.689 rows=10000.00 loops=1)
    Group Key: product_id
    Batches: 1  Memory Usage: 793kB
-   Buffers: shared hit=15819 read=16029 written=93
-   ->  Gather  (cost=64097.95..66306.49 rows=21202 width=12) (actual time=236.203..238.315 rows=30000.00 loops=1)
+   Buffers: shared hit=13985 read=17863
+   ->  Gather  (cost=64097.95..66313.68 rows=21271 width=12) (actual time=230.065..231.964 rows=30000.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=15819 read=16029 written=93
-         ->  Partial HashAggregate  (cost=63097.95..63186.29 rows=8834 width=12) (actual time=234.633..235.336 rows=10000.00 loops=3)
+         Buffers: shared hit=13985 read=17863
+         ->  Partial HashAggregate  (cost=63097.95..63186.58 rows=8863 width=12) (actual time=228.807..229.434 rows=10000.00 loops=3)
                Group Key: product_id
                Batches: 1  Memory Usage: 793kB
-               Buffers: shared hit=15819 read=16029 written=93
+               Buffers: shared hit=13985 read=17863
                Worker 0:  Batches: 1  Memory Usage: 793kB
                Worker 1:  Batches: 1  Memory Usage: 793kB
-               ->  Parallel Seq Scan on order_items  (cost=0.00..52681.30 rows=2083330 width=8) (actual time=0.100..65.949 rows=1666666.67 loops=3)
-                     Buffers: shared hit=15819 read=16029 written=93
+               ->  Parallel Seq Scan on order_items  (cost=0.00..52681.30 rows=2083330 width=8) (actual time=0.088..64.038 rows=1666666.67 loops=3)
+                     Buffers: shared hit=13985 read=17863
  Planning:
    Buffers: shared hit=119 read=6
- Planning Time: 0.657 ms
- Execution Time: 242.956 ms
+ Planning Time: 0.314 ms
+ Execution Time: 236.234 ms
 (20 rows)
 
 ## run 2
@@ -99,26 +106,26 @@ FROM order_items
 GROUP BY product_id;
                                                                      QUERY PLAN                                                                     
 ----------------------------------------------------------------------------------------------------------------------------------------------------
- Finalize HashAggregate  (cost=66412.50..66500.84 rows=8834 width=12) (actual time=233.765..234.442 rows=10000.00 loops=1)
+ Finalize HashAggregate  (cost=66420.04..66508.67 rows=8863 width=12) (actual time=234.285..234.966 rows=10000.00 loops=1)
    Group Key: product_id
    Batches: 1  Memory Usage: 793kB
-   Buffers: shared hit=15831 read=16017 written=270
-   ->  Gather  (cost=64097.95..66306.49 rows=21202 width=12) (actual time=228.580..230.561 rows=30000.00 loops=1)
+   Buffers: shared hit=14267 read=17581
+   ->  Gather  (cost=64097.95..66313.68 rows=21271 width=12) (actual time=229.230..231.208 rows=30000.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=15831 read=16017 written=270
-         ->  Partial HashAggregate  (cost=63097.95..63186.29 rows=8834 width=12) (actual time=227.069..227.704 rows=10000.00 loops=3)
+         Buffers: shared hit=14267 read=17581
+         ->  Partial HashAggregate  (cost=63097.95..63186.58 rows=8863 width=12) (actual time=227.713..228.360 rows=10000.00 loops=3)
                Group Key: product_id
                Batches: 1  Memory Usage: 793kB
-               Buffers: shared hit=15831 read=16017 written=270
+               Buffers: shared hit=14267 read=17581
                Worker 0:  Batches: 1  Memory Usage: 793kB
                Worker 1:  Batches: 1  Memory Usage: 793kB
-               ->  Parallel Seq Scan on order_items  (cost=0.00..52681.30 rows=2083330 width=8) (actual time=0.214..63.451 rows=1666666.67 loops=3)
-                     Buffers: shared hit=15831 read=16017 written=270
+               ->  Parallel Seq Scan on order_items  (cost=0.00..52681.30 rows=2083330 width=8) (actual time=0.092..64.221 rows=1666666.67 loops=3)
+                     Buffers: shared hit=14267 read=17581
  Planning:
    Buffers: shared hit=125
- Planning Time: 0.261 ms
- Execution Time: 234.937 ms
+ Planning Time: 0.235 ms
+ Execution Time: 235.467 ms
 (20 rows)
 
 ## run 3
@@ -129,25 +136,25 @@ FROM order_items
 GROUP BY product_id;
                                                                      QUERY PLAN                                                                     
 ----------------------------------------------------------------------------------------------------------------------------------------------------
- Finalize HashAggregate  (cost=66412.50..66500.84 rows=8834 width=12) (actual time=238.896..239.573 rows=10000.00 loops=1)
+ Finalize HashAggregate  (cost=66420.04..66508.67 rows=8863 width=12) (actual time=237.574..238.235 rows=10000.00 loops=1)
    Group Key: product_id
    Batches: 1  Memory Usage: 793kB
-   Buffers: shared hit=15933 read=15915 written=180
-   ->  Gather  (cost=64097.95..66306.49 rows=21202 width=12) (actual time=233.595..235.600 rows=30000.00 loops=1)
+   Buffers: shared hit=14549 read=17299
+   ->  Gather  (cost=64097.95..66313.68 rows=21271 width=12) (actual time=232.314..234.327 rows=30000.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=15933 read=15915 written=180
-         ->  Partial HashAggregate  (cost=63097.95..63186.29 rows=8834 width=12) (actual time=231.824..232.473 rows=10000.00 loops=3)
+         Buffers: shared hit=14549 read=17299
+         ->  Partial HashAggregate  (cost=63097.95..63186.58 rows=8863 width=12) (actual time=230.868..231.500 rows=10000.00 loops=3)
                Group Key: product_id
                Batches: 1  Memory Usage: 793kB
-               Buffers: shared hit=15933 read=15915 written=180
+               Buffers: shared hit=14549 read=17299
                Worker 0:  Batches: 1  Memory Usage: 793kB
                Worker 1:  Batches: 1  Memory Usage: 793kB
-               ->  Parallel Seq Scan on order_items  (cost=0.00..52681.30 rows=2083330 width=8) (actual time=0.131..65.326 rows=1666666.67 loops=3)
-                     Buffers: shared hit=15933 read=15915 written=180
+               ->  Parallel Seq Scan on order_items  (cost=0.00..52681.30 rows=2083330 width=8) (actual time=0.098..64.772 rows=1666666.67 loops=3)
+                     Buffers: shared hit=14549 read=17299
  Planning:
    Buffers: shared hit=125
- Planning Time: 0.310 ms
- Execution Time: 240.249 ms
+ Planning Time: 0.252 ms
+ Execution Time: 238.807 ms
 (20 rows)
 
