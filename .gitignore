@@ -1,0 +1,24 @@
+# シークレット（一度コミットすると履歴に残り続ける）
+.env
+.envrc
+*.pem
+*.key
+credentials
+.pgpass
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+!*.tfvars.example
+
+# データベースのダンプと一時ファイル（データは SQL で生成する。ダンプや CSV を配らない）
+*.dump
+*.sql.gz
+*.csv.gz
+tmp/
+
+# エディタと OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

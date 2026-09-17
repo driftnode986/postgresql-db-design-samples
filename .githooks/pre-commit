@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# コミット前の検査。有効にするには: git config core.hooksPath .githooks
+# このファイルには実行権が要る（無いと git は黙って無視する）: chmod +x .githooks/pre-commit
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 1
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "NG: gitleaks が無い。シークレットの検査をせずにコミットしない（brew install gitleaks）" >&2
+  exit 1
+fi
+gitleaks protect --staged --no-banner || { echo "NG: シークレットの疑いがある" >&2; exit 1; }
+bash scripts/check-schema-isolation.sh || exit 1

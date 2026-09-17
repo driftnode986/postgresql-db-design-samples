@@ -1,0 +1,13 @@
+# gitleaks の設定。既定の規則をそのまま使い、学習用の固定パスワードだけを許可する。
+# 使い方: gitleaks detect --no-banner            （全履歴）
+#         gitleaks protect --staged --no-banner  （コミット前）
+[extend]
+useDefault = true
+
+[allowlist]
+description = "ローカルの学習用コンテナ専用の、ロール名と同じパスワード"
+regexes = [
+  '''book_admin''',
+  '''book_owner''',
+  '''book_app''',
+]
