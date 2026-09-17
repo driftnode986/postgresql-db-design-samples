@@ -1,0 +1,72 @@
+# 採取日時: 2026-09-18 03:06:04 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+CREATE TABLE ch01.items_trace (LIKE ch01.order_items INCLUDING ALL);
+CREATE TABLE
+INSERT INTO ch01.items_trace (product_id, qty, ordered_at)
+SELECT product_id, qty, ordered_at FROM ch01.order_items ORDER BY id;
+INSERT 0 1000000
+SELECT pg_size_pretty(pg_relation_size('ch01.items_trace')) AS heap_before;
+ heap_before 
+-------------
+ 50 MB
+(1 row)
+
+-- 列を 2 つ足して、すぐに消す（確定させる）。これを 3 回繰り返す
+ALTER TABLE ch01.items_trace ADD COLUMN gift boolean NOT NULL DEFAULT false;
+ALTER TABLE
+ALTER TABLE ch01.items_trace ADD COLUMN public_id uuid NOT NULL DEFAULT uuidv7();
+ALTER TABLE
+ALTER TABLE ch01.items_trace DROP COLUMN gift, DROP COLUMN public_id;
+ALTER TABLE
+ALTER TABLE ch01.items_trace ADD COLUMN gift boolean NOT NULL DEFAULT false;
+ALTER TABLE
+ALTER TABLE ch01.items_trace ADD COLUMN public_id uuid NOT NULL DEFAULT uuidv7();
+ALTER TABLE
+ALTER TABLE ch01.items_trace DROP COLUMN gift, DROP COLUMN public_id;
+ALTER TABLE
+ALTER TABLE ch01.items_trace ADD COLUMN gift boolean NOT NULL DEFAULT false;
+ALTER TABLE
+ALTER TABLE ch01.items_trace ADD COLUMN public_id uuid NOT NULL DEFAULT uuidv7();
+ALTER TABLE
+ALTER TABLE ch01.items_trace DROP COLUMN gift, DROP COLUMN public_id;
+ALTER TABLE
+-- 同じデータを入れ直す
+TRUNCATE ch01.items_trace;
+TRUNCATE TABLE
+INSERT INTO ch01.items_trace (product_id, qty, ordered_at)
+SELECT product_id, qty, ordered_at FROM ch01.order_items ORDER BY id;
+INSERT 0 1000000
+SELECT pg_size_pretty(pg_relation_size('ch01.items_trace')) AS heap_after;
+ heap_after 
+------------
+ 57 MB
+(1 row)
+
+-- 消した列は、カタログに残っている
+SELECT attnum, attname, attisdropped FROM pg_attribute
+WHERE attrelid = 'ch01.items_trace'::regclass AND attnum > 0 ORDER BY attnum;
+ attnum |            attname            | attisdropped 
+--------+-------------------------------+--------------
+      1 | id                            | f
+      2 | product_id                    | f
+      3 | qty                           | f
+      4 | ordered_at                    | f
+      5 | ........pg.dropped.5........  | t
+      6 | ........pg.dropped.6........  | t
+      7 | ........pg.dropped.7........  | t
+      8 | ........pg.dropped.8........  | t
+      9 | ........pg.dropped.9........  | t
+     10 | ........pg.dropped.10........ | t
+(10 rows)
+
+DROP TABLE ch01.items_trace;
+DROP TABLE

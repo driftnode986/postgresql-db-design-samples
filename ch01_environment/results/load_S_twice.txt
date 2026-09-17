@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 02:57:33 +0900
+# 採取日時: 2026-09-18 03:06:31 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -13,23 +13,22 @@
 SELECT CASE :'size' WHEN 'S' THEN 100000 WHEN 'M' THEN 1000000 ELSE 5000000 END AS n \gset
 \timing on
 Timing is on.
--- インデックスは、データを入れた後に作り直す。付けたまま入れると、葉のページの充填率が
--- 変わり、サイズの測定値が実行のたびに違ってしまう
+-- インデックスは、データを入れた後に作り直す。付けたまま入れると、同じデータでも
+-- インデックスのサイズが大きくなる（指標2 で確かめる）
 DROP INDEX IF EXISTS ch01.order_items_product_idx;
-psql:/tmp/run-sql-50692.sql:7: NOTICE:  index "order_items_product_idx" does not exist, skipping
 DROP INDEX
-Time: 0.170 ms
+Time: 2.894 ms
 TRUNCATE ch01.order_items;
 TRUNCATE TABLE
-Time: 1.487 ms
--- 乱数の種を固定する。同じ種なら、同じセッションでは同じ列が出る
+Time: 6.801 ms
+-- 乱数の種を固定する。同じ種なら、同じセッションでは同じ乱数の並びになる
 SELECT setseed(0.42);
  setseed 
 ---------
  
 (1 row)
 
-Time: 0.186 ms
+Time: 0.203 ms
 -- power(random(), 3) で、番号の小さい商品に注文を集中させる（1 万商品）
 INSERT INTO ch01.order_items (product_id, qty, ordered_at)
 SELECT 1 + floor(power(random(), 3) * 10000)::int,
@@ -37,14 +36,14 @@ SELECT 1 + floor(power(random(), 3) * 10000)::int,
        '2026-01-01 00:00+09'::timestamptz + g * interval '1 second'
 FROM generate_series(1, :n) AS g;
 INSERT 0 100000
-Time: 112.239 ms
+Time: 111.437 ms
 CREATE INDEX order_items_product_idx
   ON ch01.order_items (product_id, ordered_at);
 CREATE INDEX
-Time: 27.751 ms
+Time: 29.324 ms
 VACUUM (ANALYZE) ch01.order_items;
 VACUUM
-Time: 19.398 ms
+Time: 19.926 ms
 -- 生成したデータが毎回同じかを、行数と内容のハッシュで確かめる
 SELECT count(*) AS rows,
        md5(string_agg(product_id::text || ':' || qty::text, ',' ORDER BY id)) AS content_hash
@@ -58,22 +57,22 @@ FROM order_items;
 SELECT CASE :'size' WHEN 'S' THEN 100000 WHEN 'M' THEN 1000000 ELSE 5000000 END AS n \gset
 \timing on
 Timing is on.
--- インデックスは、データを入れた後に作り直す。付けたまま入れると、葉のページの充填率が
--- 変わり、サイズの測定値が実行のたびに違ってしまう
+-- インデックスは、データを入れた後に作り直す。付けたまま入れると、同じデータでも
+-- インデックスのサイズが大きくなる（指標2 で確かめる）
 DROP INDEX IF EXISTS ch01.order_items_product_idx;
 DROP INDEX
-Time: 1.549 ms
+Time: 1.537 ms
 TRUNCATE ch01.order_items;
 TRUNCATE TABLE
-Time: 1.947 ms
--- 乱数の種を固定する。同じ種なら、同じセッションでは同じ列が出る
+Time: 2.091 ms
+-- 乱数の種を固定する。同じ種なら、同じセッションでは同じ乱数の並びになる
 SELECT setseed(0.42);
  setseed 
 ---------
  
 (1 row)
 
-Time: 0.181 ms
+Time: 0.199 ms
 -- power(random(), 3) で、番号の小さい商品に注文を集中させる（1 万商品）
 INSERT INTO ch01.order_items (product_id, qty, ordered_at)
 SELECT 1 + floor(power(random(), 3) * 10000)::int,
@@ -81,14 +80,14 @@ SELECT 1 + floor(power(random(), 3) * 10000)::int,
        '2026-01-01 00:00+09'::timestamptz + g * interval '1 second'
 FROM generate_series(1, :n) AS g;
 INSERT 0 100000
-Time: 108.008 ms
+Time: 110.497 ms
 CREATE INDEX order_items_product_idx
   ON ch01.order_items (product_id, ordered_at);
 CREATE INDEX
-Time: 26.384 ms
+Time: 27.844 ms
 VACUUM (ANALYZE) ch01.order_items;
 VACUUM
-Time: 18.869 ms
+Time: 19.000 ms
 -- 生成したデータが毎回同じかを、行数と内容のハッシュで確かめる
 SELECT count(*) AS rows,
        md5(string_agg(product_id::text || ':' || qty::text, ',' ORDER BY id)) AS content_hash
