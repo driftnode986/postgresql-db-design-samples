@@ -7,5 +7,12 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   echo "NG: gitleaks が無い。シークレットの検査をせずにコミットしない（brew install gitleaks）" >&2
   exit 1
 fi
+# コミットの作者が、このリポジトリ用の設定になっていること（別のリポジトリの設定を引き継いだままコミットしない）
+EXPECTED_EMAIL="272237248+driftnode986@users.noreply.github.com"
+ACTUAL_EMAIL="$(git config user.email || true)"
+if [ "$ACTUAL_EMAIL" != "$EXPECTED_EMAIL" ]; then
+  echo "NG: user.email が $EXPECTED_EMAIL ではない（現在: ${ACTUAL_EMAIL:-未設定}）" >&2
+  exit 1
+fi
 gitleaks protect --staged --no-banner || { echo "NG: シークレットの疑いがある" >&2; exit 1; }
 bash scripts/check-schema-isolation.sh || exit 1
