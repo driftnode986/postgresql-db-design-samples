@@ -6,8 +6,8 @@
 #       bash scripts/run-sql.sh book_app   ch06_c ch06_reservation/queries/find_free.sql -v size=M
 #
 # 実行のしかたを固定している理由（どちらも実機で確かめた事故）:
-#   - 標準入力で流したり -t を付けずに流したりすると、標準出力だけがバッファされ、
-#     ERROR の行が次の文の表示より後ろにずれる。docker cp でファイルを入れ、-t を付けて流す
+#   - 標準入力で流したり -t を付けずに流したりすると、docker exec 越しでは標準出力と標準エラーの
+#     順序が保証されず、ERROR の行が次の文の表示より後ろにずれる。docker cp でファイルを入れ、-t を付けて流す
 #   - -t を付けると psql のページャが起動して止まる。-P pager=off を必ず付ける
 #   - -t を付けると行末に CR が付くので取り除く（結果を results/ に保存して比べるため）
 #
