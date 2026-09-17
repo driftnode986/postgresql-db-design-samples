@@ -8,7 +8,7 @@ TRUNCATE ch02_r.src;
 DROP TABLE IF EXISTS ch02_r.draw;
 SELECT setseed(0.42);
 
--- 1 商品につき乱数を 19 個引いて、下書きのテーブルに置く。
+-- 1 商品につき乱数を 19 個引いて、作業用のテーブルに置く。
 -- k は種類、c・s・m は必ず持つ属性、p1〜p7 は「その属性を持つか」、v1〜v7 はその値に使う
 CREATE TABLE ch02_r.draw AS
 SELECT g AS id,

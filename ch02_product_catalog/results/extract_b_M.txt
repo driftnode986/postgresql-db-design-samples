@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:20:39 +0900
+# 採取日時: 2026-09-18 08:41:40 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -11,7 +11,7 @@
 # work_mem = 4096 kB
 -- あとで変えるのが大変な点: jsonb に入れた属性（color）を、通常の列へ取り出す。
 -- テーブルを止めずにできるが、全行を 2 回更新するので、総サイズが一時的に大きくなる。
--- 必須の項目の CHECK が attrs の中の color を見ているので、制約も置き換える
+-- 必須の属性の CHECK が attrs の中の color を見ているので、制約も置き換える
 \timing on
 Timing is on.
 SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_before;
@@ -20,40 +20,44 @@ SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_before
  262 MB
 (1 row)
 
-Time: 0.918 ms
+Time: 0.741 ms
 ALTER TABLE ch02_b.products ADD COLUMN color text;
 ALTER TABLE
-Time: 2.227 ms
+Time: 2.817 ms
 UPDATE ch02_b.products SET color = attrs->>'color' WHERE attrs ? 'color';
 UPDATE 600000
-Time: 4071.109 ms (00:04.071)
+Time: 3838.548 ms (00:03.839)
+-- 新しい制約は NOT VALID で足し、既存の行の検査は VALIDATE で別に行う（読み書きを止めないため）
 ALTER TABLE ch02_b.products
   DROP CONSTRAINT apparel_required,
-  ADD CONSTRAINT apparel_required CHECK (kind <> 'apparel'
-    OR (color IS NOT NULL AND attrs ?& ARRAY['size', 'material']));
+  ADD CONSTRAINT apparel_required_2 CHECK (kind <> 'apparel'
+    OR (color IS NOT NULL AND attrs ?& ARRAY['size', 'material'])) NOT VALID;
 ALTER TABLE
-Time: 418.344 ms
+Time: 1.029 ms
+ALTER TABLE ch02_b.products VALIDATE CONSTRAINT apparel_required_2;
+ALTER TABLE
+Time: 376.719 ms
 UPDATE ch02_b.products SET attrs = attrs - 'color' WHERE attrs ? 'color';
 UPDATE 600000
-Time: 3767.405 ms (00:03.767)
+Time: 3849.619 ms (00:03.850)
 SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_after;
  total_after 
 -------------
  529 MB
 (1 row)
 
-Time: 0.192 ms
+Time: 0.226 ms
 -- 元に戻す。テーブルが大きくなったままなので、測定を続けるときは load.sql で入れ直す
 UPDATE ch02_b.products SET attrs = attrs || jsonb_build_object('color', color)
 WHERE color IS NOT NULL;
 UPDATE 600000
-Time: 4870.766 ms (00:04.871)
+Time: 4699.064 ms (00:04.699)
 ALTER TABLE ch02_b.products
-  DROP CONSTRAINT apparel_required,
+  DROP CONSTRAINT apparel_required_2,
   ADD CONSTRAINT apparel_required CHECK (kind <> 'apparel'
     OR attrs ?& ARRAY['color', 'size', 'material']);
 ALTER TABLE
-Time: 377.905 ms
+Time: 351.473 ms
 ALTER TABLE ch02_b.products DROP COLUMN color;
 ALTER TABLE
-Time: 0.604 ms
+Time: 0.527 ms

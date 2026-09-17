@@ -15,7 +15,7 @@ TRUNCATE ch02_a.products RESTART IDENTITY;
 -- id を指定して入れるので OVERRIDING SYSTEM VALUE が要る
 INSERT INTO ch02_a.products OVERRIDING SYSTEM VALUE
 SELECT * FROM ch02_r.src ORDER BY id;
--- id を指定して入れても、自動採番の続きは進まない。最大の id に合わせる
+-- id を指定して入れても、シーケンスは進まない。最大の id に合わせる
 SELECT setval(pg_get_serial_sequence('ch02_a.products', 'id'),
               (SELECT max(id) FROM ch02_a.products));
 

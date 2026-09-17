@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:19:29 +0900
+# 採取日時: 2026-09-18 08:40:32 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -25,18 +25,18 @@ FROM products
 WHERE color = 'black' AND size = 'M';
                                                                     QUERY PLAN                                                                    
 --------------------------------------------------------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=1866.76..17028.26 rows=72033 width=8) (actual time=5.350..28.043 rows=71884.00 loops=1)
+ Bitmap Heap Scan on products  (cost=1872.47..17036.47 rows=72200 width=8) (actual time=5.572..27.652 rows=71884.00 loops=1)
    Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
    Heap Blocks: exact=14004
-   Buffers: shared read=14282 written=4
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1848.75 rows=72033 width=0) (actual time=3.829..3.829 rows=71884.00 loops=1)
+   Buffers: shared hit=255 read=14027
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1854.42 rows=72200 width=0) (actual time=4.222..4.222 rows=71884.00 loops=1)
          Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
          Index Searches: 1
          Buffers: shared read=278
  Planning:
-   Buffers: shared hit=27 read=3
- Planning Time: 0.164 ms
- Execution Time: 30.159 ms
+   Buffers: shared hit=25 read=3
+ Planning Time: 0.123 ms
+ Execution Time: 29.895 ms
 (12 rows)
 
 ROLLBACK;

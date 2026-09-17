@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:19:11 +0900
+# 採取日時: 2026-09-18 08:40:10 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,7 +9,7 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
--- 案C: 共通の項目を親テーブルに、種類ごとの項目を子テーブルに分ける。
+-- 案C: 共通の項目を親テーブルに、種類ごとの属性を子テーブルに分ける。
 -- 子テーブルの主キーは、親の id を指す外部キーを兼ねる
 CREATE SCHEMA ch02_c;
 CREATE SCHEMA
@@ -54,20 +54,20 @@ DO
 \timing on
 Timing is on.
 DROP INDEX IF EXISTS ch02_c.products_created, ch02_c.apparel_color_size;
-psql:/tmp/run-sql-6510.sql:10: NOTICE:  index "products_created" does not exist, skipping
-psql:/tmp/run-sql-6510.sql:10: NOTICE:  index "apparel_color_size" does not exist, skipping
+psql:/tmp/run-sql-21194.sql:10: NOTICE:  index "products_created" does not exist, skipping
+psql:/tmp/run-sql-21194.sql:10: NOTICE:  index "apparel_color_size" does not exist, skipping
 DROP INDEX
-Time: 0.146 ms
+Time: 0.124 ms
 TRUNCATE ch02_c.products RESTART IDENTITY CASCADE;
-psql:/tmp/run-sql-6510.sql:11: NOTICE:  truncate cascades to table "apparel"
-psql:/tmp/run-sql-6510.sql:11: NOTICE:  truncate cascades to table "appliance"
-psql:/tmp/run-sql-6510.sql:11: NOTICE:  truncate cascades to table "book"
+psql:/tmp/run-sql-21194.sql:11: NOTICE:  truncate cascades to table "apparel"
+psql:/tmp/run-sql-21194.sql:11: NOTICE:  truncate cascades to table "appliance"
+psql:/tmp/run-sql-21194.sql:11: NOTICE:  truncate cascades to table "book"
 TRUNCATE TABLE
-Time: 3.971 ms
+Time: 3.229 ms
 INSERT INTO ch02_c.products OVERRIDING SYSTEM VALUE
 SELECT id, kind, name, price, created_at FROM ch02_r.src ORDER BY id;
 INSERT 0 1000000
-Time: 1100.628 ms (00:01.101)
+Time: 1062.157 ms (00:01.062)
 SELECT setval(pg_get_serial_sequence('ch02_c.products', 'id'),
               (SELECT max(id) FROM ch02_c.products));
  setval  
@@ -75,31 +75,31 @@ SELECT setval(pg_get_serial_sequence('ch02_c.products', 'id'),
  1000000
 (1 row)
 
-Time: 0.912 ms
+Time: 0.745 ms
 INSERT INTO ch02_c.apparel
 SELECT id, color, size, material, season, fit, sleeve_cm, length_cm, chest_cm,
        weight_g, pockets
 FROM ch02_r.src WHERE kind = 'apparel' ORDER BY id;
 INSERT 0 600000
-Time: 2522.602 ms (00:02.523)
+Time: 2547.715 ms (00:02.548)
 INSERT INTO ch02_c.appliance
 SELECT id, watt, voltage, warranty_months, width_mm, depth_mm, height_mm,
        weight_kg, noise_db, cord_cm, energy_rank
 FROM ch02_r.src WHERE kind = 'appliance' ORDER BY id;
 INSERT 0 99799
-Time: 506.691 ms
+Time: 468.090 ms
 INSERT INTO ch02_c.book
 SELECT id, author, isbn, pages, publisher, published_year, edition, series_no,
        thickness_mm, age_from, chapters
 FROM ch02_r.src WHERE kind = 'book' ORDER BY id;
 INSERT 0 300201
-Time: 1196.030 ms (00:01.196)
+Time: 1186.211 ms (00:01.186)
 CREATE INDEX products_created ON ch02_c.products (created_at DESC);
 CREATE INDEX
-Time: 151.738 ms
+Time: 154.095 ms
 CREATE INDEX apparel_color_size ON ch02_c.apparel (color, size);
 CREATE INDEX
-Time: 402.761 ms
+Time: 392.836 ms
 VACUUM (ANALYZE) ch02_c.products, ch02_c.apparel, ch02_c.appliance, ch02_c.book;
 VACUUM
-Time: 362.854 ms
+Time: 328.620 ms

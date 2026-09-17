@@ -1,6 +1,6 @@
 -- run-as: book_owner
--- 仮想の生成列にはインデックスを付けられないが、同じ式の式インデックスは使われる。
--- 仮想の生成列には統計が無いので、式インデックスを作ったあとに ANALYZE して式の統計を取る
+-- VIRTUAL の生成列にはインデックスを付けられないが、同じ式の式インデックスは使われる。
+-- VIRTUAL の生成列には統計が無いので、式インデックスを作ったあとに ANALYZE して式の統計を取る
 BEGIN;
 ALTER TABLE ch02_b.products
   ADD COLUMN color text GENERATED ALWAYS AS (attrs->>'color') VIRTUAL,

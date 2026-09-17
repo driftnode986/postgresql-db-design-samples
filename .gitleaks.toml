@@ -10,4 +10,5 @@ regexes = [
   '''book_admin''',
   '''book_owner''',
   '''book_app''',
+  '''^[a-z_0-9]+\.[a-z_0-9]+$''',   # EXPLAIN の Memoize ノードが出す「Cache Key: 別名.列名」。API キーではない
 ]

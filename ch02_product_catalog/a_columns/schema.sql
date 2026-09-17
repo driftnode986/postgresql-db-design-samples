@@ -19,7 +19,7 @@ CREATE TABLE ch02_a.products (
   author text, isbn text, pages int,
   publisher text, published_year int, edition int, series_no int,
   thickness_mm int, age_from int, chapters int,
-  -- 種類ごとの必須の項目
+  -- 種類ごとの必須の属性
   CONSTRAINT apparel_required CHECK (kind <> 'apparel'
     OR (color IS NOT NULL AND size IS NOT NULL AND material IS NOT NULL)),
   CONSTRAINT appliance_required CHECK (kind <> 'appliance'

@@ -33,7 +33,7 @@ explain3() { local p="$1" d f; d="$(dir_of "$p")"
   for f in "$D/$d"/queries/1[0-9]_*.sql; do
     for i in 1 2 3; do echo "## $(basename "$f") run $i"; run book_app "ch02_$p" "$f"; done
   done
-  for f in "$D/$d"/queries/2[0-9]_*.sql; do run book_app "ch02_$p" "$f"; done
+  for f in "$D/$d"/queries/2[01]_*.sql; do run book_app "ch02_$p" "$f"; done
 }
 
 # 案A〜C の結果は 1 つのファイルにまとめる（比較図が、1 つの測定ログから数値を取るため）
@@ -42,6 +42,8 @@ all_sizes()   { local p; for p in a b c; do echo "#### ch02_$p"; run book_app "c
 all_explain() { local p; for p in a b c; do echo "#### ch02_$p"; explain3 "$p"; done; }
 save "sizes$T.txt"   all_sizes
 save "explain$T.txt" all_explain
+all_stability() { local p; for p in a b c; do echo "#### ch02_$p"; run book_owner "ch02_$p" "$D/$(dir_of "$p")/queries/25_estimate_stability.sql"; done; }
+save "stability$T.txt" all_stability
 save "statistics_a$T.txt" run book_owner ch02_a $D/a_columns/queries/30_extended_statistics.sql
 save "statistics_b$T.txt" run book_owner ch02_b $D/b_jsonb/queries/30_extended_statistics.sql
 save "copy_created_at_c$T.txt" run book_owner ch02_c $D/c_child_tables/queries/40_copy_created_at.sql

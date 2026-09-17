@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:19:40 +0900
+# 採取日時: 2026-09-18 08:40:43 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -10,7 +10,7 @@
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
 -- 属性を 1 つだけ更新したときに書かれる WAL（変更の記録）の量。衣料の先頭 1,000 商品の素材を変える。
--- 同じ更新を 2 回行い、2 回目を見る。1 回目は、チェックポイントの後で初めて触るページを丸ごと
+-- 同じ更新を 2 回行い、2 回目を見る。1 回目は、チェックポイントの後で初めて変更するページの全体を
 -- WAL に書く（wal_fpi）ので、その分が上乗せされる
 SELECT pg_stat_force_next_flush();
  pg_stat_force_next_flush 
@@ -47,6 +47,6 @@ SELECT pg_wal_lsn_diff(:'lsn1', :'lsn0') AS first_bytes,
 FROM pg_stat_wal;
  first_bytes | first_records | first_fpi | second_bytes | second_records | second_fpi 
 -------------+---------------+-----------+--------------+----------------+------------
-     1212024 |          5095 |       100 |       507920 |           5076 |         10
+     1205168 |          5094 |       100 |       507920 |           5076 |         10
 (1 row)
 
