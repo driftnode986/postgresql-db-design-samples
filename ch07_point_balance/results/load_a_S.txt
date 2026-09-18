@@ -1,0 +1,310 @@
+# 採取日時: 2026-09-19 05:13:50 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案A: 残高の列を持たず、付与ロットの残りを合計して残高とする
+--
+-- 採取した案（opus）がこの形だった。残高を保存する場所が 1 か所しか無いので、
+-- 「残高の列」と「取引の合計」が食い違うことが原理的に起きない。
+--
+-- 残高 = SUM(remaining) WHERE remaining > 0 AND expires_at > now()
+--
+-- 期限切れは、問い合わせの WHERE で落ちるので、失効のバッチを回さなくても残高は正しい。
+CREATE SCHEMA ch07_a;
+CREATE SCHEMA
+-- 付与 1 回 = 1 行。granted は付与時の額（変えない）、remaining は現在の残り
+CREATE TABLE ch07_a.point_lots (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  granted    bigint      NOT NULL CHECK (granted > 0),
+  remaining  bigint      NOT NULL CHECK (remaining >= 0),
+  expires_at timestamptz NOT NULL,
+  granted_at timestamptz NOT NULL,
+  CONSTRAINT point_lots_remaining_le_granted CHECK (remaining <= granted)
+);
+CREATE TABLE
+-- 残高の合計にも、期限の近い順の消し込みにも、この 1 本が効く。
+-- 🔴 fefo = First-Expire-First-Out（期限が近い順）。
+--    fifo（付与の古い順）ではない。付与順に使うと、期限の近いポイントが失効する
+CREATE INDEX point_lots_fefo
+  ON ch07_a.point_lots (user_id, expires_at, id)
+  WHERE remaining > 0;
+CREATE INDEX
+-- 何がいつ起きたかの台帳。残高の計算には使わない（説明のために残す）
+CREATE TABLE ch07_a.point_txns (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  kind       text        NOT NULL CHECK (kind IN ('grant', 'use')),
+  amount     bigint      NOT NULL CHECK (amount > 0),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE INDEX point_txns_user ON ch07_a.point_txns (user_id, id);
+CREATE INDEX
+-- どの利用が、どのロットからいくら引いたか。「なぜこの残高か」を復元できる
+CREATE TABLE ch07_a.lot_consumptions (
+  txn_id bigint NOT NULL REFERENCES ch07_a.point_txns(id),
+  lot_id bigint NOT NULL REFERENCES ch07_a.point_lots(id),
+  taken  bigint NOT NULL CHECK (taken > 0),
+  PRIMARY KEY (txn_id, lot_id)
+);
+CREATE TABLE
+GRANT SELECT, INSERT, UPDATE
+  ON ch07_a.point_lots, ch07_a.point_txns, ch07_a.lot_consumptions TO book_app;
+GRANT
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch07_a TO book_app;
+GRANT
+-- 案A の付与と利用。
+--
+-- 🔴 利用の関数で最も大事なのは「引けた合計が要求額に届いたか」を検査することである。
+--    CHECK (remaining >= 0) はロット 1 行ごとの制約なので、「合計が足りない」を捕まえない。
+--    検査を落とすと、残高より多く使おうとしたとき、エラーにならず引ける分だけ引いて成功する。
+CREATE FUNCTION ch07_a.grant_points(p_uid bigint, p_amt bigint, p_expires timestamptz)
+RETURNS bigint LANGUAGE sql AS $$
+  WITH t AS (
+    INSERT INTO ch07_a.point_txns (user_id, kind, amount)
+    VALUES (p_uid, 'grant', p_amt)
+    RETURNING id
+  ), l AS (
+    INSERT INTO ch07_a.point_lots (user_id, granted, remaining, expires_at, granted_at)
+    VALUES (p_uid, p_amt, p_amt, p_expires, now())
+    RETURNING id
+  )
+  SELECT t.id FROM t, l;
+$$;
+CREATE FUNCTION
+-- 期限の近い順（FEFO）に消し込む。
+-- 窓関数でロットの残りの累計を出し、必要分に届くまでのロットから引く量を決めて、1 文で引く。
+CREATE FUNCTION ch07_a.use_points(p_uid bigint, p_amt bigint)
+RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+  v_txn_id bigint;
+  v_taken  bigint;
+BEGIN
+  INSERT INTO ch07_a.point_txns (user_id, kind, amount)
+  VALUES (p_uid, 'use', p_amt)
+  RETURNING id INTO v_txn_id;
+
+  WITH cand AS (
+    -- 期限の近い順に並べ、自分より前のロットの残りの累計を持つ
+    SELECT l.id, l.remaining,
+           coalesce(sum(l.remaining) OVER (ORDER BY l.expires_at, l.id
+             ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before_sum
+    FROM ch07_a.point_lots AS l
+    WHERE l.user_id = p_uid AND l.remaining > 0 AND l.expires_at > now()
+  ), pick AS (
+    -- 前までの累計が要求額に届いていないロットだけが対象。
+    -- そのロットから引く量は「残り」と「要求額のうちまだ埋まっていない分」の小さいほう
+    SELECT c.id, least(c.remaining, p_amt - c.before_sum) AS take
+    FROM cand AS c
+    WHERE c.before_sum < p_amt
+  ), upd AS (
+    UPDATE ch07_a.point_lots AS l
+    SET remaining = l.remaining - p.take
+    FROM pick AS p
+    WHERE l.id = p.id
+    RETURNING l.id, p.take
+  )
+  INSERT INTO ch07_a.lot_consumptions (txn_id, lot_id, taken)
+  SELECT v_txn_id, id, take FROM upd;
+
+  SELECT coalesce(sum(taken), 0) INTO v_taken
+  FROM ch07_a.lot_consumptions WHERE txn_id = v_txn_id;
+
+  -- 🔴 この検査が本体。ロットごとの CHECK では「合計が足りない」を捕まえられない
+  IF v_taken < p_amt THEN
+    RAISE EXCEPTION 'insufficient points: wanted %, taken %', p_amt, v_taken
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN true;
+EXCEPTION
+  WHEN check_violation THEN
+    RETURN false;
+END $$;
+CREATE FUNCTION
+-- 残高。ロットの残りを合計する
+CREATE FUNCTION ch07_a.balance_of(p_uid bigint)
+RETURNS bigint LANGUAGE sql STABLE AS $$
+  SELECT coalesce(sum(remaining), 0)
+  FROM ch07_a.point_lots
+  WHERE user_id = p_uid AND remaining > 0 AND expires_at > now();
+$$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch07_a.grant_points(bigint, bigint, timestamptz),
+                          ch07_a.use_points(bigint, bigint),
+                          ch07_a.balance_of(bigint) TO book_app;
+GRANT
+-- 元データを写す。
+-- 🔴 案ごとに別々に生成すると乱数が変わって比較にならないので、ch07_r から ORDER BY id で写す。
+SELECT count(*) AS src_rows FROM ch07_r.src_txn \gset
+SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch07_a.lot_consumptions, ch07_a.point_txns, ch07_a.point_lots
+  RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 2.638 ms
+-- 台帳は付与も利用もそのまま写す
+INSERT INTO ch07_a.point_txns (id, user_id, kind, amount, created_at)
+OVERRIDING SYSTEM VALUE
+SELECT id, user_id, kind, amount, created_at
+FROM ch07_r.src_txn ORDER BY id;
+INSERT 0 101000
+Time: 202.424 ms
+SELECT setval(pg_get_serial_sequence('ch07_a.point_txns', 'id'),
+              (SELECT max(id) FROM ch07_a.point_txns));
+ setval 
+--------
+ 101000
+(1 row)
+
+Time: 0.619 ms
+-- ロットは付与の行から作る。
+-- 🔴 ここでは remaining = granted のまま入れる（まだ何も使っていない状態）。
+--    利用ぶんの消し込みは、測定の前に 10_consume_initial.sql でまとめて行う。
+--    投入と消し込みを分けるのは、投入時間そのものを案ごとに比べるためである
+INSERT INTO ch07_a.point_lots (id, user_id, granted, remaining, expires_at, granted_at)
+OVERRIDING SYSTEM VALUE
+SELECT id, user_id, amount, amount, expires_at, created_at
+FROM ch07_r.src_txn WHERE kind = 'grant' ORDER BY id;
+INSERT 0 60921
+Time: 147.282 ms
+SELECT setval(pg_get_serial_sequence('ch07_a.point_lots', 'id'),
+              (SELECT max(id) FROM ch07_a.point_lots));
+ setval 
+--------
+ 101000
+(1 row)
+
+Time: 0.435 ms
+ANALYZE ch07_a.point_lots, ch07_a.point_txns, ch07_a.lot_consumptions;
+ANALYZE
+Time: 54.801 ms
+SELECT count(*) AS lots, sum(remaining) AS total_remaining FROM ch07_a.point_lots;
+ lots  | total_remaining 
+-------+-----------------
+ 60921 |        52936400
+(1 row)
+
+Time: 2.967 ms
+-- 元データの利用を、案A の消し込みで実際に適用する。
+--
+-- 🔴 これをやらないと、ロットの残りは付与したままになり、案C（取引の合計）と残高が食い違う。
+--    食い違いの原因が「設計の違い」なのか「投入の手抜き」なのか分からなくなるので、
+--    測定の前に必ず適用する。
+--
+-- 利用は元データの順（id 順）に適用する。案B も同じ順で適用するので、
+-- どちらの案も「同じ履歴をたどった結果」になる。
+\timing on
+Timing is on.
+DO $$
+DECLARE
+  r record;
+  v_ok boolean;
+  v_fail bigint := 0;
+BEGIN
+  FOR r IN SELECT id, user_id, amount FROM ch07_r.src_txn
+           WHERE kind = 'use' ORDER BY id
+  LOOP
+    -- 台帳は load.sql で写し済みなので、ここではロットだけを引く
+    WITH cand AS (
+      SELECT l.id, l.remaining,
+             coalesce(sum(l.remaining) OVER (ORDER BY l.expires_at, l.id
+               ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before_sum
+      FROM ch07_a.point_lots AS l
+      WHERE l.user_id = r.user_id AND l.remaining > 0 AND l.expires_at > now()
+    ), pick AS (
+      SELECT c.id, least(c.remaining, r.amount - c.before_sum) AS take
+      FROM cand AS c WHERE c.before_sum < r.amount
+    ), upd AS (
+      UPDATE ch07_a.point_lots AS l
+      SET remaining = l.remaining - p.take
+      FROM pick AS p WHERE l.id = p.id
+      RETURNING l.id, p.take
+    )
+    INSERT INTO ch07_a.lot_consumptions (txn_id, lot_id, taken)
+    SELECT r.id, id, take FROM upd;
+
+    SELECT coalesce(sum(taken), 0) = r.amount INTO v_ok
+    FROM ch07_a.lot_consumptions WHERE txn_id = r.id;
+    IF NOT v_ok THEN v_fail := v_fail + 1; END IF;
+  END LOOP;
+
+  RAISE NOTICE '引ききれなかった利用: % 件', v_fail;
+  -- 🔴 1 件でもあれば元データが破綻している。測定に進ませない
+  IF v_fail > 0 THEN
+    RAISE EXCEPTION '元データの利用を引ききれない: % 件', v_fail;
+  END IF;
+END $$;
+psql:/tmp/run-sql.sql:49: NOTICE:  引ききれなかった利用: 0 件
+DO
+Time: 75511.413 ms (01:15.511)
+ANALYZE ch07_a.point_lots, ch07_a.lot_consumptions;
+ANALYZE
+Time: 44.760 ms
+SELECT count(*) AS consumptions, sum(taken) AS total_taken
+FROM ch07_a.lot_consumptions;
+ consumptions | total_taken 
+--------------+-------------
+        43094 |     2211770
+(1 row)
+
+Time: 1.822 ms
+-- 案A の検査。🔴 返す全行の先頭列が 0 であること（0 でなければ検証スクリプトが FAIL にする）
+-- 残りが負のロットは無いか（CHECK があるので 0 のはず。制約が効いていることの確認）
+SELECT count(*) AS negative_remaining FROM ch07_a.point_lots WHERE remaining < 0;
+ negative_remaining 
+--------------------
+                  0
+(1 row)
+
+-- 残りが付与額を超えるロットは無いか
+SELECT count(*) AS remaining_over_granted
+FROM ch07_a.point_lots WHERE remaining > granted;
+ remaining_over_granted 
+------------------------
+                      0
+(1 row)
+
+-- 引いた合計と、ロットの減った量が一致するか
+SELECT count(*) AS lot_consumption_mismatch
+FROM (
+  SELECT l.id
+  FROM ch07_a.point_lots AS l
+  LEFT JOIN (
+    SELECT lot_id, sum(taken) AS taken FROM ch07_a.lot_consumptions GROUP BY lot_id
+  ) AS c ON c.lot_id = l.id
+  WHERE l.granted - l.remaining <> coalesce(c.taken, 0)
+) AS t;
+ lot_consumption_mismatch 
+--------------------------
+                        0
+(1 row)
+
+-- 利用の台帳と、引いた合計が一致するか（引ききれていない利用が無いか）
+SELECT count(*) AS use_not_fully_taken
+FROM (
+  SELECT t.id
+  FROM ch07_a.point_txns AS t
+  LEFT JOIN (
+    SELECT txn_id, sum(taken) AS taken FROM ch07_a.lot_consumptions GROUP BY txn_id
+  ) AS c ON c.txn_id = t.id
+  WHERE t.kind = 'use' AND coalesce(c.taken, 0) <> t.amount
+) AS t;
+ use_not_fully_taken 
+---------------------
+                   0
+(1 row)
+

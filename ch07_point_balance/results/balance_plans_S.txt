@@ -1,0 +1,139 @@
+# 採取日時: 2026-09-19 05:16:36 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 残高照会の実行計画を 4 案で比べる。
+--
+-- 🔴 読むべきは時間ではなく形である。時間は環境で変わるが、
+--    実行計画のノードの種類・読んだページ数（Buffers）・ワーカー数は変わらない。
+--
+-- 会員は「取引の多い会員」と「取引の少ない会員」の 2 人を選ぶ。
+-- 同じ表の中で 1 人あたりの件数だけが違うので、件数の効果だけを見られる。
+\timing on
+Timing is on.
+-- 対象の会員を決める。取引の最も多い会員と、最も少ない会員
+SELECT user_id AS heavy_user FROM ch07_c.point_txns
+GROUP BY user_id ORDER BY count(*) DESC LIMIT 1 \gset
+Time: 11.744 ms
+SELECT user_id AS light_user FROM ch07_c.point_txns
+GROUP BY user_id ORDER BY count(*) ASC LIMIT 1 \gset
+Time: 9.783 ms
+SELECT :heavy_user AS heavy_user,
+       (SELECT count(*) FROM ch07_c.point_txns WHERE user_id = :heavy_user) AS heavy_txns,
+       :light_user AS light_user,
+       (SELECT count(*) FROM ch07_c.point_txns WHERE user_id = :light_user) AS light_txns;
+ heavy_user | heavy_txns | light_user | light_txns 
+------------+------------+------------+------------
+          4 |       8160 |        680 |          8
+(1 row)
+
+Time: 1.655 ms
+\echo '=== 案A: ロットの残りを合計する（取引の多い会員） ==='
+=== 案A: ロットの残りを合計する（取引の多い会員） ===
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF)
+SELECT coalesce(sum(remaining), 0) FROM ch07_a.point_lots
+WHERE user_id = :heavy_user AND remaining > 0 AND expires_at > now();
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Aggregate (actual rows=1.00 loops=1)
+   Buffers: shared hit=583
+   ->  Bitmap Heap Scan on point_lots (actual rows=2923.00 loops=1)
+         Recheck Cond: ((user_id = 4) AND (expires_at > now()) AND (remaining > 0))
+         Heap Blocks: exact=559
+         Buffers: shared hit=583
+         ->  Bitmap Index Scan on point_lots_fefo (actual rows=2923.00 loops=1)
+               Index Cond: ((user_id = 4) AND (expires_at > now()))
+               Index Searches: 1
+               Buffers: shared hit=24
+ Planning:
+   Buffers: shared hit=68
+ Planning Time: 0.213 ms
+ Execution Time: 1.270 ms
+(14 rows)
+
+Time: 1.785 ms
+\echo '=== 案B: 残高の列を 1 行読む（取引の多い会員） ==='
+=== 案B: 残高の列を 1 行読む（取引の多い会員） ===
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF)
+SELECT balance FROM ch07_b.point_balances WHERE user_id = :heavy_user;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Index Scan using point_balances_pkey on point_balances (actual rows=1.00 loops=1)
+   Index Cond: (user_id = 4)
+   Index Searches: 1
+   Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=21
+ Planning Time: 0.058 ms
+ Execution Time: 0.015 ms
+(8 rows)
+
+Time: 0.205 ms
+\echo '=== 案C: 取引を全件合計する（取引の多い会員） ==='
+=== 案C: 取引を全件合計する（取引の多い会員） ===
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF)
+SELECT coalesce(sum(CASE WHEN kind = 'grant' THEN amount ELSE -amount END), 0)
+FROM ch07_c.point_txns WHERE user_id = :heavy_user;
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Aggregate (actual rows=1.00 loops=1)
+   Buffers: shared hit=929
+   ->  Bitmap Heap Scan on point_txns (actual rows=8160.00 loops=1)
+         Recheck Cond: (user_id = 4)
+         Heap Blocks: exact=895
+         Buffers: shared hit=929
+         ->  Bitmap Index Scan on point_txns_user (actual rows=8160.00 loops=1)
+               Index Cond: (user_id = 4)
+               Index Searches: 1
+               Buffers: shared hit=34
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.044 ms
+ Execution Time: 1.318 ms
+(14 rows)
+
+Time: 1.516 ms
+\echo '=== 案D: 締め残高 + それ以降の取引（取引の多い会員） ==='
+=== 案D: 締め残高 + それ以降の取引（取引の多い会員） ===
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF)
+SELECT ch07_d.balance_of(:heavy_user);
+            QUERY PLAN             
+-----------------------------------
+ Result (actual rows=1.00 loops=1)
+   Buffers: shared hit=99
+ Planning:
+   Buffers: shared hit=161
+ Planning Time: 0.206 ms
+ Execution Time: 0.346 ms
+(6 rows)
+
+Time: 0.673 ms
+\echo '=== 案C: 取引を全件合計する（取引の少ない会員） ==='
+=== 案C: 取引を全件合計する（取引の少ない会員） ===
+EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF)
+SELECT coalesce(sum(CASE WHEN kind = 'grant' THEN amount ELSE -amount END), 0)
+FROM ch07_c.point_txns WHERE user_id = :light_user;
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Aggregate (actual rows=1.00 loops=1)
+   Buffers: shared hit=11
+   ->  Bitmap Heap Scan on point_txns (actual rows=8.00 loops=1)
+         Recheck Cond: (user_id = 680)
+         Heap Blocks: exact=8
+         Buffers: shared hit=11
+         ->  Bitmap Index Scan on point_txns_user (actual rows=8.00 loops=1)
+               Index Cond: (user_id = 680)
+               Index Searches: 1
+               Buffers: shared hit=3
+ Planning Time: 0.018 ms
+ Execution Time: 0.015 ms
+(12 rows)
+
+Time: 0.115 ms

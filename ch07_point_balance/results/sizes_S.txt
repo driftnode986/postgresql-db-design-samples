@@ -1,0 +1,49 @@
+# 採取日時: 2026-09-19 05:16:38 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 4 案の保存サイズ。本体と索引を分けて出す。
+-- 🔴 案ごとに表の数が違うので、案の合計で比べる（一覧の行だけを見て順位を付けない）
+SELECT n.nspname AS schema, c.relname AS table_name,
+       pg_size_pretty(pg_relation_size(c.oid))      AS heap,
+       pg_size_pretty(pg_indexes_size(c.oid))       AS indexes,
+       pg_size_pretty(pg_total_relation_size(c.oid)) AS total
+FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+WHERE n.nspname IN ('ch07_a', 'ch07_b', 'ch07_c', 'ch07_d') AND c.relkind = 'r'
+ORDER BY n.nspname, c.relname;
+ schema |    table_name    |    heap    | indexes |  total  
+--------+------------------+------------+---------+---------
+ ch07_a | lot_consumptions | 2200 kB    | 1344 kB | 3576 kB
+ ch07_a | point_lots       | 7784 kB    | 6232 kB | 14 MB
+ ch07_a | point_txns       | 6736 kB    | 5680 kB | 12 MB
+ ch07_b | lot_consumptions | 2200 kB    | 1344 kB | 3568 kB
+ ch07_b | point_balances   | 2096 kB    | 160 kB  | 2280 kB
+ ch07_b | point_lots       | 7784 kB    | 6232 kB | 14 MB
+ ch07_b | point_txns       | 6736 kB    | 5680 kB | 12 MB
+ ch07_c | point_txns       | 7232 kB    | 5664 kB | 13 MB
+ ch07_d | point_snapshots  | 8192 bytes | 16 kB   | 24 kB
+ ch07_d | point_txns       | 7232 kB    | 5664 kB | 13 MB
+(10 rows)
+
+-- 案ごとの合計（これで順位を付ける）
+SELECT n.nspname AS schema,
+       sum(pg_total_relation_size(c.oid))                  AS total_bytes,
+       pg_size_pretty(sum(pg_total_relation_size(c.oid)))  AS total
+FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+WHERE n.nspname IN ('ch07_a', 'ch07_b', 'ch07_c', 'ch07_d') AND c.relkind = 'r'
+GROUP BY n.nspname ORDER BY sum(pg_total_relation_size(c.oid));
+ schema | total_bytes | total 
+--------+-------------+-------
+ ch07_c |    13238272 | 13 MB
+ ch07_d |    13262848 | 13 MB
+ ch07_a |    30801920 | 29 MB
+ ch07_b |    33128448 | 32 MB
+(4 rows)
+

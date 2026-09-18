@@ -1,0 +1,353 @@
+# 採取日時: 2026-09-19 05:15:08 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案B: 残高の列を持ち、ロットと台帳も持つ
+--
+-- 採取した 3 本のうち 2 本（sonnet / haiku）がこの形だった。最多数派である。
+-- 残高は 1 行を読むだけなので、取引が何件あっても照会は一定の速さになる。
+--
+-- 🔴 そのかわり、残高を置く場所が 2 か所になる（balance の列と、ロットの残りの合計）。
+--    この 2 つが食い違わないことは、DDL では保証できない。書き込みの手順で守る
+CREATE SCHEMA ch07_b;
+CREATE SCHEMA
+-- 会員ごとに 1 行。マイページはこの 1 行を読む
+CREATE TABLE ch07_b.point_balances (
+  user_id    bigint PRIMARY KEY,
+  balance    bigint      NOT NULL DEFAULT 0 CHECK (balance >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE TABLE ch07_b.point_lots (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  granted    bigint      NOT NULL CHECK (granted > 0),
+  remaining  bigint      NOT NULL CHECK (remaining >= 0),
+  expires_at timestamptz NOT NULL,
+  granted_at timestamptz NOT NULL,
+  CONSTRAINT point_lots_remaining_le_granted CHECK (remaining <= granted)
+);
+CREATE TABLE
+CREATE INDEX point_lots_fefo
+  ON ch07_b.point_lots (user_id, expires_at, id)
+  WHERE remaining > 0;
+CREATE INDEX
+-- 台帳。案A と違い、その取引の直後の残高も記録する（18 の RETURNING old/new で 1 文で取れる）
+CREATE TABLE ch07_b.point_txns (
+  id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id        bigint      NOT NULL,
+  kind           text        NOT NULL CHECK (kind IN ('grant', 'use')),
+  amount         bigint      NOT NULL CHECK (amount > 0),
+  balance_before bigint,
+  balance_after  bigint,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE INDEX point_txns_user ON ch07_b.point_txns (user_id, id);
+CREATE INDEX
+CREATE TABLE ch07_b.lot_consumptions (
+  txn_id bigint NOT NULL REFERENCES ch07_b.point_txns(id),
+  lot_id bigint NOT NULL REFERENCES ch07_b.point_lots(id),
+  taken  bigint NOT NULL CHECK (taken > 0),
+  PRIMARY KEY (txn_id, lot_id)
+);
+CREATE TABLE
+GRANT SELECT, INSERT, UPDATE ON ch07_b.point_balances, ch07_b.point_lots,
+                                ch07_b.point_txns, ch07_b.lot_consumptions TO book_app;
+GRANT
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch07_b TO book_app;
+GRANT
+-- 案B の付与と利用。
+--
+-- 🔴 残高の更新と台帳の記録を 1 文で書く。PostgreSQL 18 の RETURNING old/new を使うと、
+--    更新前と更新後の残高を同じ文から取れるので、あいだに別の SELECT を挟まずに済む。
+--    17 以前は、更新前の値を別に読むか、トリガーで書くしかなかった。
+-- 付与。初回は行が無いので ON CONFLICT で作る。
+-- 🔴 挿入のとき old.balance は NULL になるので coalesce(old.balance, 0) が要る。
+--    ここを落とすと、初回付与の台帳の balance_before が NULL で入る
+CREATE FUNCTION ch07_b.grant_points(p_uid bigint, p_amt bigint, p_expires timestamptz)
+RETURNS bigint LANGUAGE sql AS $$
+  WITH up AS (
+    INSERT INTO ch07_b.point_balances (user_id, balance)
+    VALUES (p_uid, p_amt)
+    ON CONFLICT (user_id)
+      DO UPDATE SET balance = ch07_b.point_balances.balance + EXCLUDED.balance,
+                    updated_at = now()
+    RETURNING user_id, coalesce(old.balance, 0) AS before, new.balance AS after
+  ), t AS (
+    INSERT INTO ch07_b.point_txns
+      (user_id, kind, amount, balance_before, balance_after)
+    SELECT user_id, 'grant', p_amt, before, after FROM up
+    RETURNING id
+  )
+  INSERT INTO ch07_b.point_lots (user_id, granted, remaining, expires_at, granted_at)
+  VALUES (p_uid, p_amt, p_amt, p_expires, now())
+  RETURNING id;
+$$;
+CREATE FUNCTION
+-- 利用。残高の列を減らし、同じ量をロットからも期限の近い順に引く。
+-- 🔴 減らす量が 2 か所に書かれるので、両者が食い違わないことを関数の中で検査する
+CREATE FUNCTION ch07_b.use_points(p_uid bigint, p_amt bigint)
+RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+  v_txn_id bigint;
+  v_taken  bigint;
+BEGIN
+  -- 残高の列を減らし、更新前後をそのまま台帳へ書く。
+  -- balance < p_amt なら CHECK (balance >= 0) が 23514 で弾く
+  WITH up AS (
+    UPDATE ch07_b.point_balances
+    SET balance = balance - p_amt, updated_at = now()
+    WHERE user_id = p_uid
+    RETURNING user_id, old.balance AS before, new.balance AS after
+  )
+  INSERT INTO ch07_b.point_txns
+    (user_id, kind, amount, balance_before, balance_after)
+  SELECT user_id, 'use', p_amt, before, after FROM up
+  RETURNING id INTO v_txn_id;
+
+  IF v_txn_id IS NULL THEN
+    RETURN false;            -- その会員の残高の行がまだ無い
+  END IF;
+
+  WITH cand AS (
+    SELECT l.id, l.remaining,
+           coalesce(sum(l.remaining) OVER (ORDER BY l.expires_at, l.id
+             ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before_sum
+    FROM ch07_b.point_lots AS l
+    WHERE l.user_id = p_uid AND l.remaining > 0 AND l.expires_at > now()
+  ), pick AS (
+    SELECT c.id, least(c.remaining, p_amt - c.before_sum) AS take
+    FROM cand AS c
+    WHERE c.before_sum < p_amt
+  ), upd AS (
+    UPDATE ch07_b.point_lots AS l
+    SET remaining = l.remaining - p.take
+    FROM pick AS p
+    WHERE l.id = p.id
+    RETURNING l.id, p.take
+  )
+  INSERT INTO ch07_b.lot_consumptions (txn_id, lot_id, taken)
+  SELECT v_txn_id, id, take FROM upd;
+
+  SELECT coalesce(sum(taken), 0) INTO v_taken
+  FROM ch07_b.lot_consumptions WHERE txn_id = v_txn_id;
+
+  -- 🔴 残高の列は足りていても、期限切れでロットが足りないことがある。
+  --    その場合は残高の列だけが減って、ロットとの合計が食い違う。ここで止める
+  IF v_taken < p_amt THEN
+    RAISE EXCEPTION 'lot shortage: wanted %, taken %', p_amt, v_taken
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN true;
+EXCEPTION
+  WHEN check_violation THEN
+    RETURN false;
+END $$;
+CREATE FUNCTION
+-- 残高。1 行を読むだけ
+CREATE FUNCTION ch07_b.balance_of(p_uid bigint)
+RETURNS bigint LANGUAGE sql STABLE AS $$
+  SELECT coalesce((SELECT balance FROM ch07_b.point_balances WHERE user_id = p_uid), 0);
+$$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch07_b.grant_points(bigint, bigint, timestamptz),
+                          ch07_b.use_points(bigint, bigint),
+                          ch07_b.balance_of(bigint) TO book_app;
+GRANT
+-- 元データを写す。案A と同じ行を、同じ順で入れる
+SELECT count(*) AS src_rows FROM ch07_r.src_txn \gset
+SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch07_b.lot_consumptions, ch07_b.point_txns, ch07_b.point_lots,
+         ch07_b.point_balances RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 2.686 ms
+INSERT INTO ch07_b.point_txns (id, user_id, kind, amount, created_at)
+OVERRIDING SYSTEM VALUE
+SELECT id, user_id, kind, amount, created_at
+FROM ch07_r.src_txn ORDER BY id;
+INSERT 0 101000
+Time: 203.295 ms
+SELECT setval(pg_get_serial_sequence('ch07_b.point_txns', 'id'),
+              (SELECT max(id) FROM ch07_b.point_txns));
+ setval 
+--------
+ 101000
+(1 row)
+
+Time: 0.724 ms
+INSERT INTO ch07_b.point_lots (id, user_id, granted, remaining, expires_at, granted_at)
+OVERRIDING SYSTEM VALUE
+SELECT id, user_id, amount, amount, expires_at, created_at
+FROM ch07_r.src_txn WHERE kind = 'grant' ORDER BY id;
+INSERT 0 60921
+Time: 157.572 ms
+SELECT setval(pg_get_serial_sequence('ch07_b.point_lots', 'id'),
+              (SELECT max(id) FROM ch07_b.point_lots));
+ setval 
+--------
+ 101000
+(1 row)
+
+Time: 0.535 ms
+-- 残高の列は、ロットの残りの合計に合わせて作る。
+-- 🔴 この時点では案A の残高と必ず一致する。測定で食い違いが出たら、それは測定中に起きたものである
+INSERT INTO ch07_b.point_balances (user_id, balance)
+SELECT user_id, sum(remaining)
+FROM ch07_b.point_lots
+GROUP BY user_id;
+INSERT 0 1000
+Time: 8.045 ms
+ANALYZE ch07_b.point_balances, ch07_b.point_lots,
+        ch07_b.point_txns, ch07_b.lot_consumptions;
+ANALYZE
+Time: 56.279 ms
+SELECT count(*) AS balances, sum(balance) AS total_balance FROM ch07_b.point_balances;
+ balances | total_balance 
+----------+---------------
+     1000 |      52936400
+(1 row)
+
+Time: 0.256 ms
+-- 元データの利用を、案B の消し込みで実際に適用する。
+--
+-- 🔴 これをやらないと、ロットの残りは付与したままになり、案C（取引の合計）と残高が食い違う。
+--    食い違いの原因が「設計の違い」なのか「投入の手抜き」なのか分からなくなるので、
+--    測定の前に必ず適用する。
+--
+-- 利用は元データの順（id 順）に適用する。案B も同じ順で適用するので、
+-- どちらの案も「同じ履歴をたどった結果」になる。
+\timing on
+Timing is on.
+DO $$
+DECLARE
+  r record;
+  v_ok boolean;
+  v_fail bigint := 0;
+BEGIN
+  FOR r IN SELECT id, user_id, amount FROM ch07_r.src_txn
+           WHERE kind = 'use' ORDER BY id
+  LOOP
+    -- 台帳は load.sql で写し済み。案B はロットに加えて残高の列も減らす
+    WITH cand AS (
+      SELECT l.id, l.remaining,
+             coalesce(sum(l.remaining) OVER (ORDER BY l.expires_at, l.id
+               ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS before_sum
+      FROM ch07_b.point_lots AS l
+      WHERE l.user_id = r.user_id AND l.remaining > 0 AND l.expires_at > now()
+    ), pick AS (
+      SELECT c.id, least(c.remaining, r.amount - c.before_sum) AS take
+      FROM cand AS c WHERE c.before_sum < r.amount
+    ), upd AS (
+      UPDATE ch07_b.point_lots AS l
+      SET remaining = l.remaining - p.take
+      FROM pick AS p WHERE l.id = p.id
+      RETURNING l.id, p.take
+    )
+    INSERT INTO ch07_b.lot_consumptions (txn_id, lot_id, taken)
+    SELECT r.id, id, take FROM upd;
+
+    -- 🔴 案B はここで残高の列も減らす。ロットと残高の 2 か所を同じ量だけ動かす
+    UPDATE ch07_b.point_balances
+    SET balance = balance - r.amount, updated_at = now()
+    WHERE user_id = r.user_id;
+
+    SELECT coalesce(sum(taken), 0) = r.amount INTO v_ok
+    FROM ch07_b.lot_consumptions WHERE txn_id = r.id;
+    IF NOT v_ok THEN v_fail := v_fail + 1; END IF;
+  END LOOP;
+
+  RAISE NOTICE '引ききれなかった利用: % 件', v_fail;
+  -- 🔴 1 件でもあれば元データが破綻している。測定に進ませない
+  IF v_fail > 0 THEN
+    RAISE EXCEPTION '元データの利用を引ききれない: % 件', v_fail;
+  END IF;
+END $$;
+psql:/tmp/run-sql.sql:54: NOTICE:  引ききれなかった利用: 0 件
+DO
+Time: 79257.400 ms (01:19.257)
+ANALYZE ch07_b.point_lots, ch07_b.lot_consumptions, ch07_b.point_balances;
+ANALYZE
+Time: 45.097 ms
+SELECT count(*) AS consumptions, sum(taken) AS total_taken
+FROM ch07_b.lot_consumptions;
+ consumptions | total_taken 
+--------------+-------------
+        43094 |     2211770
+(1 row)
+
+Time: 1.722 ms
+-- 案B の検査。🔴 返す全行の先頭列が 0 であること
+-- 🔴 案B の要は「残高の列」と「ロットの残り」の 2 か所が食い違わないことである。
+--    案A には無い検査が要るのは、残高を置く場所が 2 つあるからである。
+SELECT count(*) AS negative_balance FROM ch07_b.point_balances WHERE balance < 0;
+ negative_balance 
+------------------
+                0
+(1 row)
+
+SELECT count(*) AS negative_remaining FROM ch07_b.point_lots WHERE remaining < 0;
+ negative_remaining 
+--------------------
+                  0
+(1 row)
+
+-- 残高の列と、ロットの残りの合計（期限切れも含む）の差。
+-- 🔴 期限切れを含めて比べる。案B は失効の処理を回すまで期限切れを残高に数えているので、
+--    期限内だけで比べると、失効していないのに「食い違っている」と読めてしまう
+SELECT count(*) AS balance_vs_lots_drift
+FROM (
+  SELECT b.user_id
+  FROM ch07_b.point_balances AS b
+  LEFT JOIN (
+    SELECT user_id, sum(remaining) AS remaining
+    FROM ch07_b.point_lots GROUP BY user_id
+  ) AS l ON l.user_id = b.user_id
+  WHERE b.balance <> coalesce(l.remaining, 0)
+) AS t;
+ balance_vs_lots_drift 
+-----------------------
+                     0
+(1 row)
+
+-- 台帳に書いた更新後の残高が、前の取引の更新後の残高と amount で繋がっているか
+SELECT count(*) AS ledger_chain_break
+FROM (
+  SELECT id FROM ch07_b.point_txns
+  WHERE balance_before IS NOT NULL
+    AND balance_after <> balance_before
+        + CASE WHEN kind = 'grant' THEN amount ELSE -amount END
+) AS t;
+ ledger_chain_break 
+--------------------
+                  0
+(1 row)
+
+SELECT count(*) AS use_not_fully_taken
+FROM (
+  SELECT t.id
+  FROM ch07_b.point_txns AS t
+  LEFT JOIN (
+    SELECT txn_id, sum(taken) AS taken FROM ch07_b.lot_consumptions GROUP BY txn_id
+  ) AS c ON c.txn_id = t.id
+  WHERE t.kind = 'use' AND coalesce(c.taken, 0) <> t.amount
+) AS t;
+ use_not_fully_taken 
+---------------------
+                   0
+(1 row)
+

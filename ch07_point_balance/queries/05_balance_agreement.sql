@@ -1,0 +1,38 @@
+-- 4 案に同じ履歴を入れ、同じ会員の残高を問い合わせて突き合わせる。
+--
+-- 🔴 案A だけが違う値を返す。これは誤りではなく、設計の違いがそのまま出たものである。
+--    案A は残高を「期限内のロットの残りの合計」で求めるので、期限切れは問い合わせで落ちる。
+--    案B・案C・案D は、失効の処理を別に実行しない限り、期限切れのポイントを残高に数え続ける。
+\timing on
+
+SELECT user_id AS demo_user FROM ch07_c.point_txns
+GROUP BY user_id ORDER BY count(*) DESC LIMIT 1 \gset
+
+\echo '=== 同じ会員の残高を 4 案に聞く ==='
+SELECT ch07_a.balance_of(:demo_user) AS a_lots,
+       ch07_b.balance_of(:demo_user) AS b_balance,
+       ch07_c.balance_of(:demo_user) AS c_sum,
+       ch07_d.balance_of(:demo_user) AS d_snapshot;
+
+\echo '=== 案B と案A の差は、期限切れのロットに残っている量と一致するか ==='
+SELECT ch07_b.balance_of(:demo_user) - ch07_a.balance_of(:demo_user) AS diff,
+       (SELECT coalesce(sum(remaining), 0) FROM ch07_a.point_lots
+         WHERE user_id = :demo_user AND expires_at <= now()) AS expired_remaining;
+
+-- 🔴 全会員で確かめる。1 人でも一致しなければ、差の説明が間違っている
+SELECT count(*) AS users_where_diff_is_not_expired
+FROM (
+  SELECT u.id
+  FROM ch07_r.src_user AS u
+  WHERE ch07_b.balance_of(u.id) - ch07_a.balance_of(u.id)
+     <> (SELECT coalesce(sum(remaining), 0) FROM ch07_a.point_lots
+          WHERE user_id = u.id AND expires_at <= now())
+) AS t;
+
+-- 案B・案C・案D は完全に一致するか（一致しなければ投入か設計の誤り）
+SELECT count(*) AS users_where_bcd_differ
+FROM (
+  SELECT u.id FROM ch07_r.src_user AS u
+  WHERE ch07_b.balance_of(u.id) <> ch07_c.balance_of(u.id)
+     OR ch07_c.balance_of(u.id) <> ch07_d.balance_of(u.id)
+) AS t;

@@ -1,0 +1,106 @@
+# 採取日時: 2026-09-19 05:16:34 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 検算用: 残高を読んでアプリ側で計算し、書き戻す案
+--
+-- 🔴 これは本書の設計案ではない。採取した案（sonnet / haiku）が
+--    「残高の列を SELECT ... FOR UPDATE でロックしてから減らす」形だったので、
+--    その形が正しく動くのか、そしてロックを外すと何が起きるのかを測るために置く。
+--
+-- 案B と同じ構造にして、書き込みの方法だけを変える。
+CREATE SCHEMA ch07_f;
+CREATE SCHEMA
+CREATE TABLE ch07_f.point_balances (
+  user_id    bigint PRIMARY KEY,
+  balance    bigint      NOT NULL DEFAULT 0 CHECK (balance >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+-- 台帳。付与したことの記録。
+-- 🔴 残高の列が正しいかどうかは、この台帳の合計と突き合わせて判定する
+CREATE TABLE ch07_f.point_txns (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  amount     bigint      NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE INDEX point_txns_user ON ch07_f.point_txns (user_id, id);
+CREATE INDEX
+GRANT SELECT, INSERT, UPDATE ON ch07_f.point_balances, ch07_f.point_txns TO book_app;
+GRANT
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch07_f TO book_app;
+GRANT
+-- 3 つの書き方を並べる。違うのは残高をどう増やすかだけで、台帳への記録は同じ。
+--
+--   add_naive     … 残高を読み、アプリ側で足して、その値を書き戻す（ロックなし）
+--   add_forupdate … 同じことを SELECT ... FOR UPDATE で行をロックしてから行う（採取された案）
+--   add_in_db     … UPDATE ... SET balance = balance + N（データベースの中で足す）
+--
+-- 🔴 どれも 1 接続では同じ結果になる。差が出るのは同時に実行したときだけである。
+-- ロックなしで読んで書き戻す
+CREATE FUNCTION ch07_f.add_naive(p_uid bigint, p_amt bigint)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE v_bal bigint;
+BEGIN
+  SELECT balance INTO v_bal FROM ch07_f.point_balances WHERE user_id = p_uid;
+  -- 読んだ値をアプリ側で足して、その結果を「定数として」書き戻す。
+  -- あいだに別の接続が確定させた更新は、この書き戻しで上書きされる
+  UPDATE ch07_f.point_balances
+  SET balance = v_bal + p_amt, updated_at = now()
+  WHERE user_id = p_uid;
+  INSERT INTO ch07_f.point_txns (user_id, amount) VALUES (p_uid, p_amt);
+END $$;
+CREATE FUNCTION
+-- 採取された案。行をロックしてから読む
+CREATE FUNCTION ch07_f.add_forupdate(p_uid bigint, p_amt bigint)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE v_bal bigint;
+BEGIN
+  SELECT balance INTO v_bal FROM ch07_f.point_balances
+  WHERE user_id = p_uid FOR UPDATE;
+  UPDATE ch07_f.point_balances
+  SET balance = v_bal + p_amt, updated_at = now()
+  WHERE user_id = p_uid;
+  INSERT INTO ch07_f.point_txns (user_id, amount) VALUES (p_uid, p_amt);
+END $$;
+CREATE FUNCTION
+-- データベースの中で足す
+CREATE FUNCTION ch07_f.add_in_db(p_uid bigint, p_amt bigint)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE ch07_f.point_balances
+  SET balance = balance + p_amt, updated_at = now()
+  WHERE user_id = p_uid;
+  INSERT INTO ch07_f.point_txns (user_id, amount) VALUES (p_uid, p_amt);
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch07_f.add_naive(bigint, bigint),
+                          ch07_f.add_forupdate(bigint, bigint),
+                          ch07_f.add_in_db(bigint, bigint) TO book_app;
+GRANT
+-- 測定の開始点。会員 1 人だけ、残高 0 から始める。
+-- 🔴 同じ 1 行に全接続が書き込む条件を作るのが目的なので、会員は 1 人でよい
+\timing on
+Timing is on.
+TRUNCATE ch07_f.point_txns, ch07_f.point_balances RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 1.740 ms
+INSERT INTO ch07_f.point_balances (user_id, balance) VALUES (1, 0);
+INSERT 0 1
+Time: 0.639 ms
+SELECT user_id, balance FROM ch07_f.point_balances;
+ user_id | balance 
+---------+---------
+       1 |       0
+(1 row)
+
+Time: 0.111 ms

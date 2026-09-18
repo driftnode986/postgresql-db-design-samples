@@ -1,0 +1,110 @@
+# 採取日時: 2026-09-19 05:16:37 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 消し込みの順序を「付与の古い順」にすると何が起きるかを、実データで示す。
+--
+-- 🔴 付与の順（FIFO）と期限の順（FEFO）は別物である。
+--    付与が古いほど期限が近い、とは限らない（短期のキャンペーンで配ったポイントは、
+--    あとから付与されて先に切れる）。
+\timing on
+Timing is on.
+-- 食い違いが実際に起きている会員の内訳を 1 人ぶん見る。
+-- 付与された順に並べたとき、期限が単調に増えていない会員を選ぶ
+SELECT user_id AS demo_user
+FROM ch07_a.point_lots
+WHERE remaining > 0 AND expires_at > now()
+GROUP BY user_id
+HAVING count(*) >= 3
+   AND (array_agg(id ORDER BY granted_at)) <> (array_agg(id ORDER BY expires_at))
+ORDER BY user_id LIMIT 1 \gset
+Time: 4.906 ms
+\echo '=== この会員の生きているロット（付与の古い順に並べる） ==='
+=== この会員の生きているロット（付与の古い順に並べる） ===
+SELECT id, granted_at::date AS granted, expires_at::date AS expires, remaining
+FROM ch07_a.point_lots
+WHERE user_id = :demo_user AND remaining > 0 AND expires_at > now()
+ORDER BY granted_at, id
+LIMIT 5;
+   id   |  granted   |  expires   | remaining 
+--------+------------+------------+-----------
+ 100001 | 2025-11-30 | 2027-12-30 |     20000
+  28076 | 2025-12-31 | 2027-02-04 |       900
+  62045 | 2026-01-01 | 2027-02-05 |       700
+  77557 | 2026-01-01 | 2027-02-05 |       300
+  31723 | 2026-01-01 | 2027-02-05 |       500
+(5 rows)
+
+Time: 1.058 ms
+\echo '=== 同じロットを、期限の近い順に並べ直す ==='
+=== 同じロットを、期限の近い順に並べ直す ===
+SELECT id, granted_at::date AS granted, expires_at::date AS expires, remaining
+FROM ch07_a.point_lots
+WHERE user_id = :demo_user AND remaining > 0 AND expires_at > now()
+ORDER BY expires_at, id
+LIMIT 5;
+  id   |  granted   |  expires   | remaining 
+-------+------------+------------+-----------
+ 58340 | 2026-04-20 | 2026-10-17 |        80
+ 99375 | 2026-04-20 | 2026-10-17 |       200
+ 16378 | 2026-09-18 | 2026-10-18 |       600
+ 89320 | 2026-09-18 | 2026-10-18 |      1000
+ 47933 | 2026-09-18 | 2026-10-18 |       100
+(5 rows)
+
+Time: 0.108 ms
+-- 🔴 2 つの並びの先頭が違えば、どちらの順で消し込むかで、使われるポイントが変わる。
+--    付与順で消すと、期限の近いポイントが手つかずで残り、やがて失効する。
+\echo '=== 付与順（FIFO）で消すと、先に失効するポイントが残る ==='
+=== 付与順（FIFO）で消すと、先に失効するポイントが残る ===
+WITH fifo AS (
+  SELECT id, expires_at, remaining,
+         row_number() OVER (ORDER BY granted_at, id) AS fifo_rank
+  FROM ch07_a.point_lots
+  WHERE user_id = :demo_user AND remaining > 0 AND expires_at > now()
+), fefo AS (
+  SELECT id, row_number() OVER (ORDER BY expires_at, id) AS fefo_rank
+  FROM ch07_a.point_lots
+  WHERE user_id = :demo_user AND remaining > 0 AND expires_at > now()
+)
+SELECT f.id,
+       f.expires_at::date AS expires,
+       f.fifo_rank,
+       e.fefo_rank,
+       CASE WHEN f.fifo_rank > e.fefo_rank THEN '期限は近いのに後回しになる' END AS note
+FROM fifo AS f JOIN fefo AS e USING (id)
+ORDER BY e.fefo_rank
+LIMIT 5;
+  id   |  expires   | fifo_rank | fefo_rank |            note            
+-------+------------+-----------+-----------+----------------------------
+ 58340 | 2026-10-17 |       629 |         1 | 期限は近いのに後回しになる
+ 99375 | 2026-10-17 |       630 |         2 | 期限は近いのに後回しになる
+ 16378 | 2026-10-18 |      2168 |         3 | 期限は近いのに後回しになる
+ 89320 | 2026-10-18 |      2169 |         4 | 期限は近いのに後回しになる
+ 47933 | 2026-10-18 |      2170 |         5 | 期限は近いのに後回しになる
+(5 rows)
+
+Time: 2.836 ms
+-- 食い違いのある会員が全体で何人いるか
+SELECT count(*) AS users_where_order_differs
+FROM (
+  SELECT user_id
+  FROM ch07_a.point_lots
+  WHERE remaining > 0 AND expires_at > now()
+  GROUP BY user_id
+  HAVING count(*) > 1
+     AND (array_agg(id ORDER BY granted_at)) <> (array_agg(id ORDER BY expires_at))
+) AS t;
+ users_where_order_differs 
+---------------------------
+                       997
+(1 row)
+
+Time: 22.932 ms
