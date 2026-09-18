@@ -53,4 +53,7 @@ save "shortage$T.txt" run book_owner ch07_a $D/a_lots/30_shortage.sql
 # 保存サイズ。🔴 消し込みのあとに測る（案の構築直後に測ると案A・案B のロットが満額のまま）
 save "sizes$T.txt" run book_app ch07_a $D/queries/90_sizes.sql
 
+# 変更の手数（案A に残高の列を足して案B の形にする）。ROLLBACK で終わる
+save "change_a_to_b$T.txt" run book_owner ch07_a $D/change/10_a_to_b.sql
+
 echo "done. 同時実行の測定は run_bench.sh で取る"

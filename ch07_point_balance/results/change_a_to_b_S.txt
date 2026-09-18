@@ -1,0 +1,87 @@
+# 採取日時: 2026-09-19 06:10:27 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 変更の手数: 残高の列を持たない案A に、あとから残高の列（案B の形）を足す。
+--
+-- 🔴 BEGIN ... ROLLBACK で囲む。確定させるとサイズが変わり、以降の測定に効く
+--    （消した列の定義は表に残り、繰り返すと本体が膨らむ）。
+--
+-- 測るのは 4 つ。SQL 文の数 / 既存の表が書き換わるか / 取るロック / 所要時間。
+BEGIN;
+BEGIN
+\timing on
+Timing is on.
+-- 移す前のファイルノード（表が書き換わったかを見る）
+SELECT pg_relation_filenode('ch07_a.point_lots') AS filenode_before \gset
+Time: 0.436 ms
+-- 1. 残高の表を作る
+CREATE TABLE ch07_a.point_balances (
+  user_id    bigint PRIMARY KEY,
+  balance    bigint      NOT NULL DEFAULT 0 CHECK (balance >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+Time: 1.825 ms
+-- 2. 初期値を入れる。ロットの残りを会員ごとに合計する
+--    🔴 ここで期限切れを含めるか外すかを決めることになる。
+--    含めないと、案A で見えていた残高と案B で見える残高が食い違う
+INSERT INTO ch07_a.point_balances (user_id, balance)
+SELECT user_id, sum(remaining) FROM ch07_a.point_lots GROUP BY user_id;
+INSERT 0 1000
+Time: 9.379 ms
+-- 3. 入れた値がロットの合計と一致するか検算する（移行の検算はここでしかできない）
+SELECT count(*) AS balance_vs_lots_mismatch
+FROM (
+  SELECT b.user_id FROM ch07_a.point_balances AS b
+  LEFT JOIN (SELECT user_id, sum(remaining) AS r FROM ch07_a.point_lots GROUP BY user_id) AS l
+    ON l.user_id = b.user_id
+  WHERE b.balance <> coalesce(l.r, 0)
+) AS t;
+ balance_vs_lots_mismatch 
+--------------------------
+                        0
+(1 row)
+
+Time: 6.596 ms
+-- 既にある表（ロット）が書き換わったか。filenode が変わっていれば書き換え
+SELECT :'filenode_before' AS filenode_before,
+       pg_relation_filenode('ch07_a.point_lots') AS filenode_after,
+       (:'filenode_before' = pg_relation_filenode('ch07_a.point_lots')::text)
+         AS lots_untouched;
+ filenode_before | filenode_after | lots_untouched 
+-----------------+----------------+----------------
+ 36591           |          36591 | t
+(1 row)
+
+Time: 0.147 ms
+-- このトランザクションが取っているロック（既存の表を止めるかどうか）
+SELECT c.relname, l.mode
+FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation
+JOIN pg_namespace AS n ON n.oid = c.relnamespace
+WHERE l.pid = pg_backend_pid() AND n.nspname = 'ch07_a'
+ORDER BY c.relname, l.mode;
+       relname       |        mode         
+---------------------+---------------------
+ point_balances      | AccessExclusiveLock
+ point_balances      | AccessShareLock
+ point_balances      | RowExclusiveLock
+ point_balances      | ShareLock
+ point_balances_pkey | AccessExclusiveLock
+ point_balances_pkey | AccessShareLock
+ point_lots          | AccessShareLock
+ point_lots_fefo     | AccessShareLock
+ point_lots_pkey     | AccessShareLock
+(9 rows)
+
+Time: 1.315 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.233 ms

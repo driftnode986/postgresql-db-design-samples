@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 05:46:26 +0900
+# 採取日時: 2026-09-19 06:10:22 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -35,7 +35,8 @@ CREATE TABLE ch07_f.point_txns (
 CREATE TABLE
 CREATE INDEX point_txns_user ON ch07_f.point_txns (user_id, id);
 CREATE INDEX
-GRANT SELECT, INSERT, UPDATE ON ch07_f.point_balances, ch07_f.point_txns TO book_app;
+GRANT SELECT, INSERT, UPDATE
+  ON ch07_f.point_balances, ch07_f.point_txns TO book_app;
 GRANT
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch07_f TO book_app;
 GRANT
@@ -93,14 +94,14 @@ GRANT
 Timing is on.
 TRUNCATE ch07_f.point_txns, ch07_f.point_balances RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.127 ms
+Time: 2.540 ms
 INSERT INTO ch07_f.point_balances (user_id, balance) VALUES (1, 0);
 INSERT 0 1
-Time: 0.549 ms
+Time: 0.619 ms
 SELECT user_id, balance FROM ch07_f.point_balances;
  user_id | balance 
 ---------+---------
        1 |       0
 (1 row)
 
-Time: 0.109 ms
+Time: 0.120 ms

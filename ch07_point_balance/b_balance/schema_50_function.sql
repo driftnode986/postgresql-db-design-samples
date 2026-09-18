@@ -7,7 +7,8 @@
 -- 付与。初回は行が無いので ON CONFLICT で作る。
 -- 🔴 挿入のとき old.balance は NULL になるので coalesce(old.balance, 0) が要る。
 --    ここを落とすと、初回付与の台帳の balance_before が NULL で入る
-CREATE FUNCTION ch07_b.grant_points(p_uid bigint, p_amt bigint, p_expires timestamptz)
+CREATE FUNCTION ch07_b.grant_points(
+  p_uid bigint, p_amt bigint, p_expires timestamptz)
 RETURNS bigint LANGUAGE sql AS $$
   WITH up AS (
     INSERT INTO ch07_b.point_balances (user_id, balance)

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 05:45:07 +0900
+# 採取日時: 2026-09-19 06:08:48 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -72,7 +72,8 @@ GRANT
 -- 付与。初回は行が無いので ON CONFLICT で作る。
 -- 🔴 挿入のとき old.balance は NULL になるので coalesce(old.balance, 0) が要る。
 --    ここを落とすと、初回付与の台帳の balance_before が NULL で入る
-CREATE FUNCTION ch07_b.grant_points(p_uid bigint, p_amt bigint, p_expires timestamptz)
+CREATE FUNCTION ch07_b.grant_points(
+  p_uid bigint, p_amt bigint, p_expires timestamptz)
 RETURNS bigint LANGUAGE sql AS $$
   WITH up AS (
     INSERT INTO ch07_b.point_balances (user_id, balance)
@@ -176,13 +177,13 @@ Timing is on.
 TRUNCATE ch07_b.lot_consumptions, ch07_b.point_txns, ch07_b.point_lots,
          ch07_b.point_balances RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.780 ms
+Time: 2.399 ms
 INSERT INTO ch07_b.point_txns (id, user_id, kind, amount, created_at)
 OVERRIDING SYSTEM VALUE
 SELECT id, user_id, kind, amount, created_at
 FROM ch07_r.src_txn ORDER BY id;
 INSERT 0 101000
-Time: 202.479 ms
+Time: 243.707 ms
 SELECT setval(pg_get_serial_sequence('ch07_b.point_txns', 'id'),
               (SELECT max(id) FROM ch07_b.point_txns));
  setval 
@@ -190,13 +191,13 @@ SELECT setval(pg_get_serial_sequence('ch07_b.point_txns', 'id'),
  101000
 (1 row)
 
-Time: 0.608 ms
+Time: 0.838 ms
 INSERT INTO ch07_b.point_lots (id, user_id, granted, remaining, expires_at, granted_at)
 OVERRIDING SYSTEM VALUE
 SELECT id, user_id, amount, amount, expires_at, created_at
 FROM ch07_r.src_txn WHERE kind = 'grant' ORDER BY id;
 INSERT 0 60921
-Time: 136.705 ms
+Time: 156.279 ms
 SELECT setval(pg_get_serial_sequence('ch07_b.point_lots', 'id'),
               (SELECT max(id) FROM ch07_b.point_lots));
  setval 
@@ -204,7 +205,7 @@ SELECT setval(pg_get_serial_sequence('ch07_b.point_lots', 'id'),
  101000
 (1 row)
 
-Time: 0.474 ms
+Time: 0.659 ms
 -- 残高の列は、ロットの残りの合計に合わせて作る。
 -- 🔴 この時点では案A の残高と必ず一致する。測定で食い違いが出たら、それは測定中に起きたものである
 INSERT INTO ch07_b.point_balances (user_id, balance)
@@ -212,18 +213,18 @@ SELECT user_id, sum(remaining)
 FROM ch07_b.point_lots
 GROUP BY user_id;
 INSERT 0 1000
-Time: 7.625 ms
+Time: 8.120 ms
 ANALYZE ch07_b.point_balances, ch07_b.point_lots,
         ch07_b.point_txns, ch07_b.lot_consumptions;
 ANALYZE
-Time: 55.200 ms
+Time: 60.593 ms
 SELECT count(*) AS balances, sum(balance) AS total_balance FROM ch07_b.point_balances;
  balances | total_balance 
 ----------+---------------
      1000 |      52936400
 (1 row)
 
-Time: 0.195 ms
+Time: 0.316 ms
 -- 元データの利用を、案B の消し込みで実際に適用する。
 --
 -- 🔴 これをやらないと、ロットの残りは付与したままになり、案C（取引の合計）と残高が食い違う。
@@ -280,10 +281,10 @@ BEGIN
 END $$;
 psql:/tmp/run-sql.sql:54: NOTICE:  引ききれなかった利用: 0 件
 DO
-Time: 72518.828 ms (01:12.519)
+Time: 86324.976 ms (01:26.325)
 ANALYZE ch07_b.point_lots, ch07_b.lot_consumptions, ch07_b.point_balances;
 ANALYZE
-Time: 43.247 ms
+Time: 47.710 ms
 SELECT count(*) AS consumptions, sum(taken) AS total_taken
 FROM ch07_b.lot_consumptions;
  consumptions | total_taken 
@@ -291,7 +292,7 @@ FROM ch07_b.lot_consumptions;
         43089 |     2211770
 (1 row)
 
-Time: 1.711 ms
+Time: 1.982 ms
 -- 案B の検査。🔴 返す全行の先頭列が 0 であること
 -- 🔴 案B の要は「残高の列」と「ロットの残り」の 2 か所が食い違わないことである。
 --    案A には無い検査が要るのは、残高を置く場所が 2 つあるからである。

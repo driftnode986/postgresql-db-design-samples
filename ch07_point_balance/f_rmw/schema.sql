@@ -24,5 +24,6 @@ CREATE TABLE ch07_f.point_txns (
 
 CREATE INDEX point_txns_user ON ch07_f.point_txns (user_id, id);
 
-GRANT SELECT, INSERT, UPDATE ON ch07_f.point_balances, ch07_f.point_txns TO book_app;
+GRANT SELECT, INSERT, UPDATE
+  ON ch07_f.point_balances, ch07_f.point_txns TO book_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch07_f TO book_app;
