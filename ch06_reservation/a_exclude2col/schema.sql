@@ -4,18 +4,18 @@
 -- 既にある表の構造を変えずに制約だけを足せる。ORM や既存の問い合わせも書き換えずに済む。
 --
 -- 制約の中の tstzrange(start_at, end_at, '[)') は式なので、GiST のインデックスもこの式に対して作られる。
-CREATE SCHEMA ch06_b;
+CREATE SCHEMA ch06_a;
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
-CREATE TABLE ch06_b.rooms (
+CREATE TABLE ch06_a.rooms (
   id   bigint PRIMARY KEY,
   name text   NOT NULL
 );
 
-CREATE TABLE ch06_b.reservations (
+CREATE TABLE ch06_a.reservations (
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  room_id      bigint      NOT NULL REFERENCES ch06_b.rooms(id),
+  room_id      bigint      NOT NULL REFERENCES ch06_a.rooms(id),
   user_id      bigint      NOT NULL,
   start_at     timestamptz NOT NULL,
   end_at       timestamptz NOT NULL,
@@ -32,5 +32,5 @@ CREATE TABLE ch06_b.reservations (
   ) WHERE (cancelled_at IS NULL)
 );
 
-GRANT SELECT, INSERT, UPDATE ON ch06_b.rooms, ch06_b.reservations TO book_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_b TO book_app;
+GRANT SELECT, INSERT, UPDATE ON ch06_a.rooms, ch06_a.reservations TO book_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_a TO book_app;

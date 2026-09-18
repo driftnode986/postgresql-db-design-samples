@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:45:34 +0900
+# 採取日時: 2026-09-19 04:01:19 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -16,7 +16,7 @@
 -- EXCLUDE は WHERE を取れる（案B・案C はこれでキャンセル済みを判定から外している）が、
 -- 主キーと一意制約の構文には WHERE が無いので、構文エラーになる。
 -- この案でキャンセル済みを外すには、別のテーブルへ移すことになる。
-CREATE TABLE ch06_d.where_demo (
+CREATE TABLE ch06_c.where_demo (
   room_id      bigint      NOT NULL,
   period       tstzrange   NOT NULL,
   cancelled_at timestamptz,

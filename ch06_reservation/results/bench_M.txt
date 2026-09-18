@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:18:08 +0900
+# 採取日時: 2026-09-19 03:50:54 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -21,13 +21,13 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 619584
+number of transactions actually processed: 688289
 number of failed transactions: 0 (0.000%)
 number of serialization failures: 0 (0.000%)
 number of deadlock failures: 0 (0.000%)
-latency average = 0.516 ms
-initial connection time = 5.770 ms
-tps = 30982.433017 (without initial connection time)
+latency average = 0.465 ms
+initial connection time = 6.301 ms
+tps = 34419.050106 (without initial connection time)
 ## 測定直後の検査（overlapping_pairs は 0 にならない。それがこの案の欠陥）
 -- 重なっている予約の組を数える。
 --
@@ -47,7 +47,7 @@ JOIN ch06_f.reservations AS b
  AND a.end_at   > b.start_at;
  overlapping_pairs 
 -------------------
-                11
+                 8
 (1 row)
 
 -- 測定で何件入ったか（元データの件数との差が、測定中に入った予約）
@@ -56,14 +56,31 @@ SELECT count(*) AS total_rows,
 FROM ch06_f.reservations;
  total_rows | active_rows 
 ------------+-------------
-     300567 |      270446
+     300564 |      270443
 (1 row)
 
 
 ###############################################################
 # 2. 正しい 4 案の処理量。5 回ずつ測り、中央値と幅を読む
-#    b=2列+EXCLUDE  c=範囲型+EXCLUDE  d=WITHOUT OVERLAPS  e=枠の行+UNIQUE
+#    a=2列+EXCLUDE  b=範囲型+EXCLUDE  c=WITHOUT OVERLAPS  d=枠の行+UNIQUE
 ###############################################################
+## run 1 / ch06_a
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch06_bench/a_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 63845
+number of failed transactions: 22 (0.034%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 22 (0.034%)
+latency average = 8.126 ms (including failures)
+initial connection time = 6.260 ms
+tps = 1968.355612 (without initial connection time)
+deadlocks: before=3490 after=3527 delta=37
 ## run 1 / ch06_b
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/b_hot.sql
@@ -73,14 +90,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 119598
-number of failed transactions: 37 (0.031%)
+number of transactions actually processed: 50948
+number of failed transactions: 22 (0.043%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 37 (0.031%)
-latency average = 2.934 ms (including failures)
-initial connection time = 6.245 ms
-tps = 5450.790412 (without initial connection time)
-deadlocks: before=2917 after=2958 delta=41
+number of deadlock failures: 22 (0.043%)
+latency average = 10.182 ms (including failures)
+initial connection time = 6.028 ms
+tps = 1570.757785 (without initial connection time)
+deadlocks: before=3527 after=3563 delta=36
 ## run 1 / ch06_c
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/c_hot.sql
@@ -90,14 +107,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 180001
-number of failed transactions: 25 (0.014%)
+number of transactions actually processed: 213033
+number of failed transactions: 31 (0.015%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 25 (0.014%)
-latency average = 2.578 ms (including failures)
-initial connection time = 6.748 ms
-tps = 6205.829179 (without initial connection time)
-deadlocks: before=2958 after=2993 delta=35
+number of deadlock failures: 31 (0.015%)
+latency average = 1.815 ms (including failures)
+initial connection time = 6.119 ms
+tps = 8815.039952 (without initial connection time)
+deadlocks: before=3563 after=3605 delta=42
 ## run 1 / ch06_d
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/d_hot.sql
@@ -107,31 +124,31 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 117676
-number of failed transactions: 32 (0.027%)
+number of transactions actually processed: 619238
+number of failed transactions: 0 (0.000%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 32 (0.027%)
-latency average = 3.176 ms (including failures)
-initial connection time = 6.381 ms
-tps = 5035.984677 (without initial connection time)
-deadlocks: before=2993 after=3030 delta=37
-## run 1 / ch06_e
+number of deadlock failures: 0 (0.000%)
+latency average = 0.517 ms
+initial connection time = 6.039 ms
+tps = 30962.542473 (without initial connection time)
+deadlocks: before=3605 after=3605 delta=0
+## run 2 / ch06_a
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
-transaction type: /tmp/ch06_bench/e_hot.sql
+transaction type: /tmp/ch06_bench/a_hot.sql
 scaling factor: 1
 query mode: simple
 number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 578760
-number of failed transactions: 0 (0.000%)
+number of transactions actually processed: 198979
+number of failed transactions: 50 (0.025%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 0 (0.000%)
-latency average = 0.553 ms
+number of deadlock failures: 50 (0.025%)
+latency average = 2.191 ms (including failures)
 initial connection time = 6.476 ms
-tps = 28937.550021 (without initial connection time)
-deadlocks: before=3030 after=3030 delta=0
+tps = 7299.111293 (without initial connection time)
+deadlocks: before=3605 after=3668 delta=63
 ## run 2 / ch06_b
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/b_hot.sql
@@ -141,14 +158,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 119285
-number of failed transactions: 23 (0.019%)
+number of transactions actually processed: 67138
+number of failed transactions: 38 (0.057%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 23 (0.019%)
-latency average = 3.542 ms (including failures)
-initial connection time = 6.135 ms
-tps = 4516.717991 (without initial connection time)
-deadlocks: before=3030 after=3060 delta=30
+number of deadlock failures: 38 (0.057%)
+latency average = 7.652 ms (including failures)
+initial connection time = 6.478 ms
+tps = 2089.831958 (without initial connection time)
+deadlocks: before=3668 after=3721 delta=53
 ## run 2 / ch06_c
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/c_hot.sql
@@ -158,14 +175,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 150291
-number of failed transactions: 38 (0.025%)
+number of transactions actually processed: 53784
+number of failed transactions: 21 (0.039%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 38 (0.025%)
-latency average = 3.190 ms (including failures)
-initial connection time = 8.690 ms
-tps = 5013.916035 (without initial connection time)
-deadlocks: before=3060 after=3108 delta=48
+number of deadlock failures: 21 (0.039%)
+latency average = 10.307 ms (including failures)
+initial connection time = 5.893 ms
+tps = 1551.690338 (without initial connection time)
+deadlocks: before=3721 after=3757 delta=36
 ## run 2 / ch06_d
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/d_hot.sql
@@ -175,31 +192,31 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 183067
-number of failed transactions: 17 (0.009%)
+number of transactions actually processed: 614615
+number of failed transactions: 0 (0.000%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 17 (0.009%)
-latency average = 2.475 ms (including failures)
-initial connection time = 7.484 ms
-tps = 6464.868266 (without initial connection time)
-deadlocks: before=3108 after=3136 delta=28
-## run 2 / ch06_e
+number of deadlock failures: 0 (0.000%)
+latency average = 0.521 ms
+initial connection time = 6.314 ms
+tps = 30729.639124 (without initial connection time)
+deadlocks: before=3757 after=3757 delta=0
+## run 3 / ch06_a
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
-transaction type: /tmp/ch06_bench/e_hot.sql
+transaction type: /tmp/ch06_bench/a_hot.sql
 scaling factor: 1
 query mode: simple
 number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 573093
-number of failed transactions: 0 (0.000%)
+number of transactions actually processed: 72943
+number of failed transactions: 22 (0.030%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 0 (0.000%)
-latency average = 0.558 ms
-initial connection time = 6.601 ms
-tps = 28657.667652 (without initial connection time)
-deadlocks: before=3136 after=3136 delta=0
+number of deadlock failures: 22 (0.030%)
+latency average = 6.053 ms (including failures)
+initial connection time = 6.067 ms
+tps = 2642.455515 (without initial connection time)
+deadlocks: before=3757 after=3787 delta=30
 ## run 3 / ch06_b
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/b_hot.sql
@@ -209,14 +226,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 55742
-number of failed transactions: 22 (0.039%)
+number of transactions actually processed: 209380
+number of failed transactions: 25 (0.012%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 22 (0.039%)
-latency average = 9.534 ms (including failures)
-initial connection time = 6.412 ms
-tps = 1677.498997 (without initial connection time)
-deadlocks: before=3136 after=3173 delta=37
+number of deadlock failures: 25 (0.012%)
+latency average = 2.156 ms (including failures)
+initial connection time = 6.345 ms
+tps = 7419.957361 (without initial connection time)
+deadlocks: before=3787 after=3821 delta=34
 ## run 3 / ch06_c
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/c_hot.sql
@@ -226,14 +243,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 76735
-number of failed transactions: 30 (0.039%)
+number of transactions actually processed: 71162
+number of failed transactions: 25 (0.035%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 30 (0.039%)
-latency average = 5.695 ms (including failures)
-initial connection time = 7.743 ms
-tps = 2808.625524 (without initial connection time)
-deadlocks: before=3173 after=3211 delta=38
+number of deadlock failures: 25 (0.035%)
+latency average = 7.348 ms (including failures)
+initial connection time = 7.425 ms
+tps = 2176.568449 (without initial connection time)
+deadlocks: before=3821 after=3861 delta=40
 ## run 3 / ch06_d
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/d_hot.sql
@@ -243,31 +260,31 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 127432
-number of failed transactions: 27 (0.021%)
+number of transactions actually processed: 644498
+number of failed transactions: 0 (0.000%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 27 (0.021%)
-latency average = 3.067 ms (including failures)
-initial connection time = 6.677 ms
-tps = 5215.908537 (without initial connection time)
-deadlocks: before=3211 after=3243 delta=32
-## run 3 / ch06_e
+number of deadlock failures: 0 (0.000%)
+latency average = 0.496 ms
+initial connection time = 6.739 ms
+tps = 32227.708645 (without initial connection time)
+deadlocks: before=3861 after=3861 delta=0
+## run 4 / ch06_a
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
-transaction type: /tmp/ch06_bench/e_hot.sql
+transaction type: /tmp/ch06_bench/a_hot.sql
 scaling factor: 1
 query mode: simple
 number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 616493
-number of failed transactions: 0 (0.000%)
+number of transactions actually processed: 64831
+number of failed transactions: 40 (0.062%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 0 (0.000%)
-latency average = 0.519 ms
-initial connection time = 5.991 ms
-tps = 30825.664164 (without initial connection time)
-deadlocks: before=3243 after=3243 delta=0
+number of deadlock failures: 40 (0.062%)
+latency average = 5.448 ms (including failures)
+initial connection time = 6.898 ms
+tps = 2934.880918 (without initial connection time)
+deadlocks: before=3861 after=3905 delta=44
 ## run 4 / ch06_b
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/b_hot.sql
@@ -277,14 +294,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 199983
-number of failed transactions: 37 (0.018%)
+number of transactions actually processed: 64265
+number of failed transactions: 26 (0.040%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 37 (0.018%)
-latency average = 2.306 ms (including failures)
-initial connection time = 7.186 ms
-tps = 6937.379761 (without initial connection time)
-deadlocks: before=3243 after=3291 delta=48
+number of deadlock failures: 26 (0.040%)
+latency average = 8.010 ms (including failures)
+initial connection time = 5.621 ms
+tps = 1996.794316 (without initial connection time)
+deadlocks: before=3905 after=3946 delta=41
 ## run 4 / ch06_c
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/c_hot.sql
@@ -294,14 +311,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 230937
-number of failed transactions: 15 (0.006%)
+number of transactions actually processed: 76499
+number of failed transactions: 36 (0.047%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 15 (0.006%)
-latency average = 2.050 ms (including failures)
-initial connection time = 6.001 ms
-tps = 7802.871510 (without initial connection time)
-deadlocks: before=3291 after=3316 delta=25
+number of deadlock failures: 36 (0.047%)
+latency average = 4.390 ms (including failures)
+initial connection time = 5.534 ms
+tps = 3642.988724 (without initial connection time)
+deadlocks: before=3946 after=3985 delta=39
 ## run 4 / ch06_d
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/d_hot.sql
@@ -311,31 +328,31 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 76933
-number of failed transactions: 41 (0.053%)
+number of transactions actually processed: 619364
+number of failed transactions: 0 (0.000%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 41 (0.053%)
-latency average = 6.699 ms (including failures)
-initial connection time = 6.191 ms
-tps = 2387.188043 (without initial connection time)
-deadlocks: before=3316 after=3372 delta=56
-## run 4 / ch06_e
+number of deadlock failures: 0 (0.000%)
+latency average = 0.517 ms
+initial connection time = 6.000 ms
+tps = 30968.591753 (without initial connection time)
+deadlocks: before=3985 after=3985 delta=0
+## run 5 / ch06_a
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
-transaction type: /tmp/ch06_bench/e_hot.sql
+transaction type: /tmp/ch06_bench/a_hot.sql
 scaling factor: 1
 query mode: simple
 number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 551902
-number of failed transactions: 0 (0.000%)
+number of transactions actually processed: 120748
+number of failed transactions: 31 (0.026%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 0 (0.000%)
-latency average = 0.580 ms
-initial connection time = 6.207 ms
-tps = 27596.472925 (without initial connection time)
-deadlocks: before=3372 after=3372 delta=0
+number of deadlock failures: 31 (0.026%)
+latency average = 3.046 ms (including failures)
+initial connection time = 6.910 ms
+tps = 5250.960724 (without initial connection time)
+deadlocks: before=3985 after=4020 delta=35
 ## run 5 / ch06_b
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/b_hot.sql
@@ -345,14 +362,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 82798
-number of failed transactions: 26 (0.031%)
+number of transactions actually processed: 161767
+number of failed transactions: 17 (0.011%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 26 (0.031%)
-latency average = 6.482 ms (including failures)
-initial connection time = 6.552 ms
-tps = 2467.483857 (without initial connection time)
-deadlocks: before=3372 after=3413 delta=41
+number of deadlock failures: 17 (0.011%)
+latency average = 2.757 ms (including failures)
+initial connection time = 5.801 ms
+tps = 5802.177480 (without initial connection time)
+deadlocks: before=4020 after=4046 delta=26
 ## run 5 / ch06_c
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/c_hot.sql
@@ -362,14 +379,14 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 213272
-number of failed transactions: 32 (0.015%)
+number of transactions actually processed: 84397
+number of failed transactions: 22 (0.026%)
 number of serialization failures: 0 (0.000%)
-number of deadlock failures: 32 (0.015%)
-latency average = 1.764 ms (including failures)
-initial connection time = 6.019 ms
-tps = 9070.901614 (without initial connection time)
-deadlocks: before=3413 after=3455 delta=42
+number of deadlock failures: 22 (0.026%)
+latency average = 5.674 ms (including failures)
+initial connection time = 6.569 ms
+tps = 2819.173237 (without initial connection time)
+deadlocks: before=4046 after=4078 delta=32
 ## run 5 / ch06_d
 pgbench (18.6 (Debian 18.6-1.pgdg13+2))
 transaction type: /tmp/ch06_bench/d_hot.sql
@@ -379,39 +396,22 @@ number of clients: 16
 number of threads: 4
 maximum number of tries: 1
 duration: 20 s
-number of transactions actually processed: 67167
-number of failed transactions: 24 (0.036%)
-number of serialization failures: 0 (0.000%)
-number of deadlock failures: 24 (0.036%)
-latency average = 7.302 ms (including failures)
-initial connection time = 6.115 ms
-tps = 2190.317659 (without initial connection time)
-deadlocks: before=3455 after=3490 delta=35
-## run 5 / ch06_e
-pgbench (18.6 (Debian 18.6-1.pgdg13+2))
-transaction type: /tmp/ch06_bench/e_hot.sql
-scaling factor: 1
-query mode: simple
-number of clients: 16
-number of threads: 4
-maximum number of tries: 1
-duration: 20 s
-number of transactions actually processed: 480383
+number of transactions actually processed: 613101
 number of failed transactions: 0 (0.000%)
 number of serialization failures: 0 (0.000%)
 number of deadlock failures: 0 (0.000%)
-latency average = 0.666 ms
-initial connection time = 6.243 ms
-tps = 24020.061561 (without initial connection time)
-deadlocks: before=3490 after=3490 delta=0
+latency average = 0.522 ms
+initial connection time = 5.780 ms
+tps = 30654.268316 (without initial connection time)
+deadlocks: before=4078 after=4078 delta=0
 
 ###############################################################
 # 3. 測定直後の検査。4 案とも全行の先頭列が 0 であること
 ###############################################################
-## ch06_b
+## ch06_a
 -- 重なっている有効な予約の組（0 であること）
 SELECT count(*) AS overlapping_pairs
-FROM ch06_b.reservations AS a JOIN ch06_b.reservations AS b
+FROM ch06_a.reservations AS a JOIN ch06_a.reservations AS b
   ON a.room_id = b.room_id AND a.id < b.id
  AND a.cancelled_at IS NULL AND b.cancelled_at IS NULL
  AND a.start_at < b.end_at AND a.end_at > b.start_at;
@@ -420,10 +420,10 @@ FROM ch06_b.reservations AS a JOIN ch06_b.reservations AS b
                  0
 (1 row)
 
-## ch06_c
+## ch06_b
 -- 重なっている有効な予約の組（0 であること）。範囲型なので && で書ける
 SELECT count(*) AS overlapping_pairs
-FROM ch06_c.reservations AS a JOIN ch06_c.reservations AS b
+FROM ch06_b.reservations AS a JOIN ch06_b.reservations AS b
   ON a.room_id = b.room_id AND a.id < b.id
  AND a.cancelled_at IS NULL AND b.cancelled_at IS NULL
  AND a.period && b.period;
@@ -433,16 +433,16 @@ FROM ch06_c.reservations AS a JOIN ch06_c.reservations AS b
 (1 row)
 
 -- 空の範囲が入っていないこと（CHECK が効いているかの確認）
-SELECT count(*) AS empty_periods FROM ch06_c.reservations WHERE isempty(period);
+SELECT count(*) AS empty_periods FROM ch06_b.reservations WHERE isempty(period);
  empty_periods 
 ---------------
              0
 (1 row)
 
-## ch06_d
+## ch06_c
 -- 重なっている予約の組（0 であること）。本体にはキャンセル済みが入らない
 SELECT count(*) AS overlapping_pairs
-FROM ch06_d.reservations AS a JOIN ch06_d.reservations AS b
+FROM ch06_c.reservations AS a JOIN ch06_c.reservations AS b
   ON a.room_id = b.room_id AND a.reservation_no < b.reservation_no
  AND a.period && b.period;
  overlapping_pairs 
@@ -450,13 +450,13 @@ FROM ch06_d.reservations AS a JOIN ch06_d.reservations AS b
                  0
 (1 row)
 
-## ch06_e
+## ch06_d
 -- 1 つの枠を 2 件の有効な予約が占めていないこと（0 であること）。
 -- 一意制約があるので構造上起きないが、キャンセルの扱いを間違えると起きうる
 SELECT count(*) AS double_booked_slots FROM (
   SELECT s.room_id, s.slot_start
-  FROM ch06_e.reservation_slots AS s
-  JOIN ch06_e.reservations AS r ON r.id = s.reservation_id
+  FROM ch06_d.reservation_slots AS s
+  JOIN ch06_d.reservations AS r ON r.id = s.reservation_id
   WHERE r.cancelled_at IS NULL
   GROUP BY s.room_id, s.slot_start HAVING count(*) > 1) AS d;
  double_booked_slots 
@@ -466,8 +466,8 @@ SELECT count(*) AS double_booked_slots FROM (
 
 -- キャンセル済みの予約が枠を占めていないこと（0 であること）
 SELECT count(*) AS cancelled_holding_slots
-FROM ch06_e.reservation_slots AS s
-JOIN ch06_e.reservations AS r ON r.id = s.reservation_id
+FROM ch06_d.reservation_slots AS s
+JOIN ch06_d.reservations AS r ON r.id = s.reservation_id
 WHERE r.cancelled_at IS NOT NULL;
  cancelled_holding_slots 
 -------------------------

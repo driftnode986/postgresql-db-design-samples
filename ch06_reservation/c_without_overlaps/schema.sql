@@ -10,17 +10,17 @@
 --      案C では CHECK (NOT isempty(period)) を自分で書く必要がある
 --
 -- また、第8章で使う期間つき外部キー（PERIOD）の参照先になれるのはこちらである。
-CREATE SCHEMA ch06_d;
+CREATE SCHEMA ch06_c;
 
-CREATE TABLE ch06_d.rooms (
+CREATE TABLE ch06_c.rooms (
   id   bigint PRIMARY KEY,
   name text   NOT NULL
 );
 
 -- キャンセル済みを判定から外せないので、有効な予約だけをこの表に置く。
 -- キャンセルは行を消して cancelled_reservations に移す（load.sql と cancel.sql を参照）
-CREATE TABLE ch06_d.reservations (
-  room_id  bigint      NOT NULL REFERENCES ch06_d.rooms(id),
+CREATE TABLE ch06_c.reservations (
+  room_id  bigint      NOT NULL REFERENCES ch06_c.rooms(id),
   period   tstzrange   NOT NULL,
   user_id  bigint      NOT NULL,
   -- 予約を識別する番号。主キーが (room_id, period) なので、こちらは別に持つ
@@ -33,7 +33,7 @@ CREATE TABLE ch06_d.reservations (
 );
 
 -- キャンセル済みの予約。重なり判定に加わらないよう、本体から出してある
-CREATE TABLE ch06_d.cancelled_reservations (
+CREATE TABLE ch06_c.cancelled_reservations (
   reservation_no bigint      PRIMARY KEY,
   room_id        bigint      NOT NULL,
   period         tstzrange   NOT NULL,
@@ -42,5 +42,5 @@ CREATE TABLE ch06_d.cancelled_reservations (
 );
 
 GRANT SELECT, INSERT, UPDATE, DELETE
-  ON ch06_d.rooms, ch06_d.reservations, ch06_d.cancelled_reservations TO book_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_d TO book_app;
+  ON ch06_c.rooms, ch06_c.reservations, ch06_c.cancelled_reservations TO book_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_c TO book_app;

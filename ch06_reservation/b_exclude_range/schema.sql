@@ -3,18 +3,18 @@
 -- 採取した案（opus）がこの形だった。案B と守る約束は同じで、列の持ち方だけが違う。
 -- 範囲型にすると、重なり（&&）・包含（@>）・隣接（-|-）が演算子で書ける。
 -- 一方で、開始時刻だけを取り出すには lower(period) と書くことになる。
-CREATE SCHEMA ch06_c;
+CREATE SCHEMA ch06_b;
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
-CREATE TABLE ch06_c.rooms (
+CREATE TABLE ch06_b.rooms (
   id   bigint PRIMARY KEY,
   name text   NOT NULL
 );
 
-CREATE TABLE ch06_c.reservations (
+CREATE TABLE ch06_b.reservations (
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  room_id      bigint      NOT NULL REFERENCES ch06_c.rooms(id),
+  room_id      bigint      NOT NULL REFERENCES ch06_b.rooms(id),
   user_id      bigint      NOT NULL,
   -- 期間を 1 列で持つ。'[)' で作るので、終了時刻は含まれない
   period       tstzrange   NOT NULL,
@@ -29,5 +29,5 @@ CREATE TABLE ch06_c.reservations (
   ) WHERE (cancelled_at IS NULL)
 );
 
-GRANT SELECT, INSERT, UPDATE ON ch06_c.rooms, ch06_c.reservations TO book_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_c TO book_app;
+GRANT SELECT, INSERT, UPDATE ON ch06_b.rooms, ch06_b.reservations TO book_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_b TO book_app;

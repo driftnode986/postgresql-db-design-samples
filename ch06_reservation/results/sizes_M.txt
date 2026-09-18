@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:35:22 +0900
+# 採取日時: 2026-09-19 04:01:19 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -11,50 +11,50 @@
 # work_mem = 4096 kB
 -- 案ごとの保存サイズ。表とインデックスを分けて出す。
 -- 🔴 load の直後に測る（同時実行の測定のあとだと、不要になった行が残って膨らむ）
-SELECT 'b 2列+EXCLUDE'      AS plan, 'ch06_b.reservations'  AS rel,
-       pg_size_pretty(pg_relation_size('ch06_b.reservations'))       AS table_size,
-       pg_size_pretty(pg_indexes_size('ch06_b.reservations'))        AS indexes_size,
-       pg_size_pretty(pg_total_relation_size('ch06_b.reservations')) AS total
-UNION ALL SELECT 'c 範囲型+EXCLUDE', 'ch06_c.reservations',
+SELECT 'a 2列+EXCLUDE'      AS plan, 'ch06_a.reservations'  AS rel,
+       pg_size_pretty(pg_relation_size('ch06_a.reservations'))       AS table_size,
+       pg_size_pretty(pg_indexes_size('ch06_a.reservations'))        AS indexes_size,
+       pg_size_pretty(pg_total_relation_size('ch06_a.reservations')) AS total
+UNION ALL SELECT 'b 範囲型+EXCLUDE', 'ch06_b.reservations',
+       pg_size_pretty(pg_relation_size('ch06_b.reservations')),
+       pg_size_pretty(pg_indexes_size('ch06_b.reservations')),
+       pg_size_pretty(pg_total_relation_size('ch06_b.reservations'))
+UNION ALL SELECT 'c WITHOUT OVERLAPS', 'ch06_c.reservations',
        pg_size_pretty(pg_relation_size('ch06_c.reservations')),
        pg_size_pretty(pg_indexes_size('ch06_c.reservations')),
        pg_size_pretty(pg_total_relation_size('ch06_c.reservations'))
-UNION ALL SELECT 'd WITHOUT OVERLAPS', 'ch06_d.reservations',
-       pg_size_pretty(pg_relation_size('ch06_d.reservations')),
-       pg_size_pretty(pg_indexes_size('ch06_d.reservations')),
-       pg_size_pretty(pg_total_relation_size('ch06_d.reservations'))
-UNION ALL SELECT 'e 枠の行+UNIQUE', 'ch06_e.reservation_slots',
-       pg_size_pretty(pg_relation_size('ch06_e.reservation_slots')),
-       pg_size_pretty(pg_indexes_size('ch06_e.reservation_slots')),
-       pg_size_pretty(pg_total_relation_size('ch06_e.reservation_slots'));
+UNION ALL SELECT 'd 枠の行+UNIQUE', 'ch06_d.reservation_slots',
+       pg_size_pretty(pg_relation_size('ch06_d.reservation_slots')),
+       pg_size_pretty(pg_indexes_size('ch06_d.reservation_slots')),
+       pg_size_pretty(pg_total_relation_size('ch06_d.reservation_slots'));
         plan        |           rel            | table_size | indexes_size | total 
 --------------------+--------------------------+------------+--------------+-------
- b 2列+EXCLUDE      | ch06_b.reservations      | 22 MB      | 33 MB        | 55 MB
- c 範囲型+EXCLUDE   | ch06_c.reservations      | 24 MB      | 33 MB        | 58 MB
- d WITHOUT OVERLAPS | ch06_d.reservations      | 22 MB      | 33 MB        | 54 MB
- e 枠の行+UNIQUE    | ch06_e.reservation_slots | 13 MB      | 14 MB        | 27 MB
+ a 2列+EXCLUDE      | ch06_a.reservations      | 22 MB      | 33 MB        | 55 MB
+ b 範囲型+EXCLUDE   | ch06_b.reservations      | 24 MB      | 33 MB        | 58 MB
+ c WITHOUT OVERLAPS | ch06_c.reservations      | 22 MB      | 33 MB        | 54 MB
+ d 枠の行+UNIQUE    | ch06_d.reservation_slots | 13 MB      | 14 MB        | 27 MB
 (4 rows)
 
 -- 案E は予約の表と枠の表の合計で見る必要がある
-SELECT 'e 合計（予約＋枠）' AS plan,
-       pg_size_pretty(pg_total_relation_size('ch06_e.reservations')
-                    + pg_total_relation_size('ch06_e.reservation_slots')) AS total;
+SELECT 'd 合計（予約＋枠）' AS plan,
+       pg_size_pretty(pg_total_relation_size('ch06_d.reservations')
+                    + pg_total_relation_size('ch06_d.reservation_slots')) AS total;
         plan        | total 
 --------------------+-------
- e 合計（予約＋枠） | 51 MB
+ d 合計（予約＋枠） | 51 MB
 (1 row)
 
 -- 行数（サイズの比を読むときに要る）
-SELECT 'b' AS plan, count(*) AS rows FROM ch06_b.reservations
+SELECT 'a' AS plan, count(*) AS rows FROM ch06_a.reservations
+UNION ALL SELECT 'b', count(*) FROM ch06_b.reservations
 UNION ALL SELECT 'c', count(*) FROM ch06_c.reservations
-UNION ALL SELECT 'd', count(*) FROM ch06_d.reservations
-UNION ALL SELECT 'e_slots', count(*) FROM ch06_e.reservation_slots
+UNION ALL SELECT 'd_slots', count(*) FROM ch06_d.reservation_slots
 ORDER BY 1;
   plan   |  rows  
 ---------+--------
+ a       | 298956
  b       | 298956
- c       | 298956
- d       | 268835
- e_slots | 268835
+ c       | 268835
+ d_slots | 268835
 (4 rows)
 

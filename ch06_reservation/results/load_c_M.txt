@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:35:02 +0900
+# 採取日時: 2026-09-19 04:01:05 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,48 +9,62 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
--- 案C: 期間を範囲型の 1 列で持ち、排他制約で守る
+-- 案D: PostgreSQL 18 の PRIMARY KEY (..., period WITHOUT OVERLAPS)
 --
--- 採取した案（opus）がこの形だった。案B と守る約束は同じで、列の持ち方だけが違う。
--- 範囲型にすると、重なり（&&）・包含（@>）・隣接（-|-）が演算子で書ける。
--- 一方で、開始時刻だけを取り出すには lower(period) と書くことになる。
+-- 案B・案C と守る約束は同じだが、制約の種類が主キーになる。
+-- インデックスは一意な GiST インデックスとして作られる（pg_indexes で確認できる）。
+--
+-- 案C との違いは 2 つ。どちらも実機で確かめたもの。
+--   1. WHERE を付けられない（構文エラーになる）。キャンセル済みを判定から外せないので、
+--      キャンセルは別の表に移すか、行を消すかで表す
+--   2. 空の範囲を自分で拒否する。EXCLUDE は空の範囲を 2 件とも通すので、
+--      案C では CHECK (NOT isempty(period)) を自分で書く必要がある
+--
+-- また、第8章で使う期間つき外部キー（PERIOD）の参照先になれるのはこちらである。
 CREATE SCHEMA ch06_c;
 CREATE SCHEMA
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-psql:/tmp/run-sql.sql:8: NOTICE:  extension "btree_gist" already exists, skipping
-CREATE EXTENSION
 CREATE TABLE ch06_c.rooms (
   id   bigint PRIMARY KEY,
   name text   NOT NULL
 );
 CREATE TABLE
+-- キャンセル済みを判定から外せないので、有効な予約だけをこの表に置く。
+-- キャンセルは行を消して cancelled_reservations に移す（load.sql と cancel.sql を参照）
 CREATE TABLE ch06_c.reservations (
-  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  room_id      bigint      NOT NULL REFERENCES ch06_c.rooms(id),
-  user_id      bigint      NOT NULL,
-  -- 期間を 1 列で持つ。'[)' で作るので、終了時刻は含まれない
-  period       tstzrange   NOT NULL,
-  cancelled_at timestamptz,
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  -- 空の範囲を入れさせない。空の範囲は何とも重ならないので、制約をすり抜ける
-  CONSTRAINT reservations_period_not_empty CHECK (NOT isempty(period)),
-  CONSTRAINT reservations_no_overlap EXCLUDE USING gist (
-    room_id WITH =,
-    period  WITH &&
-  ) WHERE (cancelled_at IS NULL)
+  room_id  bigint      NOT NULL REFERENCES ch06_c.rooms(id),
+  period   tstzrange   NOT NULL,
+  user_id  bigint      NOT NULL,
+  -- 予約を識別する番号。主キーが (room_id, period) なので、こちらは別に持つ
+  reservation_no bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  -- 同じ部屋で期間が重なる行を 2 件入れさせない。
+  -- 空の範囲は PostgreSQL がここで拒否する（CHECK を自分で書かなくてよい）
+  PRIMARY KEY (room_id, period WITHOUT OVERLAPS)
 );
 CREATE TABLE
-GRANT SELECT, INSERT, UPDATE ON ch06_c.rooms, ch06_c.reservations TO book_app;
+-- キャンセル済みの予約。重なり判定に加わらないよう、本体から出してある
+CREATE TABLE ch06_c.cancelled_reservations (
+  reservation_no bigint      PRIMARY KEY,
+  room_id        bigint      NOT NULL,
+  period         tstzrange   NOT NULL,
+  user_id        bigint      NOT NULL,
+  cancelled_at   timestamptz NOT NULL
+);
+CREATE TABLE
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON ch06_c.rooms, ch06_c.reservations, ch06_c.cancelled_reservations TO book_app;
 GRANT
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_c TO book_app;
 GRANT
--- 案C の予約登録。案B と同じ形で、範囲型を組み立てて入れる
+-- 案D の予約登録。主キーの違反を捕まえる。
+-- 🔴 WITHOUT OVERLAPS の違反は unique_violation ではなく exclusion_violation (23P01) で出る。
+--    中身が排他制約だからである（実機で確認した）。案B・案C と同じ例外節で書ける
 CREATE FUNCTION ch06_c.reserve(p_room bigint, p_user bigint,
                                p_start timestamptz, p_end timestamptz)
 RETURNS boolean LANGUAGE plpgsql SET search_path = ch06_c, public AS $$
 BEGIN
-  INSERT INTO reservations (room_id, user_id, period)
-  VALUES (p_room, p_user, tstzrange(p_start, p_end, '[)'));
+  INSERT INTO reservations (room_id, period, user_id)
+  VALUES (p_room, tstzrange(p_start, p_end, '[)'), p_user);
   RETURN true;
 EXCEPTION WHEN exclusion_violation THEN
   RETURN false;
@@ -58,7 +72,9 @@ END $$;
 CREATE FUNCTION
 GRANT EXECUTE ON FUNCTION ch06_c.reserve(bigint, bigint, timestamptz, timestamptz) TO book_app;
 GRANT
--- 元データを写す。開始・終了の 2 列を範囲型の 1 列にまとめる
+-- 元データを写す。
+-- 🔴 この案はキャンセル済みを判定から外せないので、有効な予約だけを本体に入れ、
+--    キャンセル済みは cancelled_reservations へ分けて入れる
 SELECT count(*) AS src_rows FROM ch06_r.src_reservation \gset
 SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
  source_must_not_be_empty 
@@ -68,45 +84,44 @@ SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
 
 \timing on
 Timing is on.
-TRUNCATE ch06_c.reservations, ch06_c.rooms RESTART IDENTITY CASCADE;
+TRUNCATE ch06_c.reservations, ch06_c.cancelled_reservations, ch06_c.rooms
+  RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.962 ms
+Time: 6.896 ms
 INSERT INTO ch06_c.rooms (id, name)
 SELECT id, name FROM ch06_r.src_room ORDER BY id;
 INSERT 0 10000
-Time: 11.964 ms
-INSERT INTO ch06_c.reservations (id, room_id, user_id, period, cancelled_at)
+Time: 10.583 ms
+INSERT INTO ch06_c.reservations (room_id, period, user_id, reservation_no)
 OVERRIDING SYSTEM VALUE
-SELECT id, room_id, user_id, tstzrange(start_at, end_at, '[)'), cancelled_at
-FROM ch06_r.src_reservation ORDER BY id;
-INSERT 0 298956
-Time: 5154.674 ms (00:05.155)
-SELECT setval(pg_get_serial_sequence('ch06_c.reservations', 'id'),
-              (SELECT max(id) FROM ch06_c.reservations));
+SELECT room_id, tstzrange(start_at, end_at, '[)'), user_id, id
+FROM ch06_r.src_reservation WHERE cancelled_at IS NULL ORDER BY id;
+INSERT 0 268835
+Time: 4937.950 ms (00:04.938)
+INSERT INTO ch06_c.cancelled_reservations
+       (reservation_no, room_id, period, user_id, cancelled_at)
+SELECT id, room_id, tstzrange(start_at, end_at, '[)'), user_id, cancelled_at
+FROM ch06_r.src_reservation WHERE cancelled_at IS NOT NULL ORDER BY id;
+INSERT 0 30121
+Time: 41.390 ms
+SELECT setval(pg_get_serial_sequence('ch06_c.reservations', 'reservation_no'),
+              (SELECT max(reservation_no) FROM ch06_c.reservations));
  setval  
 ---------
  1000000
 (1 row)
 
-Time: 0.720 ms
-ANALYZE ch06_c.rooms, ch06_c.reservations;
+Time: 0.583 ms
+ANALYZE ch06_c.rooms, ch06_c.reservations, ch06_c.cancelled_reservations;
 ANALYZE
-Time: 74.942 ms
--- 重なっている有効な予約の組（0 であること）。範囲型なので && で書ける
+Time: 84.244 ms
+-- 重なっている予約の組（0 であること）。本体にはキャンセル済みが入らない
 SELECT count(*) AS overlapping_pairs
 FROM ch06_c.reservations AS a JOIN ch06_c.reservations AS b
-  ON a.room_id = b.room_id AND a.id < b.id
- AND a.cancelled_at IS NULL AND b.cancelled_at IS NULL
+  ON a.room_id = b.room_id AND a.reservation_no < b.reservation_no
  AND a.period && b.period;
  overlapping_pairs 
 -------------------
                  0
-(1 row)
-
--- 空の範囲が入っていないこと（CHECK が効いているかの確認）
-SELECT count(*) AS empty_periods FROM ch06_c.reservations WHERE isempty(period);
- empty_periods 
----------------
-             0
 (1 row)
 

@@ -38,21 +38,21 @@ bench() {  # bench <schema> <script>
 
 # 測定で入れた行を消し、元データだけの状態に戻す（2 月以降が測定で入った行）
 reset_feb() {
-  sql book_owner ch06_b "$(tmp <<'EOF'
-DELETE FROM ch06_b.reservations WHERE start_at   >= timestamptz '2026-02-01 00:00+09';
+  sql book_owner ch06_a "$(tmp <<'EOF'
+DELETE FROM ch06_a.reservations WHERE start_at   >= timestamptz '2026-02-01 00:00+09';
+DELETE FROM ch06_b.reservations WHERE lower(period) >= timestamptz '2026-02-01 00:00+09';
 DELETE FROM ch06_c.reservations WHERE lower(period) >= timestamptz '2026-02-01 00:00+09';
-DELETE FROM ch06_d.reservations WHERE lower(period) >= timestamptz '2026-02-01 00:00+09';
 DELETE FROM ch06_f.reservations WHERE start_at   >= timestamptz '2026-02-01 00:00+09';
-DELETE FROM ch06_e.reservations WHERE id IN (
-  SELECT reservation_id FROM ch06_e.reservation_slots
+DELETE FROM ch06_d.reservations WHERE id IN (
+  SELECT reservation_id FROM ch06_d.reservation_slots
    WHERE slot_start >= timestamptz '2026-02-01 00:00+09');
-DELETE FROM ch06_e.reservation_slots WHERE slot_start >= timestamptz '2026-02-01 00:00+09';
+DELETE FROM ch06_d.reservation_slots WHERE slot_start >= timestamptz '2026-02-01 00:00+09';
 EOF
 )" > /dev/null
 }
 
 deadlocks() {
-  sql book_app ch06_b "$(tmp <<'EOF'
+  sql book_app ch06_a "$(tmp <<'EOF'
 SELECT deadlocks FROM pg_stat_database WHERE datname = 'book';
 EOF
 )" | grep -E '^ +[0-9]+' | tr -d ' '
@@ -70,10 +70,10 @@ sql book_owner ch06_f "$D/f_forupdate/count_overlaps.sql"
 echo
 echo "###############################################################"
 echo "# 2. 正しい 4 案の処理量。$REPEATS 回ずつ測り、中央値と幅を読む"
-echo "#    b=2列+EXCLUDE  c=範囲型+EXCLUDE  d=WITHOUT OVERLAPS  e=枠の行+UNIQUE"
+echo "#    a=2列+EXCLUDE  b=範囲型+EXCLUDE  c=WITHOUT OVERLAPS  d=枠の行+UNIQUE"
 echo "###############################################################"
 for run in $(seq 1 "$REPEATS"); do
-  for k in b c d e; do
+  for k in a b c d; do
     reset_feb
     before="$(deadlocks)"
     echo "## run $run / ch06_$k"
@@ -87,7 +87,7 @@ echo
 echo "###############################################################"
 echo "# 3. 測定直後の検査。4 案とも全行の先頭列が 0 であること"
 echo "###############################################################"
-for p in b:b_exclude2col c:c_exclude_range d:d_without_overlaps e:e_slot; do
+for p in a:a_exclude2col b:b_exclude_range c:c_without_overlaps d:d_slot; do
   k="${p%%:*}"; d="${p##*:}"
   echo "## ch06_$k"
   sql book_owner "ch06_$k" "$D/$d/verify.sql"

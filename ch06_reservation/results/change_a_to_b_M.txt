@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:35:24 +0900
+# 採取日時: 2026-09-19 04:01:21 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -18,43 +18,43 @@ BEGIN
 \timing on
 Timing is on.
 -- 移す前のファイルノード（表が書き換わったかを見る）
-SELECT pg_relation_filenode('ch06_b.reservations') AS filenode_before \gset
-Time: 0.321 ms
+SELECT pg_relation_filenode('ch06_a.reservations') AS filenode_before \gset
+Time: 0.433 ms
 -- 1. 範囲型の列を足す
-ALTER TABLE ch06_b.reservations ADD COLUMN period tstzrange;
+ALTER TABLE ch06_a.reservations ADD COLUMN period tstzrange;
 ALTER TABLE
-Time: 1.302 ms
+Time: 1.211 ms
 -- 2. 既にある行を埋める
-UPDATE ch06_b.reservations SET period = tstzrange(start_at, end_at, '[)');
+UPDATE ch06_a.reservations SET period = tstzrange(start_at, end_at, '[)');
 UPDATE 298956
-Time: 3990.818 ms (00:03.991)
+Time: 3963.985 ms (00:03.964)
 -- 3. NOT NULL にする
-ALTER TABLE ch06_b.reservations ALTER COLUMN period SET NOT NULL;
+ALTER TABLE ch06_a.reservations ALTER COLUMN period SET NOT NULL;
 ALTER TABLE
-Time: 24.290 ms
+Time: 24.910 ms
 -- 4. 新しい制約を足す（この時点では古い制約と二重に守られる）
-ALTER TABLE ch06_b.reservations
+ALTER TABLE ch06_a.reservations
   ADD CONSTRAINT reservations_no_overlap_range EXCLUDE USING gist (
     room_id WITH =, period WITH &&) WHERE (cancelled_at IS NULL);
 ALTER TABLE
-Time: 2549.416 ms (00:02.549)
+Time: 2577.041 ms (00:02.577)
 -- 5. 古い制約と古い列を落とす
-ALTER TABLE ch06_b.reservations DROP CONSTRAINT reservations_no_overlap;
+ALTER TABLE ch06_a.reservations DROP CONSTRAINT reservations_no_overlap;
 ALTER TABLE
-Time: 0.607 ms
-ALTER TABLE ch06_b.reservations DROP COLUMN start_at, DROP COLUMN end_at;
+Time: 0.632 ms
+ALTER TABLE ch06_a.reservations DROP COLUMN start_at, DROP COLUMN end_at;
 ALTER TABLE
-Time: 0.216 ms
+Time: 0.306 ms
 -- 表が書き換わったか（filenode が変わっていれば書き換え）
 SELECT :'filenode_before' AS filenode_before,
-       pg_relation_filenode('ch06_b.reservations') AS filenode_after,
-       :'filenode_before' = pg_relation_filenode('ch06_b.reservations')::text AS unchanged;
+       pg_relation_filenode('ch06_a.reservations') AS filenode_after,
+       :'filenode_before' = pg_relation_filenode('ch06_a.reservations')::text AS unchanged;
  filenode_before | filenode_after | unchanged 
 -----------------+----------------+-----------
- 33599           |          33599 | t
+ 34140           |          34140 | t
 (1 row)
 
-Time: 0.296 ms
+Time: 0.176 ms
 -- この変更で取ったロック
 SELECT c.relname, l.mode
 FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation
@@ -69,7 +69,7 @@ ORDER BY c.relname, l.mode;
  reservations_pkey             | RowExclusiveLock
 (5 rows)
 
-Time: 1.445 ms
+Time: 1.124 ms
 ROLLBACK;
 ROLLBACK
-Time: 2.981 ms
+Time: 3.629 ms

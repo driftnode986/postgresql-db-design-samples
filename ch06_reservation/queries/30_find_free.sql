@@ -10,7 +10,7 @@
 EXPLAIN (ANALYZE)
 SELECT tstzmultirange(tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)'))
        - coalesce(range_agg(period), tstzmultirange()) AS free
-FROM ch06_c.reservations
+FROM ch06_b.reservations
 WHERE room_id = 1
   AND cancelled_at IS NULL
   AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
@@ -18,7 +18,7 @@ WHERE room_id = 1
 -- 結果そのもの
 SELECT tstzmultirange(tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)'))
        - coalesce(range_agg(period), tstzmultirange()) AS free
-FROM ch06_c.reservations
+FROM ch06_b.reservations
 WHERE room_id = 1
   AND cancelled_at IS NULL
   AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
@@ -27,7 +27,7 @@ WHERE room_id = 1
 EXPLAIN (ANALYZE)
 SELECT tstzmultirange(tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)'))
        - coalesce(range_agg(tstzrange(start_at, end_at, '[)')), tstzmultirange()) AS free
-FROM ch06_b.reservations
+FROM ch06_a.reservations
 WHERE room_id = 1
   AND cancelled_at IS NULL
   AND start_at < timestamptz '2026-01-02 18:00+09'

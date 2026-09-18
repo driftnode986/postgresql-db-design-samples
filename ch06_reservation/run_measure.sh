@@ -14,8 +14,8 @@ export SIZE
 T="_$SIZE"
 run()  { bash scripts/run-sql.sh "$@"; }
 save() { local out="$1"; shift; { bash scripts/collect-env.sh; "$@"; } > "$R/$out" 2>&1; echo "saved $out"; }
-dir_of() { case "$1" in b) echo b_exclude2col ;; c) echo c_exclude_range ;;
-                        d) echo d_without_overlaps ;; e) echo e_slot ;;
+dir_of() { case "$1" in a) echo a_exclude2col ;; b) echo b_exclude_range ;;
+                        c) echo c_without_overlaps ;; d) echo d_slot ;;
                         f) echo f_forupdate ;; esac; }
 
 bash scripts/reset-chapter.sh 06
@@ -32,32 +32,35 @@ build() { local p="$1" d; d="$(dir_of "$p")"
   run book_owner "ch06_$p" "$D/$d/load.sql"
   [ -f "$D/$d/verify.sql" ] && run book_owner "ch06_$p" "$D/$d/verify.sql"
 }
-for p in b c d e f; do save "load_${p}$T.txt" build "$p"; done
+for p in a b c d f; do save "load_${p}$T.txt" build "$p"; done
 
 # 1 接続では、検算の対象の案も要件どおりに動く
 save "single_connection$T.txt" run book_owner ch06_f $D/queries/10_single_connection.sql
 
 # 18 の機能の確認（WITHOUT OVERLAPS に WHERE が付かない・空の範囲の扱いの違い）
-save "pg18_features$T.txt" run book_owner ch06_d $D/queries/20_pg18_features.sql
+save "pg18_features$T.txt" run book_owner ch06_c $D/queries/20_pg18_features.sql
 
 # WITHOUT OVERLAPS に WHERE は付けられない（構文エラーで終わるのが期待どおり）。
 # 本文はこのエラー文をそのまま引くので、ログとして残す
-save "where_fails$T.txt" run book_owner ch06_d $D/d_without_overlaps/20_where_fails.sql
+save "where_fails$T.txt" run book_owner ch06_c $D/c_without_overlaps/20_where_fails.sql
 
 # 保存サイズ。🔴 load 直後に測る（同時実行の測定のあとだと不要になった行が残る）
-save "sizes$T.txt" run book_app ch06_b $D/queries/90_sizes.sql
+save "sizes$T.txt" run book_app ch06_a $D/queries/90_sizes.sql
 
 # 空き時間の検索（range_agg と multirange の差）
-save "find_free$T.txt" run book_owner ch06_c $D/queries/30_find_free.sql
+save "find_free$T.txt" run book_owner ch06_b $D/queries/30_find_free.sql
 
 # 制約のインデックスは「探す」ためには使われない。検索用の B-tree を足した前後を測る
-save "search_index$T.txt" run book_owner ch06_c $D/queries/40_search_index.sql
+save "search_index$T.txt" run book_owner ch06_b $D/queries/40_search_index.sql
 
 # 変更の手数（2 列の案B を範囲型の案C へ移す）。ROLLBACK で終わる
-save "change_b_to_c$T.txt" run book_owner ch06_b $D/change/10_b_to_c.sql
+save "change_a_to_b$T.txt" run book_owner ch06_a $D/change/10_a_to_b.sql
 
 # 排他制約は NOT VALID で足せない（止めずに移す逃げ道が無いことの確認）。
 # エラーで終わるのが期待どおりなので、save の戻り値は見ない
-save "not_valid$T.txt" run book_owner ch06_b $D/change/20_not_valid_fails.sql
+save "lock_modes$T.txt" run book_owner ch06_a $D/change/30_lock_modes.sql
+
+# 排他制約は NOT VALID で足せない
+save "not_valid$T.txt" run book_owner ch06_a $D/change/20_not_valid_fails.sql
 
 echo "done. 同時実行の測定は run_bench.sh で取る"

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:35:08 +0900
+# 採取日時: 2026-09-19 04:01:12 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,18 +9,16 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
--- 案D: PostgreSQL 18 の PRIMARY KEY (..., period WITHOUT OVERLAPS)
+-- 案E: 時間枠を行として持ち、UNIQUE (room_id, slot_start) で守る
 --
--- 案B・案C と守る約束は同じだが、制約の種類が主キーになる。
--- インデックスは一意な GiST インデックスとして作られる（pg_indexes で確認できる）。
+-- 範囲型も GiST も使わない。B-tree の一意制約だけで重複を防ぐ。
+-- 予約は「枠の集まり」になるので、10:00-12:00 の予約は 2 行（10 時台と 11 時台）になる。
 --
--- 案C との違いは 2 つ。どちらも実機で確かめたもの。
---   1. WHERE を付けられない（構文エラーになる）。キャンセル済みを判定から外せないので、
---      キャンセルは別の表に移すか、行を消すかで表す
---   2. 空の範囲を自分で拒否する。EXCLUDE は空の範囲を 2 件とも通すので、
---      案C では CHECK (NOT isempty(period)) を自分で書く必要がある
+-- この案が成り立つのは、枠の長さが決まっている場合に限る。
+-- 15 分刻みの申し込みが混ざると、枠の刻みをすべて 15 分にするか、この案をあきらめることになる。
 --
--- また、第8章で使う期間つき外部キー（PERIOD）の参照先になれるのはこちらである。
+-- 利点は 3 つ。拡張が要らない。一意制約なので他のデータベースへ移しやすい。
+-- ORM が範囲型を扱えなくても書ける。
 CREATE SCHEMA ch06_d;
 CREATE SCHEMA
 CREATE TABLE ch06_d.rooms (
@@ -28,53 +26,60 @@ CREATE TABLE ch06_d.rooms (
   name text   NOT NULL
 );
 CREATE TABLE
--- キャンセル済みを判定から外せないので、有効な予約だけをこの表に置く。
--- キャンセルは行を消して cancelled_reservations に移す（load.sql と cancel.sql を参照）
+-- 予約そのもの（利用者から見た 1 件）
 CREATE TABLE ch06_d.reservations (
-  room_id  bigint      NOT NULL REFERENCES ch06_d.rooms(id),
-  period   tstzrange   NOT NULL,
-  user_id  bigint      NOT NULL,
-  -- 予約を識別する番号。主キーが (room_id, period) なので、こちらは別に持つ
-  reservation_no bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  -- 同じ部屋で期間が重なる行を 2 件入れさせない。
-  -- 空の範囲は PostgreSQL がここで拒否する（CHECK を自分で書かなくてよい）
-  PRIMARY KEY (room_id, period WITHOUT OVERLAPS)
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  room_id      bigint      NOT NULL REFERENCES ch06_d.rooms(id),
+  user_id      bigint      NOT NULL,
+  cancelled_at timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE
--- キャンセル済みの予約。重なり判定に加わらないよう、本体から出してある
-CREATE TABLE ch06_d.cancelled_reservations (
-  reservation_no bigint      PRIMARY KEY,
+-- 予約が占める枠。1 時間刻み。
+-- 重複を防ぐのはこの一意制約で、範囲の重なり判定は登場しない
+CREATE TABLE ch06_d.reservation_slots (
   room_id        bigint      NOT NULL,
-  period         tstzrange   NOT NULL,
-  user_id        bigint      NOT NULL,
-  cancelled_at   timestamptz NOT NULL
+  slot_start     timestamptz NOT NULL,
+  reservation_id bigint      NOT NULL REFERENCES ch06_d.reservations(id) ON DELETE CASCADE,
+  -- 枠の刻みからずれた申し込みを入れさせない。
+  -- この案が「枠の長さが決まっている場合に限る」ことを、制約として書いておく
+  CONSTRAINT slots_on_the_hour
+    CHECK (date_trunc('hour', slot_start) = slot_start),
+  PRIMARY KEY (room_id, slot_start)
 );
 CREATE TABLE
+CREATE INDEX reservation_slots_reservation_idx
+  ON ch06_d.reservation_slots (reservation_id);
+CREATE INDEX
 GRANT SELECT, INSERT, UPDATE, DELETE
-  ON ch06_d.rooms, ch06_d.reservations, ch06_d.cancelled_reservations TO book_app;
+  ON ch06_d.rooms, ch06_d.reservations, ch06_d.reservation_slots TO book_app;
 GRANT
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_d TO book_app;
 GRANT
--- 案D の予約登録。主キーの違反を捕まえる。
--- 🔴 WITHOUT OVERLAPS の違反は unique_violation ではなく exclusion_violation (23P01) で出る。
---    中身が排他制約だからである（実機で確認した）。案B・案C と同じ例外節で書ける
+-- 案E の予約登録。予約の行を入れ、占める枠を展開して入れる。
+-- 枠のどれか 1 つでも埋まっていれば一意制約の違反になり、予約ごと取り消される
+-- （関数の中の INSERT は同じトランザクションなので、途中で失敗すれば予約の行も残らない）。
 CREATE FUNCTION ch06_d.reserve(p_room bigint, p_user bigint,
                                p_start timestamptz, p_end timestamptz)
 RETURNS boolean LANGUAGE plpgsql SET search_path = ch06_d, public AS $$
+DECLARE
+  v_id bigint;
 BEGIN
-  INSERT INTO reservations (room_id, period, user_id)
-  VALUES (p_room, tstzrange(p_start, p_end, '[)'), p_user);
+  INSERT INTO reservations (room_id, user_id) VALUES (p_room, p_user)
+  RETURNING id INTO v_id;
+
+  INSERT INTO reservation_slots (room_id, slot_start, reservation_id)
+  SELECT p_room, s.slot_start, v_id
+  FROM generate_series(p_start, p_end - interval '1 second', interval '1 hour')
+       AS s(slot_start);
   RETURN true;
-EXCEPTION WHEN exclusion_violation THEN
-  RETURN false;
+EXCEPTION WHEN unique_violation THEN
+  RETURN false;   -- 枠のどれかが埋まっている
 END $$;
 CREATE FUNCTION
 GRANT EXECUTE ON FUNCTION ch06_d.reserve(bigint, bigint, timestamptz, timestamptz) TO book_app;
 GRANT
--- 元データを写す。
--- 🔴 この案はキャンセル済みを判定から外せないので、有効な予約だけを本体に入れ、
---    キャンセル済みは cancelled_reservations へ分けて入れる
+-- 元データを写す。1 件の予約を、占める枠の行に展開する
 SELECT count(*) AS src_rows FROM ch06_r.src_reservation \gset
 SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
  source_must_not_be_empty 
@@ -84,44 +89,63 @@ SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
 
 \timing on
 Timing is on.
-TRUNCATE ch06_d.reservations, ch06_d.cancelled_reservations, ch06_d.rooms
+TRUNCATE ch06_d.reservation_slots, ch06_d.reservations, ch06_d.rooms
   RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.619 ms
+Time: 2.863 ms
 INSERT INTO ch06_d.rooms (id, name)
 SELECT id, name FROM ch06_r.src_room ORDER BY id;
 INSERT 0 10000
-Time: 10.080 ms
-INSERT INTO ch06_d.reservations (room_id, period, user_id, reservation_no)
+Time: 10.868 ms
+INSERT INTO ch06_d.reservations (id, room_id, user_id, cancelled_at)
 OVERRIDING SYSTEM VALUE
-SELECT room_id, tstzrange(start_at, end_at, '[)'), user_id, id
-FROM ch06_r.src_reservation WHERE cancelled_at IS NULL ORDER BY id;
-INSERT 0 268835
-Time: 4915.436 ms (00:04.915)
-INSERT INTO ch06_d.cancelled_reservations
-       (reservation_no, room_id, period, user_id, cancelled_at)
-SELECT id, room_id, tstzrange(start_at, end_at, '[)'), user_id, cancelled_at
-FROM ch06_r.src_reservation WHERE cancelled_at IS NOT NULL ORDER BY id;
-INSERT 0 30121
-Time: 43.022 ms
-SELECT setval(pg_get_serial_sequence('ch06_d.reservations', 'reservation_no'),
-              (SELECT max(reservation_no) FROM ch06_d.reservations));
+SELECT id, room_id, user_id, cancelled_at
+FROM ch06_r.src_reservation ORDER BY id;
+INSERT 0 298956
+Time: 1118.049 ms (00:01.118)
+SELECT setval(pg_get_serial_sequence('ch06_d.reservations', 'id'),
+              (SELECT max(id) FROM ch06_d.reservations));
  setval  
 ---------
  1000000
 (1 row)
 
-Time: 0.427 ms
-ANALYZE ch06_d.rooms, ch06_d.reservations, ch06_d.cancelled_reservations;
+Time: 0.654 ms
+-- 🔴 キャンセル済みの予約は枠を占めない。枠の行を入れない形で表す
+--    （一意制約に WHERE を付けられないため、案B の EXCLUDE ... WHERE と同じことを
+--      「行を入れない」で実現している）
+INSERT INTO ch06_d.reservation_slots (room_id, slot_start, reservation_id)
+SELECT r.room_id, s.slot_start, r.id
+FROM ch06_r.src_reservation AS r
+CROSS JOIN LATERAL generate_series(r.start_at, r.end_at - interval '1 second',
+                                   interval '1 hour') AS s(slot_start)
+WHERE r.cancelled_at IS NULL
+ORDER BY r.id, s.slot_start;
+INSERT 0 268835
+Time: 1500.516 ms (00:01.501)
+ANALYZE ch06_d.rooms, ch06_d.reservations, ch06_d.reservation_slots;
 ANALYZE
-Time: 84.432 ms
--- 重なっている予約の組（0 であること）。本体にはキャンセル済みが入らない
-SELECT count(*) AS overlapping_pairs
-FROM ch06_d.reservations AS a JOIN ch06_d.reservations AS b
-  ON a.room_id = b.room_id AND a.reservation_no < b.reservation_no
- AND a.period && b.period;
- overlapping_pairs 
--------------------
-                 0
+Time: 87.307 ms
+-- 1 つの枠を 2 件の有効な予約が占めていないこと（0 であること）。
+-- 一意制約があるので構造上起きないが、キャンセルの扱いを間違えると起きうる
+SELECT count(*) AS double_booked_slots FROM (
+  SELECT s.room_id, s.slot_start
+  FROM ch06_d.reservation_slots AS s
+  JOIN ch06_d.reservations AS r ON r.id = s.reservation_id
+  WHERE r.cancelled_at IS NULL
+  GROUP BY s.room_id, s.slot_start HAVING count(*) > 1) AS d;
+ double_booked_slots 
+---------------------
+                   0
+(1 row)
+
+-- キャンセル済みの予約が枠を占めていないこと（0 であること）
+SELECT count(*) AS cancelled_holding_slots
+FROM ch06_d.reservation_slots AS s
+JOIN ch06_d.reservations AS r ON r.id = s.reservation_id
+WHERE r.cancelled_at IS NOT NULL;
+ cancelled_holding_slots 
+-------------------------
+                       0
 (1 row)
 

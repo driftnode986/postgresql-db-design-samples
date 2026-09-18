@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:40:51 +0900
+# 採取日時: 2026-09-19 04:01:28 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -16,7 +16,7 @@
 -- 外部キーや CHECK には「先に制約を足して、既にある行の検証はあとで行う」ための
 -- NOT VALID があり、これを使うと表を長時間止めずに制約を足せる。
 -- 排他制約にはこの逃げ道が無いので、移行のあいだ表が止まる。
-ALTER TABLE ch06_b.reservations
+ALTER TABLE ch06_a.reservations
   ADD CONSTRAINT reservations_nv EXCLUDE USING gist (
     room_id WITH =, tstzrange(start_at, end_at, '[)') WITH &&) NOT VALID;
 psql:/tmp/run-sql.sql:10: ERROR:  EXCLUDE constraints cannot be marked NOT VALID

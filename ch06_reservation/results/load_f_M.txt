@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 03:35:19 +0900
+# 採取日時: 2026-09-19 04:01:16 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -99,17 +99,17 @@ SELECT CASE WHEN :src_rows = 0
 Timing is on.
 TRUNCATE ch06_f.reservations, ch06_f.rooms RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 3.146 ms
+Time: 3.103 ms
 INSERT INTO ch06_f.rooms (id, name)
 SELECT id, name FROM ch06_r.src_room ORDER BY id;
 INSERT 0 10000
-Time: 11.565 ms
+Time: 10.923 ms
 INSERT INTO ch06_f.reservations (id, room_id, user_id, start_at, end_at, cancelled_at)
 OVERRIDING SYSTEM VALUE
 SELECT id, room_id, user_id, start_at, end_at, cancelled_at
 FROM ch06_r.src_reservation ORDER BY id;
 INSERT 0 298956
-Time: 1346.144 ms (00:01.346)
+Time: 1342.268 ms (00:01.342)
 SELECT setval(pg_get_serial_sequence('ch06_f.reservations', 'id'),
               (SELECT max(id) FROM ch06_f.reservations));
  setval  
@@ -117,7 +117,7 @@ SELECT setval(pg_get_serial_sequence('ch06_f.reservations', 'id'),
  1000000
 (1 row)
 
-Time: 0.498 ms
+Time: 0.595 ms
 ANALYZE ch06_f.rooms, ch06_f.reservations;
 ANALYZE
-Time: 78.291 ms
+Time: 77.329 ms

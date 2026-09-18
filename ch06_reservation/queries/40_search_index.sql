@@ -9,25 +9,25 @@
 
 -- 1. 制約のインデックスしか無い状態
 EXPLAIN (ANALYZE)
-SELECT range_agg(period) FROM ch06_c.reservations
+SELECT range_agg(period) FROM ch06_b.reservations
 WHERE room_id = 1 AND cancelled_at IS NULL
   AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
 
 -- 2. 部屋を引くための B-tree を足す。有効な予約だけの部分インデックスにする
 CREATE INDEX reservations_room_idx
-  ON ch06_c.reservations (room_id) WHERE cancelled_at IS NULL;
-ANALYZE ch06_c.reservations;
+  ON ch06_b.reservations (room_id) WHERE cancelled_at IS NULL;
+ANALYZE ch06_b.reservations;
 
 -- 3. 同じ問い合わせ。インデックス条件が room_id に変わる
 EXPLAIN (ANALYZE)
-SELECT range_agg(period) FROM ch06_c.reservations
+SELECT range_agg(period) FROM ch06_b.reservations
 WHERE room_id = 1 AND cancelled_at IS NULL
   AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
 
 -- 4. 足したインデックスの大きさ（守るためのインデックスに、探すためのインデックスを足す費用）
-SELECT pg_size_pretty(pg_relation_size('ch06_c.reservations_room_idx')) AS search_index_size,
-       pg_size_pretty(pg_relation_size('ch06_c.reservations_no_overlap')) AS constraint_index_size;
+SELECT pg_size_pretty(pg_relation_size('ch06_b.reservations_room_idx')) AS search_index_size,
+       pg_size_pretty(pg_relation_size('ch06_b.reservations_no_overlap')) AS constraint_index_size;
 
 -- 後片付け（ほかの測定の条件を変えないように戻す）
-DROP INDEX ch06_c.reservations_room_idx;
-ANALYZE ch06_c.reservations;
+DROP INDEX ch06_b.reservations_room_idx;
+ANALYZE ch06_b.reservations;
