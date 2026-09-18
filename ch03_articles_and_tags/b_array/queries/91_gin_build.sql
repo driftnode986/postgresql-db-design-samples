@@ -1,3 +1,4 @@
+-- run-as: book_owner
 -- GIN の作成時間。並列作成の効果を見る
 \timing on
 DROP INDEX IF EXISTS articles_tags_gin;

@@ -66,7 +66,7 @@ constraints() { local f
 save "constraints.txt" constraints
 
 # GIN の作成時間（案B・案C）
-gin_build() { local p; for p in b c; do echo "#### ch03_$p"; run book_owner "ch03_$p" "$D/queries/91_gin_build.sql"; done; }
+gin_build() { local p; for p in b c; do echo "#### ch03_$p"; run book_owner "ch03_$p" "$D/$(dir_of "$p")/queries/91_gin_build.sql"; done; }
 save "gin_build$T.txt" gin_build
 
 # 変更の手数。テーブルを書き換えるので ROLLBACK で戻す（各ファイルの中で閉じている）
