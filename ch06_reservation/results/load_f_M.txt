@@ -1,0 +1,123 @@
+# 採取日時: 2026-09-19 03:35:19 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 検算の対象: 重なる予約を SELECT ... FOR UPDATE でロックしてから INSERT する
+--
+-- 🔴 これは「最初に思いつく案」の採取で実際に出てきた案（docs/research/ch06_first_idea.md の haiku）。
+--    著者が作った藁人形ではない。重なり判定の不等式そのものは正しい:
+--      start_at < 申込の終了 AND end_at > 申込の開始
+--    10:00-11:00 と 11:00-12:00 なら 11:00 > 11:00 が偽になり、重ならないと判定される。
+--
+-- 問題は FOR UPDATE のほうにある。FOR UPDATE は「返ってきた行」にロックを掛ける道具で、
+-- まだ存在しない行は掛けようがない。重なる予約が 0 件の枠では 0 行が返るので、
+-- ロックは 1 つも取られない。2 つの接続が同時に「0 件」と読んで、2 件とも INSERT できる。
+--
+-- 第5章の在庫では同じ FOR UPDATE が効いた。在庫は行が先にあるからである。
+-- 同じ道具が、行が先にあるかどうかで効いたり効かなかったりする。
+CREATE SCHEMA ch06_f;
+CREATE SCHEMA
+CREATE TABLE ch06_f.rooms (
+  id   bigint PRIMARY KEY,
+  name text   NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch06_f.reservations (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  room_id      bigint      NOT NULL REFERENCES ch06_f.rooms(id),
+  user_id      bigint      NOT NULL,
+  start_at     timestamptz NOT NULL,
+  end_at       timestamptz NOT NULL,
+  cancelled_at timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT reservations_time_order CHECK (start_at < end_at)
+);
+CREATE TABLE
+-- 採取した案が付けていた部分インデックス。有効な予約だけを引く
+CREATE INDEX reservations_active_idx
+  ON ch06_f.reservations (room_id, start_at, end_at)
+  WHERE cancelled_at IS NULL;
+CREATE INDEX
+-- 採取した案（haiku）の予約登録を、そのまま関数にしたもの。
+--
+-- 採取した案は BEGIN / SELECT ... FOR UPDATE / INSERT / COMMIT の 3 文だった。
+-- pgbench から同じ条件で測るため、関数 1 回にまとめてある（第1章の測り方の規約:
+-- 比べる案の間で、データベースとの往復の回数をそろえる）。
+-- 関数の本体は 1 つのトランザクションで動くので、採取した案の BEGIN / COMMIT と同じ意味になる。
+--
+-- 🔴 採取した案の SQL には引数の取り違えがあった（INSERT ... VALUES ($1, $2, $2, $3) で、
+--    user_id の位置に start_time が入っていた）。ここは意図どおりに直してある。
+--    直さないと型の不一致で止まり、測りたいもの（重なり判定が効くか）に届かない。
+CREATE FUNCTION ch06_f.reserve(p_room bigint, p_user bigint,
+                               p_start timestamptz, p_end timestamptz)
+RETURNS boolean LANGUAGE plpgsql SET search_path = ch06_f, public AS $$
+BEGIN
+  -- 重なる予約をロックする、つもりの文。
+  -- 重なりの条件（start_at < 申込の終了 AND end_at > 申込の開始）は正しい。
+  -- 1 行でも返れば、その枠は埋まっている
+  PERFORM 1 FROM reservations
+   WHERE room_id = p_room
+     AND cancelled_at IS NULL
+     AND start_at < p_end
+     AND end_at   > p_start
+     FOR UPDATE;
+
+  IF FOUND THEN
+    RETURN false;   -- 埋まっている
+  END IF;
+
+  -- 0 行だったので空いている、と判断して入れる。
+  -- 🔴 0 行にはロックが掛かっていない。同じ判断をした別の接続も、ここへ到達する
+  INSERT INTO reservations (room_id, user_id, start_at, end_at)
+  VALUES (p_room, p_user, p_start, p_end);
+  RETURN true;
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch06_f.reserve(bigint, bigint, timestamptz, timestamptz) TO book_app;
+GRANT
+GRANT SELECT, INSERT, UPDATE ON ch06_f.rooms, ch06_f.reservations TO book_app;
+GRANT
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_f TO book_app;
+GRANT
+-- 元データを写す。測定のたびに入れ直す
+SELECT count(*) AS src_rows FROM ch06_r.src_reservation \gset
+SELECT CASE WHEN :src_rows = 0
+            THEN 1/0 ELSE 1 END AS source_must_not_be_empty;  -- 空なら何も消さずに止まる
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch06_f.reservations, ch06_f.rooms RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 3.146 ms
+INSERT INTO ch06_f.rooms (id, name)
+SELECT id, name FROM ch06_r.src_room ORDER BY id;
+INSERT 0 10000
+Time: 11.565 ms
+INSERT INTO ch06_f.reservations (id, room_id, user_id, start_at, end_at, cancelled_at)
+OVERRIDING SYSTEM VALUE
+SELECT id, room_id, user_id, start_at, end_at, cancelled_at
+FROM ch06_r.src_reservation ORDER BY id;
+INSERT 0 298956
+Time: 1346.144 ms (00:01.346)
+SELECT setval(pg_get_serial_sequence('ch06_f.reservations', 'id'),
+              (SELECT max(id) FROM ch06_f.reservations));
+ setval  
+---------
+ 1000000
+(1 row)
+
+Time: 0.498 ms
+ANALYZE ch06_f.rooms, ch06_f.reservations;
+ANALYZE
+Time: 78.291 ms

@@ -1,0 +1,75 @@
+# 採取日時: 2026-09-19 03:35:24 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 変更の手数: 2 列で作った表（案B）を、範囲型の 1 列（案C）へ移す。
+--
+-- 🔴 BEGIN ... ROLLBACK で囲む。確定させるとサイズが変わり、以降の測定に効く
+--    （消した列の定義は表に残り、繰り返すと本体が膨らむ）。
+BEGIN;
+BEGIN
+\timing on
+Timing is on.
+-- 移す前のファイルノード（表が書き換わったかを見る）
+SELECT pg_relation_filenode('ch06_b.reservations') AS filenode_before \gset
+Time: 0.321 ms
+-- 1. 範囲型の列を足す
+ALTER TABLE ch06_b.reservations ADD COLUMN period tstzrange;
+ALTER TABLE
+Time: 1.302 ms
+-- 2. 既にある行を埋める
+UPDATE ch06_b.reservations SET period = tstzrange(start_at, end_at, '[)');
+UPDATE 298956
+Time: 3990.818 ms (00:03.991)
+-- 3. NOT NULL にする
+ALTER TABLE ch06_b.reservations ALTER COLUMN period SET NOT NULL;
+ALTER TABLE
+Time: 24.290 ms
+-- 4. 新しい制約を足す（この時点では古い制約と二重に守られる）
+ALTER TABLE ch06_b.reservations
+  ADD CONSTRAINT reservations_no_overlap_range EXCLUDE USING gist (
+    room_id WITH =, period WITH &&) WHERE (cancelled_at IS NULL);
+ALTER TABLE
+Time: 2549.416 ms (00:02.549)
+-- 5. 古い制約と古い列を落とす
+ALTER TABLE ch06_b.reservations DROP CONSTRAINT reservations_no_overlap;
+ALTER TABLE
+Time: 0.607 ms
+ALTER TABLE ch06_b.reservations DROP COLUMN start_at, DROP COLUMN end_at;
+ALTER TABLE
+Time: 0.216 ms
+-- 表が書き換わったか（filenode が変わっていれば書き換え）
+SELECT :'filenode_before' AS filenode_before,
+       pg_relation_filenode('ch06_b.reservations') AS filenode_after,
+       :'filenode_before' = pg_relation_filenode('ch06_b.reservations')::text AS unchanged;
+ filenode_before | filenode_after | unchanged 
+-----------------+----------------+-----------
+ 33599           |          33599 | t
+(1 row)
+
+Time: 0.296 ms
+-- この変更で取ったロック
+SELECT c.relname, l.mode
+FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation
+WHERE l.pid = pg_backend_pid() AND c.relname LIKE 'reservations%'
+ORDER BY c.relname, l.mode;
+            relname            |        mode         
+-------------------------------+---------------------
+ reservations                  | AccessExclusiveLock
+ reservations                  | RowExclusiveLock
+ reservations                  | ShareLock
+ reservations_no_overlap_range | AccessExclusiveLock
+ reservations_pkey             | RowExclusiveLock
+(5 rows)
+
+Time: 1.445 ms
+ROLLBACK;
+ROLLBACK
+Time: 2.981 ms

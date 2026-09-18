@@ -1,0 +1,112 @@
+# 採取日時: 2026-09-19 03:35:02 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案C: 期間を範囲型の 1 列で持ち、排他制約で守る
+--
+-- 採取した案（opus）がこの形だった。案B と守る約束は同じで、列の持ち方だけが違う。
+-- 範囲型にすると、重なり（&&）・包含（@>）・隣接（-|-）が演算子で書ける。
+-- 一方で、開始時刻だけを取り出すには lower(period) と書くことになる。
+CREATE SCHEMA ch06_c;
+CREATE SCHEMA
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+psql:/tmp/run-sql.sql:8: NOTICE:  extension "btree_gist" already exists, skipping
+CREATE EXTENSION
+CREATE TABLE ch06_c.rooms (
+  id   bigint PRIMARY KEY,
+  name text   NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch06_c.reservations (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  room_id      bigint      NOT NULL REFERENCES ch06_c.rooms(id),
+  user_id      bigint      NOT NULL,
+  -- 期間を 1 列で持つ。'[)' で作るので、終了時刻は含まれない
+  period       tstzrange   NOT NULL,
+  cancelled_at timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  -- 空の範囲を入れさせない。空の範囲は何とも重ならないので、制約をすり抜ける
+  CONSTRAINT reservations_period_not_empty CHECK (NOT isempty(period)),
+  CONSTRAINT reservations_no_overlap EXCLUDE USING gist (
+    room_id WITH =,
+    period  WITH &&
+  ) WHERE (cancelled_at IS NULL)
+);
+CREATE TABLE
+GRANT SELECT, INSERT, UPDATE ON ch06_c.rooms, ch06_c.reservations TO book_app;
+GRANT
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_c TO book_app;
+GRANT
+-- 案C の予約登録。案B と同じ形で、範囲型を組み立てて入れる
+CREATE FUNCTION ch06_c.reserve(p_room bigint, p_user bigint,
+                               p_start timestamptz, p_end timestamptz)
+RETURNS boolean LANGUAGE plpgsql SET search_path = ch06_c, public AS $$
+BEGIN
+  INSERT INTO reservations (room_id, user_id, period)
+  VALUES (p_room, p_user, tstzrange(p_start, p_end, '[)'));
+  RETURN true;
+EXCEPTION WHEN exclusion_violation THEN
+  RETURN false;
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch06_c.reserve(bigint, bigint, timestamptz, timestamptz) TO book_app;
+GRANT
+-- 元データを写す。開始・終了の 2 列を範囲型の 1 列にまとめる
+SELECT count(*) AS src_rows FROM ch06_r.src_reservation \gset
+SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch06_c.reservations, ch06_c.rooms RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 2.962 ms
+INSERT INTO ch06_c.rooms (id, name)
+SELECT id, name FROM ch06_r.src_room ORDER BY id;
+INSERT 0 10000
+Time: 11.964 ms
+INSERT INTO ch06_c.reservations (id, room_id, user_id, period, cancelled_at)
+OVERRIDING SYSTEM VALUE
+SELECT id, room_id, user_id, tstzrange(start_at, end_at, '[)'), cancelled_at
+FROM ch06_r.src_reservation ORDER BY id;
+INSERT 0 298956
+Time: 5154.674 ms (00:05.155)
+SELECT setval(pg_get_serial_sequence('ch06_c.reservations', 'id'),
+              (SELECT max(id) FROM ch06_c.reservations));
+ setval  
+---------
+ 1000000
+(1 row)
+
+Time: 0.720 ms
+ANALYZE ch06_c.rooms, ch06_c.reservations;
+ANALYZE
+Time: 74.942 ms
+-- 重なっている有効な予約の組（0 であること）。範囲型なので && で書ける
+SELECT count(*) AS overlapping_pairs
+FROM ch06_c.reservations AS a JOIN ch06_c.reservations AS b
+  ON a.room_id = b.room_id AND a.id < b.id
+ AND a.cancelled_at IS NULL AND b.cancelled_at IS NULL
+ AND a.period && b.period;
+ overlapping_pairs 
+-------------------
+                 0
+(1 row)
+
+-- 空の範囲が入っていないこと（CHECK が効いているかの確認）
+SELECT count(*) AS empty_periods FROM ch06_c.reservations WHERE isempty(period);
+ empty_periods 
+---------------
+             0
+(1 row)
+

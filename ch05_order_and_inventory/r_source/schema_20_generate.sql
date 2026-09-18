@@ -2,8 +2,14 @@
 -- 在庫は 1 商品あたり 100 個。測定の 20 秒で在庫が尽きないように、測定のたびに入れ直す。
 --
 -- setseed で乱数の種を固定するので、何度実行しても同じ値になる。
-\set size `echo "${SIZE:-M}"`
-\set n_products `case "${SIZE:-M}" in S) echo 1000 ;; *) echo 10000 ;; esac`
+--
+-- 🔴 サイズは psql の変数 :size で受け取る（run-sql.sh が -v size=$SIZE で渡す）。
+--    \set n `echo "${SIZE}"` のようにバッククォートで書くと、コマンドは psql が動いている
+--    コンテナの中で実行される。SIZE はホスト側のシェル変数なのでコンテナには渡っておらず、
+--    いつも既定値（M）になっていた。本章の results はどれも M で取ったものである。
+SELECT CASE :'size' WHEN 'S' THEN 1000 WHEN 'M' THEN 10000
+       ELSE 1/0 END AS n_products \gset
+\echo '生成する商品数:' :n_products
 
 \timing on
 SELECT setseed(0.42);

@@ -42,7 +42,11 @@ if [ "$EXISTS" != "1" ] && ! grep -Eiq "CREATE[[:space:]]+SCHEMA[[:space:]]+(IF[
   exit 2
 fi
 
-DEST="/tmp/run-sql-$$.sql"
+# 🔴 名前にプロセス番号を入れない。psql は NOTICE や ERROR の行頭にこのファイル名を出すので、
+#    毎回変わると results/ の差分が無意味に出て、本文に引用した出力とも一致しなくなる
+#    （書籍に /tmp/run-sql-82472.sql のような実行ごとの名前が載ってしまう）。
+#    同じファイルを使い回すが、実行のたびに docker cp で上書きするので中身は毎回正しい。
+DEST="/tmp/run-sql.sql"
 docker cp "$FILE" "$CONTAINER:$DEST" >/dev/null || exit 1
 docker exec -t \
   -e PGPASSWORD="$ROLE" \

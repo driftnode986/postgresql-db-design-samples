@@ -1,0 +1,151 @@
+# 採取日時: 2026-09-19 03:35:15 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案E: 時間枠を行として持ち、UNIQUE (room_id, slot_start) で守る
+--
+-- 範囲型も GiST も使わない。B-tree の一意制約だけで重複を防ぐ。
+-- 予約は「枠の集まり」になるので、10:00-12:00 の予約は 2 行（10 時台と 11 時台）になる。
+--
+-- この案が成り立つのは、枠の長さが決まっている場合に限る。
+-- 15 分刻みの申し込みが混ざると、枠の刻みをすべて 15 分にするか、この案をあきらめることになる。
+--
+-- 利点は 3 つ。拡張が要らない。一意制約なので他のデータベースへ移しやすい。
+-- ORM が範囲型を扱えなくても書ける。
+CREATE SCHEMA ch06_e;
+CREATE SCHEMA
+CREATE TABLE ch06_e.rooms (
+  id   bigint PRIMARY KEY,
+  name text   NOT NULL
+);
+CREATE TABLE
+-- 予約そのもの（利用者から見た 1 件）
+CREATE TABLE ch06_e.reservations (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  room_id      bigint      NOT NULL REFERENCES ch06_e.rooms(id),
+  user_id      bigint      NOT NULL,
+  cancelled_at timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+-- 予約が占める枠。1 時間刻み。
+-- 重複を防ぐのはこの一意制約で、範囲の重なり判定は登場しない
+CREATE TABLE ch06_e.reservation_slots (
+  room_id        bigint      NOT NULL,
+  slot_start     timestamptz NOT NULL,
+  reservation_id bigint      NOT NULL REFERENCES ch06_e.reservations(id) ON DELETE CASCADE,
+  -- 枠の刻みからずれた申し込みを入れさせない。
+  -- この案が「枠の長さが決まっている場合に限る」ことを、制約として書いておく
+  CONSTRAINT slots_on_the_hour
+    CHECK (date_trunc('hour', slot_start) = slot_start),
+  PRIMARY KEY (room_id, slot_start)
+);
+CREATE TABLE
+CREATE INDEX reservation_slots_reservation_idx
+  ON ch06_e.reservation_slots (reservation_id);
+CREATE INDEX
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON ch06_e.rooms, ch06_e.reservations, ch06_e.reservation_slots TO book_app;
+GRANT
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_e TO book_app;
+GRANT
+-- 案E の予約登録。予約の行を入れ、占める枠を展開して入れる。
+-- 枠のどれか 1 つでも埋まっていれば一意制約の違反になり、予約ごと取り消される
+-- （関数の中の INSERT は同じトランザクションなので、途中で失敗すれば予約の行も残らない）。
+CREATE FUNCTION ch06_e.reserve(p_room bigint, p_user bigint,
+                               p_start timestamptz, p_end timestamptz)
+RETURNS boolean LANGUAGE plpgsql SET search_path = ch06_e, public AS $$
+DECLARE
+  v_id bigint;
+BEGIN
+  INSERT INTO reservations (room_id, user_id) VALUES (p_room, p_user)
+  RETURNING id INTO v_id;
+
+  INSERT INTO reservation_slots (room_id, slot_start, reservation_id)
+  SELECT p_room, s.slot_start, v_id
+  FROM generate_series(p_start, p_end - interval '1 second', interval '1 hour')
+       AS s(slot_start);
+  RETURN true;
+EXCEPTION WHEN unique_violation THEN
+  RETURN false;   -- 枠のどれかが埋まっている
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch06_e.reserve(bigint, bigint, timestamptz, timestamptz) TO book_app;
+GRANT
+-- 元データを写す。1 件の予約を、占める枠の行に展開する
+SELECT count(*) AS src_rows FROM ch06_r.src_reservation \gset
+SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch06_e.reservation_slots, ch06_e.reservations, ch06_e.rooms
+  RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 2.435 ms
+INSERT INTO ch06_e.rooms (id, name)
+SELECT id, name FROM ch06_r.src_room ORDER BY id;
+INSERT 0 10000
+Time: 11.138 ms
+INSERT INTO ch06_e.reservations (id, room_id, user_id, cancelled_at)
+OVERRIDING SYSTEM VALUE
+SELECT id, room_id, user_id, cancelled_at
+FROM ch06_r.src_reservation ORDER BY id;
+INSERT 0 298956
+Time: 1156.863 ms (00:01.157)
+SELECT setval(pg_get_serial_sequence('ch06_e.reservations', 'id'),
+              (SELECT max(id) FROM ch06_e.reservations));
+ setval  
+---------
+ 1000000
+(1 row)
+
+Time: 0.642 ms
+-- 🔴 キャンセル済みの予約は枠を占めない。枠の行を入れない形で表す
+--    （一意制約に WHERE を付けられないため、案B の EXCLUDE ... WHERE と同じことを
+--      「行を入れない」で実現している）
+INSERT INTO ch06_e.reservation_slots (room_id, slot_start, reservation_id)
+SELECT r.room_id, s.slot_start, r.id
+FROM ch06_r.src_reservation AS r
+CROSS JOIN LATERAL generate_series(r.start_at, r.end_at - interval '1 second',
+                                   interval '1 hour') AS s(slot_start)
+WHERE r.cancelled_at IS NULL
+ORDER BY r.id, s.slot_start;
+INSERT 0 268835
+Time: 1489.123 ms (00:01.489)
+ANALYZE ch06_e.rooms, ch06_e.reservations, ch06_e.reservation_slots;
+ANALYZE
+Time: 90.746 ms
+-- 1 つの枠を 2 件の有効な予約が占めていないこと（0 であること）。
+-- 一意制約があるので構造上起きないが、キャンセルの扱いを間違えると起きうる
+SELECT count(*) AS double_booked_slots FROM (
+  SELECT s.room_id, s.slot_start
+  FROM ch06_e.reservation_slots AS s
+  JOIN ch06_e.reservations AS r ON r.id = s.reservation_id
+  WHERE r.cancelled_at IS NULL
+  GROUP BY s.room_id, s.slot_start HAVING count(*) > 1) AS d;
+ double_booked_slots 
+---------------------
+                   0
+(1 row)
+
+-- キャンセル済みの予約が枠を占めていないこと（0 であること）
+SELECT count(*) AS cancelled_holding_slots
+FROM ch06_e.reservation_slots AS s
+JOIN ch06_e.reservations AS r ON r.id = s.reservation_id
+WHERE r.cancelled_at IS NOT NULL;
+ cancelled_holding_slots 
+-------------------------
+                       0
+(1 row)
+

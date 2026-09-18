@@ -1,0 +1,90 @@
+# 採取日時: 2026-09-19 03:35:23 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 排他制約のインデックスは「守る」ためのもので、「探す」ためのものではない。
+--
+-- 制約を作ると GiST のインデックスが付いてくるので、検索もそれで足りると考えたくなる。
+-- ところが実測では、部屋を指定して空き時間を出す問い合わせがこのインデックスを使わない。
+-- GiST での等価比較は B-tree ほど安くないため、案の実行計画が全体走査に倒れる。
+\timing on
+Timing is on.
+-- 1. 制約のインデックスしか無い状態
+EXPLAIN (ANALYZE)
+SELECT range_agg(period) FROM ch06_c.reservations
+WHERE room_id = 1 AND cancelled_at IS NULL
+  AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5095.84..5095.85 rows=1 width=32) (actual time=21.137..21.141 rows=1.00 loops=1)
+   Buffers: shared hit=6547
+   ->  Bitmap Heap Scan on reservations  (cost=1574.13..5095.83 rows=3 width=22) (actual time=16.056..21.120 rows=2.00 loops=1)
+         Recheck Cond: ((period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange) AND (cancelled_at IS NULL))
+         Filter: (room_id = 1)
+         Rows Removed by Filter: 24002
+         Heap Blocks: exact=3117
+         Buffers: shared hit=6545
+         ->  Bitmap Index Scan on reservations_no_overlap  (cost=0.00..1574.13 rows=26913 width=0) (actual time=15.811..15.811 rows=24004.00 loops=1)
+               Index Cond: (period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange)
+               Index Searches: 1
+               Buffers: shared hit=3428
+ Planning:
+   Buffers: shared hit=113
+ Planning Time: 0.289 ms
+ Execution Time: 21.508 ms
+(16 rows)
+
+Time: 22.459 ms
+-- 2. 部屋を引くための B-tree を足す。有効な予約だけの部分インデックスにする
+CREATE INDEX reservations_room_idx
+  ON ch06_c.reservations (room_id) WHERE cancelled_at IS NULL;
+CREATE INDEX
+Time: 41.342 ms
+ANALYZE ch06_c.reservations;
+ANALYZE
+Time: 24.626 ms
+-- 3. 同じ問い合わせ。インデックス条件が room_id に変わる
+EXPLAIN (ANALYZE)
+SELECT range_agg(period) FROM ch06_c.reservations
+WHERE room_id = 1 AND cancelled_at IS NULL
+  AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=8.85..8.86 rows=1 width=32) (actual time=0.032..0.032 rows=1.00 loops=1)
+   Buffers: shared hit=4 read=2
+   ->  Index Scan using reservations_room_idx on reservations  (cost=0.30..8.84 rows=3 width=22) (actual time=0.025..0.028 rows=2.00 loops=1)
+         Index Cond: (room_id = 1)
+         Filter: (period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange)
+         Rows Removed by Filter: 26
+         Index Searches: 1
+         Buffers: shared hit=4 read=2
+ Planning:
+   Buffers: shared hit=24 read=1
+ Planning Time: 0.125 ms
+ Execution Time: 0.044 ms
+(12 rows)
+
+Time: 0.339 ms
+-- 4. 足したインデックスの大きさ（守るためのインデックスに、探すためのインデックスを足す費用）
+SELECT pg_size_pretty(pg_relation_size('ch06_c.reservations_room_idx')) AS search_index_size,
+       pg_size_pretty(pg_relation_size('ch06_c.reservations_no_overlap')) AS constraint_index_size;
+ search_index_size | constraint_index_size 
+-------------------+-----------------------
+ 2008 kB           | 27 MB
+(1 row)
+
+Time: 0.171 ms
+-- 後片付け（ほかの測定の条件を変えないように戻す）
+DROP INDEX ch06_c.reservations_room_idx;
+DROP INDEX
+Time: 0.737 ms
+ANALYZE ch06_c.reservations;
+ANALYZE
+Time: 23.676 ms
