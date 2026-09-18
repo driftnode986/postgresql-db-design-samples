@@ -1,0 +1,126 @@
+# 採取日時: 2026-09-18 16:16:51 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案C: ルートから自分までの経路を 1 列に持つ（ltree）
+CREATE SCHEMA ch04_c;
+CREATE SCHEMA
+CREATE EXTENSION IF NOT EXISTS ltree;
+psql:/tmp/run-sql-3909.sql:4: NOTICE:  extension "ltree" already exists, skipping
+CREATE EXTENSION
+CREATE TABLE ch04_c.nodes (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  parent_id  bigint REFERENCES ch04_c.nodes(id),
+  -- ルートから自分までの id を並べた経路（末尾が自分の id）
+  -- ラベルに名前ではなく id を入れる。ラベルに使える文字はデータベースのロケールで
+  -- 変わるので、名前を入れると開発機では通り、ロケールの違うサーバーでは落ちる
+  path       ltree NOT NULL,
+  body       text  NOT NULL,
+  pos        int   NOT NULL DEFAULT 0,
+  CONSTRAINT nodes_no_self_parent CHECK (parent_id <> id)
+);
+CREATE TABLE
+-- 元データを写す。path は NOT NULL なので、経路を組み立てながら 1 文で入れる
+-- （先に行だけ入れてあとで経路を埋める 2 段構えにすると、最初の INSERT が
+--   null value in column "path" violates not-null constraint で落ちる）
+SELECT count(*) AS src_rows FROM ch04_r.src_thread \gset
+SELECT CASE WHEN :src_rows = 0
+            THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch04_c.nodes RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 1.950 ms
+DROP INDEX IF EXISTS ch04_c.nodes_parent_idx;
+psql:/tmp/run-sql-3920.sql:10: NOTICE:  index "nodes_parent_idx" does not exist, skipping
+DROP INDEX
+Time: 0.134 ms
+DROP INDEX IF EXISTS ch04_c.nodes_path_gist;
+psql:/tmp/run-sql-3920.sql:11: NOTICE:  index "nodes_path_gist" does not exist, skipping
+DROP INDEX
+Time: 0.168 ms
+INSERT INTO ch04_c.nodes (id, parent_id, path, body, pos)
+OVERRIDING SYSTEM VALUE
+WITH RECURSIVE p AS (
+  SELECT id, parent_id, body, pos, text2ltree(id::text) AS path
+  FROM ch04_r.src_thread WHERE parent_id IS NULL
+  UNION ALL
+  SELECT c.id, c.parent_id, c.body, c.pos, p.path || text2ltree(c.id::text)
+  FROM ch04_r.src_thread c JOIN p ON c.parent_id = p.id
+)
+SELECT id, parent_id, path, body, pos FROM p ORDER BY id;
+INSERT 0 1000000
+Time: 6305.025 ms (00:06.305)
+SELECT setval(pg_get_serial_sequence('ch04_c.nodes', 'id'),
+              (SELECT max(id) FROM ch04_c.nodes));
+ setval  
+---------
+ 1000000
+(1 row)
+
+Time: 0.762 ms
+-- 子孫の判定（<@）に使えるインデックスは GiST だけ。B-tree は < <= = >= > しか扱えない
+CREATE INDEX nodes_path_gist ON ch04_c.nodes USING gist (path);
+CREATE INDEX
+Time: 18391.743 ms (00:18.392)
+-- 直下の子は経路ではなく親の列で引く（経路のインデックスより速い）
+CREATE INDEX nodes_parent_idx ON ch04_c.nodes (parent_id, pos, id);
+CREATE INDEX
+Time: 252.981 ms
+ANALYZE ch04_c.nodes;
+ANALYZE
+Time: 143.308 ms
+-- 元データと同じ木が入っているか、経路が正しいか（全行の先頭列が 0 になること）
+SELECT count(*) AS nodes_diff FROM (
+  SELECT id, parent_id, body FROM ch04_c.nodes
+  EXCEPT SELECT id, parent_id, body FROM ch04_r.src_thread) AS d;
+ nodes_diff 
+------------
+          0
+(1 row)
+
+-- 経路の末尾が自分の id であること
+SELECT count(*) AS path_tail_mismatch FROM ch04_c.nodes
+WHERE ltree2text(subpath(path, -1)) <> id::text;
+ path_tail_mismatch 
+--------------------
+                  0
+(1 row)
+
+-- 経路の長さが深さと一致すること
+SELECT count(*) AS path_depth_mismatch
+FROM ch04_c.nodes c JOIN ch04_r.src_thread s ON s.id = c.id
+WHERE nlevel(c.path) <> s.depth;
+ path_depth_mismatch 
+---------------------
+                   0
+(1 row)
+
+-- 親の経路が、自分の経路の先頭部分になっていること
+SELECT count(*) AS path_parent_mismatch
+FROM ch04_c.nodes c JOIN ch04_c.nodes p ON p.id = c.parent_id
+WHERE NOT (c.path <@ p.path);
+ path_parent_mismatch 
+----------------------
+                    0
+(1 row)
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_was_empty
+  FROM ch04_r.src_thread;
+ source_was_empty 
+------------------
+                0
+(1 row)
+

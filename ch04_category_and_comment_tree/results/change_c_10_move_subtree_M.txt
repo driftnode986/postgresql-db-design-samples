@@ -1,0 +1,30 @@
+# 採取日時: 2026-09-18 16:17:53 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- ノード 11 の部分木を、別の親（ノード 3）へ移す。
+-- 部分木の全ノードの経路を書き換える。
+\timing on
+Timing is on.
+BEGIN;
+BEGIN
+Time: 0.083 ms
+UPDATE ch04_c.nodes
+SET path = (SELECT path FROM ch04_c.nodes WHERE id = 3)
+           || subpath(path, nlevel((SELECT path FROM ch04_c.nodes WHERE id = 11)) - 1)
+WHERE path <@ (SELECT path FROM ch04_c.nodes WHERE id = 11);
+UPDATE 84700
+Time: 2889.369 ms (00:02.889)
+UPDATE ch04_c.nodes SET parent_id = 3 WHERE id = 11;
+UPDATE 1
+Time: 3.525 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.126 ms

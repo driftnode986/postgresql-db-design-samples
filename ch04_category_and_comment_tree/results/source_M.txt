@@ -1,0 +1,285 @@
+# 採取日時: 2026-09-18 16:15:29 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 第4章の元データ。3 案がここから同じ木を写す（案ごとに作り直さない）。
+-- 性質の違う 2 つの木を持つ。
+--   src_cat    商品カテゴリ型   深さ 5・分岐が広い・移動がある
+--   src_thread コメントスレッド型 深さ 20・追記が中心・移動はほとんど無い
+CREATE SCHEMA IF NOT EXISTS ch04_r;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch04_r.src_cat;
+psql:/tmp/run-sql-3635.sql:7: NOTICE:  table "src_cat" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch04_r.src_thread;
+psql:/tmp/run-sql-3635.sql:8: NOTICE:  table "src_thread" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch04_r.src_cat (
+  id         bigint PRIMARY KEY,
+  parent_id  bigint,
+  name       text NOT NULL,
+  depth      int  NOT NULL,
+  pos        int  NOT NULL   -- 同じ親の中での並び順
+);
+CREATE TABLE
+CREATE TABLE ch04_r.src_thread (
+  id         bigint PRIMARY KEY,
+  parent_id  bigint,
+  body       text NOT NULL,
+  depth      int  NOT NULL,
+  pos        int  NOT NULL
+);
+CREATE TABLE
+-- 元データを作る。各案の load.sql より先に実行する。
+-- SIZE=S はスレッド 1 万ノード、M は 100 万ノード（カテゴリは S 1,257 / M 39,921）
+--
+-- 深さ 20 の木を「どの段でも分岐 2」で作ろうとすると、100 万ノードに達した時点で
+-- 深さが 14 にしかならない（2^14 > 100 万）。深さを伸ばすには、序盤を広くして早く
+-- 幅を稼ぎ、途中から枝を絞って 1 本道で伸ばす必要がある。この作り方そのものが
+-- 「現実のスレッドは深いノードほど数が少ない」ことの裏返しになっている。
+--
+-- 段ごとに INSERT する（再帰 CTE では子の id を採番できないため）。親は必ず子より
+-- 小さい id を持つので、各案はこの順に写せば外部キーの順序で困らない。
+SELECT CASE :'size' WHEN 'S' THEN 10000 WHEN 'M' THEN 1000000 END AS n_thread \gset
+SELECT CASE :'size' WHEN 'S' THEN '{8,6,5,4}' WHEN 'M' THEN '{20,15,12,10}' END AS fan \gset
+SELECT :n_thread AS thread_nodes_to_load;  -- S・M 以外なら、ここで構文エラーになって止まる
+ thread_nodes_to_load 
+----------------------
+              1000000
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch04_r.src_cat;
+TRUNCATE TABLE
+Time: 1.367 ms
+TRUNCATE ch04_r.src_thread;
+TRUNCATE TABLE
+Time: 0.623 ms
+SELECT setseed(0.42);
+ setseed 
+---------
+ 
+(1 row)
+
+Time: 0.196 ms
+-- psql の変数は $$ … $$ の中では展開されないので、手続きに渡す値はここで一時表に置く
+DROP TABLE IF EXISTS ch04_r.gen_params;
+psql:/tmp/run-sql-3644.sql:21: NOTICE:  table "gen_params" does not exist, skipping
+DROP TABLE
+Time: 0.083 ms
+CREATE TABLE ch04_r.gen_params AS
+SELECT :'fan'::int[] AS fan, :n_thread::bigint AS n_thread;
+SELECT 1
+Time: 0.779 ms
+-- ── カテゴリ型（深さ 5・分岐が広い・移動がある想定）
+DO $$
+DECLARE
+  fan int[] := (SELECT p.fan FROM ch04_r.gen_params p);
+  d   int;
+BEGIN
+  INSERT INTO ch04_r.src_cat (id, parent_id, name, depth, pos)
+  VALUES (1, NULL, 'cat-1-1', 1, 1);
+
+  FOR d IN 1..4 LOOP
+    INSERT INTO ch04_r.src_cat (id, parent_id, name, depth, pos)
+    SELECT (SELECT max(id) FROM ch04_r.src_cat)
+             + row_number() OVER (ORDER BY p.id, g.i),
+           p.id,
+           'cat-' || (d + 1) || '-' || g.i,
+           d + 1,
+           g.i
+    FROM ch04_r.src_cat p
+         CROSS JOIN LATERAL generate_series(1, fan[d]) AS g(i)
+    WHERE p.depth = d;
+  END LOOP;
+END $$;
+DO
+Time: 50.839 ms
+-- ── スレッド型（深さ 20・追記が中心）
+--
+-- 必ず深さ 20 まで作る。序盤を広げて幅を稼ぎ、以降は枝の一部だけを伸ばして先細りにする。
+-- 深さは件数に依存せず常に 20 になる（S と M で木の形が変わらないので、結論を比べられる）。
+--   深さ 1〜wide     分岐 fan で広げる
+--   深さ wide より下  各段の先頭 keep 件だけが子を 1 つ持つ。keep を段ごとに 3 割ずつ減らす
+-- 3 つの値は、自然に出来る木が目標の件数をわずかに下回るように選んである
+--   S: wide=5 fan=6  keep0=4,096   ->   9,946 ノード（残り 54 を葉で足す）
+--   M: wide=7 fan=9  keep0=120,000 -> 993,987 ノード（残り 6,013 を葉で足す）
+-- 足りないぶんは、深い段のノードへ順繰りに葉を配る（1 つの親に集中させない）。
+DO $$
+DECLARE
+  big    bool := (SELECT p.n_thread FROM ch04_r.gen_params p) >= 1000000;
+  target bigint := (SELECT p.n_thread FROM ch04_r.gen_params p);
+  wide   int  := CASE WHEN big THEN 7 ELSE 5 END;
+  fan    int  := CASE WHEN big THEN 9 ELSE 6 END;
+  keep0  int  := CASE WHEN big THEN 120000 ELSE 4096 END;
+  d      int := 1;
+  total  bigint := 1;
+  added  bigint;
+  keep   int;
+  pad    bigint;
+BEGIN
+  INSERT INTO ch04_r.src_thread (id, parent_id, body, depth, pos)
+  VALUES (1, NULL, 'comment 1', 1, 1);
+
+  WHILE d < 20 LOOP
+    -- 広げ終わったら、子を持つ親の数を段ごとに 3 割ずつ減らす（返信は深くなるほど続かない）
+    keep := GREATEST(1, (power(0.7, GREATEST(0, d - wide)) * keep0)::int);
+
+    INSERT INTO ch04_r.src_thread (id, parent_id, body, depth, pos)
+    SELECT total + row_number() OVER (ORDER BY p.id, g.i),
+           p.id,
+           'comment body ' || p.id || '-' || g.i,
+           d + 1,
+           g.i
+    FROM (
+      SELECT x.id, x.depth
+      FROM ch04_r.src_thread x
+      WHERE x.depth = d
+      ORDER BY x.id
+      LIMIT CASE WHEN d < wide THEN NULL ELSE keep END
+    ) p
+         CROSS JOIN LATERAL
+           generate_series(1, CASE WHEN d < wide THEN fan ELSE 1 END) AS g(i);
+
+    GET DIAGNOSTICS added = ROW_COUNT;
+    EXIT WHEN added = 0;
+    total := total + added;
+    d := d + 1;
+  END LOOP;
+
+  -- 件数を目標に寄せる。深さ 8 以上のノードへ順繰りに配るので、1 つの親に葉が集中しない
+  pad := target - total;
+  IF pad > 0 THEN
+    CREATE TEMP TABLE pad_parents ON COMMIT DROP AS
+    SELECT row_number() OVER (ORDER BY x.id) - 1 AS k, x.id, x.depth
+    FROM ch04_r.src_thread x
+    WHERE x.depth BETWEEN 8 AND 18;
+
+    INSERT INTO ch04_r.src_thread (id, parent_id, body, depth, pos)
+    SELECT total + g.i,
+           p.id,
+           'comment filler ' || g.i,
+           p.depth + 1,
+           ((g.i - 1) / (SELECT count(*) FROM pad_parents))::int + 1
+    FROM generate_series(1, pad::int) AS g(i)
+    JOIN pad_parents p
+      ON p.k = (g.i - 1) % (SELECT count(*) FROM pad_parents);
+  END IF;
+END $$;
+DO
+Time: 2235.440 ms (00:02.235)
+DROP TABLE ch04_r.gen_params;
+DROP TABLE
+Time: 0.672 ms
+-- 統計が無いと、各案の投入で計画が変わって桁違いに遅くなる（第3章 §0 の事故）
+ANALYZE ch04_r.src_cat;
+ANALYZE
+Time: 23.183 ms
+ANALYZE ch04_r.src_thread;
+ANALYZE
+Time: 132.460 ms
+-- 元データの中身。案を作り直しても同じ木であることを、この出力で確かめる。
+SELECT 'cat' AS tree, count(*) AS nodes, max(depth) AS max_depth,
+       round(avg(depth), 2) AS avg_depth
+FROM ch04_r.src_cat
+UNION ALL
+SELECT 'thread', count(*), max(depth), round(avg(depth), 2)
+FROM ch04_r.src_thread;
+  tree  |  nodes  | max_depth | avg_depth 
+--------+---------+-----------+-----------
+ cat    |   39921 |         5 |      4.89
+ thread | 1000000 |        20 |      8.21
+(2 rows)
+
+-- 深さごとの件数（スレッド型は深いほど少なくなる）
+SELECT depth, count(*) AS nodes FROM ch04_r.src_thread GROUP BY depth ORDER BY depth;
+ depth | nodes  
+-------+--------
+     1 |      1
+     2 |      9
+     3 |     81
+     4 |    729
+     5 |   6561
+     6 |  59049
+     7 | 531441
+     8 | 120000
+     9 |  90004
+    10 |  58800
+    11 |  41160
+    12 |  28812
+    13 |  20168
+    14 |  14118
+    15 |   9883
+    16 |   6918
+    17 |   4842
+    18 |   3390
+    19 |   2373
+    20 |   1661
+(20 rows)
+
+SELECT depth, count(*) AS nodes FROM ch04_r.src_cat    GROUP BY depth ORDER BY depth;
+ depth | nodes 
+-------+-------
+     1 |     1
+     2 |    20
+     3 |   300
+     4 |  3600
+     5 | 36000
+(5 rows)
+
+-- 木の形が同じであることの指紋
+SELECT md5(string_agg(id || '>' || coalesce(parent_id, 0), ',' ORDER BY id)) AS thread_md5
+FROM ch04_r.src_thread;
+            thread_md5            
+----------------------------------
+ b0f5854953b22a1330a7382e8ab19042
+(1 row)
+
+SELECT md5(string_agg(id || '>' || coalesce(parent_id, 0), ',' ORDER BY id)) AS cat_md5
+FROM ch04_r.src_cat;
+             cat_md5              
+----------------------------------
+ 3d7232cb205dd9ac6dcfeaa51cc18bba
+(1 row)
+
+-- 本文で使う起点ノード。子孫の取得と直下の子は 11、パンくずは深さ 20 のノードを使う
+SELECT 11 AS anchor_id,
+       (SELECT depth FROM ch04_r.src_thread WHERE id = 11) AS anchor_depth,
+       (SELECT count(*) FROM ch04_r.src_thread c WHERE c.parent_id = 11) AS anchor_children;
+ anchor_id | anchor_depth | anchor_children 
+-----------+--------------+-----------------
+        11 |            3 |               9
+(1 row)
+
+SELECT id AS deepest_id, depth AS deepest_depth
+FROM ch04_r.src_thread WHERE depth = 20 ORDER BY id LIMIT 1;
+ deepest_id | deepest_depth 
+------------+---------------
+     992336 |            20
+(1 row)
+
+-- 木として壊れていないこと（どちらも 0 になること）
+SELECT count(*) AS orphan
+FROM ch04_r.src_thread c
+     LEFT JOIN ch04_r.src_thread p ON p.id = c.parent_id
+WHERE c.parent_id IS NOT NULL AND p.id IS NULL;
+ orphan 
+--------
+      0
+(1 row)
+
+SELECT count(*) AS parent_not_before_child
+FROM ch04_r.src_thread WHERE parent_id >= id;
+ parent_not_before_child 
+-------------------------
+                       0
+(1 row)
+

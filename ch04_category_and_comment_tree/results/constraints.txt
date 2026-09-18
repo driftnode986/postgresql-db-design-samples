@@ -1,0 +1,114 @@
+# 採取日時: 2026-09-18 16:17:36 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+## 10_fk_allows_cycle.sql
+-- run-as: book_owner
+-- 自己参照の外部キーは、循環を拒否しない。
+-- 3 ノードの最小の木で確かめる。
+CREATE SCHEMA IF NOT EXISTS ch04_x;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch04_x.nodes;
+psql:/tmp/run-sql-4656.sql:5: NOTICE:  table "nodes" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch04_x.nodes (
+  id         bigint PRIMARY KEY,
+  parent_id  bigint REFERENCES ch04_x.nodes(id),
+  name       text NOT NULL
+);
+CREATE TABLE
+INSERT INTO ch04_x.nodes VALUES (1, NULL, 'root'), (2, 1, 'child'), (3, 2, 'grand');
+INSERT 0 3
+-- ルートの親を、自分の孫にする。外部キーは参照先が在るかしか見ないので、通ってしまう
+UPDATE ch04_x.nodes SET parent_id = 3 WHERE id = 1;
+UPDATE 1
+-- 1 -> 2 -> 3 -> 1 の輪ができている
+SELECT id, parent_id, name FROM ch04_x.nodes ORDER BY id;
+ id | parent_id | name  
+----+-----------+-------
+  1 |         3 | root
+  2 |         1 | child
+  3 |         2 | grand
+(3 rows)
+
+## 20_check_blocks_self_loop.sql
+-- run-as: book_owner
+-- 自分自身を親にすることだけは CHECK で防げる（他の行を見ないため）
+ALTER TABLE ch04_x.nodes DROP CONSTRAINT IF EXISTS no_self;
+psql:/tmp/run-sql-4664.sql:3: NOTICE:  constraint "no_self" of relation "nodes" does not exist, skipping
+ALTER TABLE
+UPDATE ch04_x.nodes SET parent_id = 2 WHERE id = 1;   -- 輪をほどいておく
+UPDATE 1
+ALTER TABLE ch04_x.nodes ADD CONSTRAINT no_self CHECK (parent_id <> id);
+ALTER TABLE
+## 30_self_loop_fails.sql
+-- expect-error: 23514
+-- run-as: book_owner
+-- 自己ループは CHECK に弾かれる
+UPDATE ch04_x.nodes SET parent_id = 1 WHERE id = 1;
+psql:/tmp/run-sql-4671.sql:4: ERROR:  new row for relation "nodes" violates check constraint "no_self"
+DETAIL:  Failing row contains (1, 1, root).
+## 40_cycle_still_passes.sql
+-- run-as: book_owner
+-- 2 ノード以上の輪は CHECK では防げない（副問い合わせを書けないため）。
+-- CHECK があっても、この UPDATE は通ってしまう。
+UPDATE ch04_x.nodes SET parent_id = 3 WHERE id = 1;
+UPDATE 1
+SELECT id, parent_id FROM ch04_x.nodes ORDER BY id;
+ id | parent_id 
+----+-----------
+  1 |         3
+  2 |         1
+  3 |         2
+(3 rows)
+
+-- 素朴な再帰 CTE は、この状態では止まらない。CYCLE 句を付けると止まる
+WITH RECURSIVE d AS (
+  SELECT id, parent_id FROM ch04_x.nodes WHERE id = 1
+  UNION ALL
+  SELECT n.id, n.parent_id FROM ch04_x.nodes n JOIN d ON n.parent_id = d.id
+) CYCLE id SET is_cycle USING path
+SELECT id, parent_id, is_cycle FROM d;
+ id | parent_id | is_cycle 
+----+-----------+----------
+  1 |         3 | f
+  2 |         1 | f
+  3 |         2 | f
+  1 |         3 | t
+(4 rows)
+
+## 50_ltree_labels.sql
+-- ltree のラベルに使える文字は、データベースのロケールで変わる。
+-- このデータベースは en_US.utf8 なので、日本語のラベルが通る。
+SELECT '電子機器.ノートPC'::ltree AS japanese_label;
+  japanese_label   
+-------------------
+ 電子機器.ノートPC
+(1 row)
+
+SELECT 'top.1.42'::ltree          AS digits_only;
+ digits_only 
+-------------
+ top.1.42
+(1 row)
+
+SELECT 'a_b-c.d'::ltree           AS underscore_and_hyphen;
+ underscore_and_hyphen 
+-----------------------
+ a_b-c.d
+(1 row)
+
+## 51_ltree_space_fails.sql
+-- expect-error: ltree syntax error
+-- 空白はどのロケールでも使えない
+SELECT 'camera lens'::ltree;
+psql:/tmp/run-sql-4692.sql:3: ERROR:  ltree syntax error at character 7
+LINE 1: SELECT 'camera lens'::ltree;
+               ^
