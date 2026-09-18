@@ -1,0 +1,844 @@
+# 採取日時: 2026-09-18 17:57:00 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+###############################################################
+# 0. 読んだ値を書き戻す案は、CHECK (qty >= 0) があっても売り越す
+#    在庫 100 個の 1 商品に集中させる
+###############################################################
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/f_naive_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 3117326
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.103 ms
+initial connection time = 6.553 ms
+tps = 155914.594546 (without initial connection time)
+## 検査（oversold_rows は 0 にならない。それがこの案の欠陥）
+-- 🔴 この検査は 0 にならないのが正しい結果。だから verify*.sql という名前にしない
+--    （verify*.sql は「全行の先頭列が 0」を機械検査される規約のため）。
+-- 読んで書き戻す案が、在庫 100 個に対して何個売ったかを数える。
+SELECT count(*) AS negative_qty_rows FROM ch05_f.inventory WHERE qty < 0;
+ negative_qty_rows 
+-------------------
+                 0
+(1 row)
+
+SELECT count(*) AS allocated_rows FROM ch05_f.allocations;
+ allocated_rows 
+----------------
+           1949
+(1 row)
+
+SELECT greatest(count(*) - 100, 0) AS oversold_rows FROM ch05_f.allocations;
+ oversold_rows 
+---------------
+          1849
+(1 row)
+
+
+###############################################################
+# 1. ロックを取らない案C は売り越しを出す（在庫 100 個・1 商品）
+###############################################################
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_nolock_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 2286381
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.140 ms
+initial connection time = 6.240 ms
+tps = 114339.122233 (without initial connection time)
+## 測定後の有効在庫（0 未満なら売り越し）
+SELECT qty AS available_after FROM ch05_c.available WHERE product_id = 1;
+ available_after 
+-----------------
+             -11
+(1 row)
+
+
+###############################################################
+# 2. 在庫 100 個（測定中に尽きる）。案B が速く見えるが、
+#    これは売り切れ後の経路を測っているため
+###############################################################
+## ch05_a
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 169430
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 1.888 ms
+initial connection time = 6.153 ms
+tps = 8472.367570 (without initial connection time)
+## ch05_a / 測定直後の検査（全行の先頭列が 0 であること）
+-- 測定直後の検査（案A）。全行の先頭列が 0 であること。
+--
+-- 🔴 その案の測定の直後に流す。3 案ぶんまとめて最後に 1 回流すと、
+--    次の案の前に在庫を戻した時点で前の案の結果が消え、
+--    「引当が 1 件も起きていない」状態を売り越し 0 と読んでしまう（実際に踏んだ）。
+SELECT count(*) AS oversold FROM ch05_a.inventory WHERE qty < 0;
+ oversold 
+----------
+        0
+(1 row)
+
+-- 引当が実際に起きたか（起きていなければ「売り越し 0」は無意味）
+SELECT count(*) AS no_allocation
+  FROM (SELECT sum(qty) AS s FROM ch05_a.inventory) AS x
+ WHERE s = (SELECT sum(qty) FROM ch05_r.src_product);
+ no_allocation 
+---------------
+             0
+(1 row)
+
+-- 在庫 100 個の商品 1 が、ちょうど 0 で止まったか（0 以外なら 0 でない値が出る）
+SELECT abs(coalesce((SELECT qty FROM ch05_a.inventory WHERE product_id = 1), -1))
+       AS qty_of_product_1_must_be_zero;
+ qty_of_product_1_must_be_zero 
+-------------------------------
+                             0
+(1 row)
+
+## ch05_b
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 3332018
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.096 ms
+initial connection time = 5.631 ms
+tps = 166629.901934 (without initial connection time)
+## ch05_b / 測定直後の検査（全行の先頭列が 0 であること）
+-- 測定直後の検査（案B）。全行の先頭列が 0 であること。
+--
+-- 🔴 その案の測定の直後に流す。3 案ぶんまとめて最後に 1 回流すと、
+--    次の案の前に在庫を戻した時点で前の案の結果が消え、
+--    「引当が 1 件も起きていない」状態を売り越し 0 と読んでしまう（実際に踏んだ）。
+SELECT count(*) AS oversold FROM ch05_b.inventory WHERE qty < 0;
+ oversold 
+----------
+        0
+(1 row)
+
+-- 引当が実際に起きたか（起きていなければ「売り越し 0」は無意味）
+SELECT count(*) AS no_allocation
+  FROM (SELECT sum(qty) AS s FROM ch05_b.inventory) AS x
+ WHERE s = (SELECT sum(qty) FROM ch05_r.src_product);
+ no_allocation 
+---------------
+             0
+(1 row)
+
+-- 在庫 100 個の商品 1 が、ちょうど 0 で止まったか（0 以外なら 0 でない値が出る）
+SELECT abs(coalesce((SELECT qty FROM ch05_b.inventory WHERE product_id = 1), -1))
+       AS qty_of_product_1_must_be_zero;
+ qty_of_product_1_must_be_zero 
+-------------------------------
+                             0
+(1 row)
+
+## ch05_c
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 152332
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.100 ms
+initial connection time = 5.790 ms
+tps = 7617.328597 (without initial connection time)
+## ch05_c / 測定直後の検査（全行の先頭列が 0 であること）
+-- 測定直後の検査（案C）。全行の先頭列が 0 であること。
+-- 案C は在庫の列を持たず、増減の合計で有効在庫を求める。
+SELECT count(*) AS oversold FROM ch05_c.available WHERE qty < 0;
+ oversold 
+----------
+        0
+(1 row)
+
+SELECT count(*) AS no_allocation
+  FROM (SELECT count(*) AS s FROM ch05_c.inventory_entries
+         WHERE reason = 'allocation') AS x WHERE s = 0;
+ no_allocation 
+---------------
+             0
+(1 row)
+
+SELECT abs(coalesce((SELECT qty FROM ch05_c.available WHERE product_id = 1), -1))
+       AS qty_of_product_1_must_be_zero;
+ qty_of_product_1_must_be_zero 
+-------------------------------
+                             0
+(1 row)
+
+
+###############################################################
+# 3. 在庫を尽きさせない条件（1 商品への集中）。これが案の比較
+#    5 回ずつ測り、中央値と幅を読む
+###############################################################
+## run 1 / ch05_a / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 102255
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 3.129 ms
+initial connection time = 6.110 ms
+tps = 5113.369996 (without initial connection time)
+## run 1 / ch05_b / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 110795
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.888 ms
+initial connection time = 5.620 ms
+tps = 5540.290455 (without initial connection time)
+## run 1 / ch05_c / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 20573
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 15.571 ms
+initial connection time = 6.275 ms
+tps = 1027.530454 (without initial connection time)
+## run 2 / ch05_a / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 102365
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 3.126 ms
+initial connection time = 6.284 ms
+tps = 5118.639784 (without initial connection time)
+## run 2 / ch05_b / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 112179
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.852 ms
+initial connection time = 6.047 ms
+tps = 5609.523293 (without initial connection time)
+## run 2 / ch05_c / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 20293
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 15.787 ms
+initial connection time = 6.572 ms
+tps = 1013.516028 (without initial connection time)
+## run 3 / ch05_a / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 104188
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 3.071 ms
+initial connection time = 6.023 ms
+tps = 5209.921774 (without initial connection time)
+## run 3 / ch05_b / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 113195
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.827 ms
+initial connection time = 6.164 ms
+tps = 5660.194891 (without initial connection time)
+## run 3 / ch05_c / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 20616
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 15.541 ms
+initial connection time = 5.866 ms
+tps = 1029.551669 (without initial connection time)
+## run 4 / ch05_a / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 103585
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 3.089 ms
+initial connection time = 5.787 ms
+tps = 5179.589522 (without initial connection time)
+## run 4 / ch05_b / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 113535
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.818 ms
+initial connection time = 6.279 ms
+tps = 5677.142858 (without initial connection time)
+## run 4 / ch05_c / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 20286
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 15.794 ms
+initial connection time = 5.887 ms
+tps = 1013.071094 (without initial connection time)
+## run 5 / ch05_a / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 103710
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 3.085 ms
+initial connection time = 6.145 ms
+tps = 5186.138673 (without initial connection time)
+## run 5 / ch05_b / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 113163
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.827 ms
+initial connection time = 7.711 ms
+tps = 5659.044978 (without initial connection time)
+## run 5 / ch05_c / hot
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_hot.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 20447
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 15.672 ms
+initial connection time = 6.317 ms
+tps = 1020.904654 (without initial connection time)
+
+###############################################################
+# 4. 1 万商品への分散（random_zipfian で人気商品に偏らせる）
+###############################################################
+## run 1 / ch05_a / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 371234
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.862 ms
+initial connection time = 6.155 ms
+tps = 18562.914943 (without initial connection time)
+## run 1 / ch05_b / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 378648
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.845 ms
+initial connection time = 5.815 ms
+tps = 18934.941069 (without initial connection time)
+## run 1 / ch05_c / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 123248
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.600 ms
+initial connection time = 5.803 ms
+tps = 6154.105189 (without initial connection time)
+## run 2 / ch05_a / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 372046
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.860 ms
+initial connection time = 7.764 ms
+tps = 18605.569929 (without initial connection time)
+## run 2 / ch05_b / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 377642
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.847 ms
+initial connection time = 6.100 ms
+tps = 18883.764604 (without initial connection time)
+## run 2 / ch05_c / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 120458
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.660 ms
+initial connection time = 6.573 ms
+tps = 6015.785732 (without initial connection time)
+## run 3 / ch05_a / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 373143
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.857 ms
+initial connection time = 5.975 ms
+tps = 18659.086813 (without initial connection time)
+## run 3 / ch05_b / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 381400
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.839 ms
+initial connection time = 6.568 ms
+tps = 19072.747429 (without initial connection time)
+## run 3 / ch05_c / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 116494
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.751 ms
+initial connection time = 6.392 ms
+tps = 5815.016253 (without initial connection time)
+## run 4 / ch05_a / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 375263
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.853 ms
+initial connection time = 6.220 ms
+tps = 18765.598911 (without initial connection time)
+## run 4 / ch05_b / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 383331
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.835 ms
+initial connection time = 6.134 ms
+tps = 19168.692101 (without initial connection time)
+## run 4 / ch05_c / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 110666
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.896 ms
+initial connection time = 5.342 ms
+tps = 5525.696090 (without initial connection time)
+## run 5 / ch05_a / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 373805
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.856 ms
+initial connection time = 7.236 ms
+tps = 18693.228766 (without initial connection time)
+## run 5 / ch05_b / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 381914
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.838 ms
+initial connection time = 5.986 ms
+tps = 19098.221920 (without initial connection time)
+## run 5 / ch05_c / spread
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/c_spread.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 106316
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 3.014 ms
+initial connection time = 6.154 ms
+tps = 5308.332238 (without initial connection time)
+
+###############################################################
+# 5. ロックの順序。そろえる / そろえない / 案B
+#    デッドロックは関数の中で受けるので pgbench の出力に出ない。
+#    pg_stat_database.deadlocks の増分で数える
+###############################################################
+## a_many_sorted
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_many_sorted.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 314722
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 1.017 ms
+initial connection time = 7.319 ms
+tps = 15739.846871 (without initial connection time)
+deadlocks: before=1443 after=1443 delta=0
+## a_many_unsorted
+## a_many_unsorted / 待ち行列の観測
+-- 待ち行列の実測。ロックの順序をそろえない測定を流している最中に、別の接続から実行する。
+-- 「デッドロックが主因ではない」ことを、待っている接続の数で示す。
+--
+-- 自分自身（この問い合わせを流している接続）も active に数えられるので、
+-- client_backends は pgbench の接続数より 1 多くなる。
+SELECT count(*) FILTER (WHERE wait_event_type = 'Lock') AS waiting_on_lock,
+       count(*) AS active_backends
+  FROM pg_stat_activity
+ WHERE datname = 'book' AND backend_type = 'client backend' AND state = 'active';
+ waiting_on_lock | active_backends 
+-----------------+-----------------
+              16 |              17
+(1 row)
+
+-- 何を待っているかの内訳
+SELECT wait_event_type, wait_event, count(*)
+  FROM pg_stat_activity
+ WHERE datname = 'book' AND backend_type = 'client backend' AND state = 'active'
+ GROUP BY 1, 2 ORDER BY 3 DESC;
+ wait_event_type |  wait_event   | count 
+-----------------+---------------+-------
+ Lock            | transactionid |    11
+ Lock            | tuple         |     5
+                 |               |     1
+(3 rows)
+
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_many_unsorted.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 901
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 359.790 ms
+initial connection time = 5.933 ms
+tps = 44.470430 (without initial connection time)
+deadlocks: before=1443 after=1471 delta=28
+## b_many
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/b_many.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 686
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 471.856 ms
+initial connection time = 6.670 ms
+tps = 33.908638 (without initial connection time)
+deadlocks: before=1471 after=1504 delta=33
+
+###############################################################
+# 5b. deadlock_timeout を変えて、遅さの実体を確かめる
+#     設計は変えず、設定だけを変える。ロック待ちそのものではなく
+#     デッドロックの検出待ちが効いていることを示す
+###############################################################
+## deadlock_timeout = 1s
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_many_unsorted.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 515
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 659.796 ms
+initial connection time = 5.645 ms
+tps = 24.249935 (without initial connection time)
+## deadlock_timeout = 20ms
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/a_many_unsorted.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 26297
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 12.178 ms
+initial connection time = 6.104 ms
+tps = 1313.832765 (without initial connection time)
+## deadlock_timeout を 1s に戻した
+
+###############################################################
+# 6. REPEATABLE READ のシリアライゼーション失敗
+###############################################################
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch05_bench/rr.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 306714
+number of failed transactions: 212669 (40.946%)
+number of serialization failures: 212669 (40.946%)
+number of deadlock failures: 0 (0.000%)
+latency average = 0.616 ms (including failures)
+initial connection time = 6.256 ms
+tps = 15337.646347 (without initial connection time)

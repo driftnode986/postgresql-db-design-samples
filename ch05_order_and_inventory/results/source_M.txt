@@ -1,0 +1,63 @@
+# 採取日時: 2026-09-18 18:11:19 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 3 案に同じ商品を入れるための元データ。
+-- 元データを 1 回だけ作り、各案の load.sql が ORDER BY id で写す。
+-- 案ごとに別々に生成すると、乱数が違って案の比較にならない。
+CREATE SCHEMA IF NOT EXISTS ch05_r;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch05_r.src_product;
+psql:/tmp/run-sql-57060.sql:6: NOTICE:  table "src_product" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch05_r.src_product (
+  id         bigint PRIMARY KEY,
+  sku        text    NOT NULL,
+  name       text    NOT NULL,
+  price_yen  integer NOT NULL,
+  -- 初期の在庫数。1 商品あたり 100 個から始める
+  qty        integer NOT NULL
+);
+CREATE TABLE
+-- 商品を生成する。SIZE=S なら 1,000 商品、M なら 10,000 商品。
+-- 在庫は 1 商品あたり 100 個。測定の 20 秒で在庫が尽きないように、測定のたびに入れ直す。
+--
+-- setseed で乱数の種を固定するので、何度実行しても同じ値になる。
+\set size `echo "${SIZE:-M}"`
+\set n_products `case "${SIZE:-M}" in S) echo 1000 ;; *) echo 10000 ;; esac`
+\timing on
+Timing is on.
+SELECT setseed(0.42);
+ setseed 
+---------
+ 
+(1 row)
+
+Time: 0.375 ms
+TRUNCATE ch05_r.src_product;
+TRUNCATE TABLE
+Time: 1.659 ms
+INSERT INTO ch05_r.src_product (id, sku, name, price_yen, qty)
+SELECT g,
+       'SKU-' || lpad(g::text, 7, '0'),
+       '商品' || g,
+       -- 価格は 500 円から 30,000 円。分布は結論に関係しないので一様でよい
+       500 + (random() * 29500)::int,
+       100
+FROM generate_series(1, :n_products) AS g;
+INSERT 0 10000
+Time: 13.422 ms
+SELECT count(*) AS products, sum(qty) AS total_qty FROM ch05_r.src_product;
+ products | total_qty 
+----------+-----------
+    10000 |   1000000
+(1 row)
+
+Time: 0.678 ms

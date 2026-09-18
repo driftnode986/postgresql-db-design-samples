@@ -1,0 +1,172 @@
+# 採取日時: 2026-09-18 18:11:21 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案B: 条件つき UPDATE を 1 文だけ実行する
+--
+-- テーブルの形は案A と同じ。違うのは引当の書き方だけで、在庫を読まずに
+-- 「足りるときだけ減らす」を 1 文で書く。更新できた行数で成否を判定する。
+CREATE SCHEMA ch05_b;
+CREATE SCHEMA
+CREATE TABLE ch05_b.products (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sku        text        NOT NULL UNIQUE,
+  name       text        NOT NULL,
+  price_yen  integer     NOT NULL CHECK (price_yen >= 0),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE TABLE ch05_b.inventory (
+  product_id bigint      PRIMARY KEY REFERENCES ch05_b.products(id),
+  qty        integer     NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  -- 案A と同じ二重の備え。WHERE qty >= n が先に効くので、通常はこの制約に到達しない
+  CONSTRAINT inventory_qty_non_negative CHECK (qty >= 0)
+);
+CREATE TABLE
+CREATE TABLE ch05_b.orders (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  status     text        NOT NULL DEFAULT 'pending'
+             CHECK (status IN ('pending', 'confirmed')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE TABLE ch05_b.order_items (
+  order_id   bigint  NOT NULL REFERENCES ch05_b.orders(id) ON DELETE CASCADE,
+  product_id bigint  NOT NULL REFERENCES ch05_b.products(id),
+  qty        integer NOT NULL CHECK (qty > 0),
+  PRIMARY KEY (order_id, product_id)
+);
+CREATE TABLE
+-- 案B の引当。UPDATE 1 文で済ませる。
+--
+-- UPDATE は対象の行に自動で排他ロックを取るので、FOR UPDATE を別に書かない。
+-- 読んでから書くまでの隙間が無いので、在庫が足りるかどうかの判定と減算が同じ文で起きる。
+CREATE FUNCTION ch05_b.allocate(p_product bigint, p_qty int)
+RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+  v_after int;
+BEGIN
+  -- 18 では RETURNING に old. と new. を書ける。引当前と引当後の在庫を 1 文で取れる
+  UPDATE ch05_b.inventory
+     SET qty = qty - p_qty, updated_at = now()
+   WHERE product_id = p_product
+     AND qty >= p_qty          -- 足りるときだけ更新する。足りなければ 0 行
+  RETURNING new.qty INTO v_after;
+
+  -- 更新できなかった（在庫不足、または商品が無い）
+  RETURN v_after IS NOT NULL;
+EXCEPTION
+  WHEN check_violation THEN RETURN false;
+END $$;
+CREATE FUNCTION
+-- 複数商品版。1 文で全商品をまとめて更新し、更新できた件数が要求した件数と一致するかで判定する。
+-- 更新の順序は PostgreSQL が決めるので、ロック順をそろえられない
+CREATE FUNCTION ch05_b.allocate_many(p_products bigint[], p_qty int)
+RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+  v_updated int;
+BEGIN
+  WITH t AS (SELECT DISTINCT x AS product_id FROM unnest(p_products) AS x),
+  upd AS (
+    UPDATE ch05_b.inventory i
+       SET qty = i.qty - p_qty, updated_at = now()
+      FROM t
+     WHERE i.product_id = t.product_id
+       AND i.qty >= p_qty
+    RETURNING i.product_id
+  )
+  SELECT count(*) INTO v_updated FROM upd;
+
+  -- 1 つでも足りなければ、呼び出し側が ROLLBACK する。
+  -- ここでは例外を出して、この関数の呼び出しを含むトランザクションを巻き戻す
+  IF v_updated <> (SELECT count(DISTINCT x) FROM unnest(p_products) AS x) THEN
+    RAISE EXCEPTION 'insufficient stock' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN true;
+EXCEPTION
+  WHEN check_violation THEN RETURN false;
+  WHEN deadlock_detected THEN RETURN false;
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch05_b.allocate(bigint, int) TO book_app;
+GRANT
+GRANT EXECUTE ON FUNCTION ch05_b.allocate_many(bigint[], int) TO book_app;
+GRANT
+-- 元データを写す。測定のたびに入れ直すので、在庫も毎回 100 個に戻る
+SELECT count(*) AS src_rows FROM ch05_r.src_product \gset
+SELECT CASE WHEN :src_rows = 0
+            THEN 1/0 ELSE 1 END AS source_must_not_be_empty;  -- 空なら何も消さずに止まる
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch05_b.orders, ch05_b.order_items, ch05_b.inventory, ch05_b.products
+  RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 2.889 ms
+INSERT INTO ch05_b.products (id, sku, name, price_yen)
+OVERRIDING SYSTEM VALUE
+SELECT id, sku, name, price_yen FROM ch05_r.src_product ORDER BY id;
+INSERT 0 10000
+Time: 29.239 ms
+SELECT setval(pg_get_serial_sequence('ch05_b.products', 'id'),
+              (SELECT max(id) FROM ch05_b.products));
+ setval 
+--------
+  10000
+(1 row)
+
+Time: 0.405 ms
+INSERT INTO ch05_b.inventory (product_id, qty)
+SELECT id, qty FROM ch05_r.src_product ORDER BY id;
+INSERT 0 10000
+Time: 37.246 ms
+ANALYZE ch05_b.products, ch05_b.inventory;
+ANALYZE
+Time: 58.787 ms
+-- 元データと同じ商品と在庫が入っているか（全行の先頭列が 0 になること）
+SELECT count(*) AS products_diff FROM (
+  SELECT id, sku, name, price_yen FROM ch05_b.products
+  EXCEPT SELECT id, sku, name, price_yen FROM ch05_r.src_product) AS d;
+ products_diff 
+---------------
+             0
+(1 row)
+
+-- 🔴 在庫の数量は測定で減るので、ここでは比べない（load 直後にしか一致しない）。
+--    行がそろっているかだけを見る
+SELECT count(*) AS inventory_rows_diff FROM (
+  SELECT product_id FROM ch05_b.inventory
+  EXCEPT SELECT id FROM ch05_r.src_product) AS d;
+ inventory_rows_diff 
+---------------------
+                   0
+(1 row)
+
+SELECT count(*) AS rows_diff FROM (
+  SELECT (SELECT count(*) FROM ch05_b.products)
+       - (SELECT count(*) FROM ch05_r.src_product) AS n) AS x WHERE n <> 0;
+ rows_diff 
+-----------
+         0
+(1 row)
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_was_empty
+  FROM ch05_r.src_product;
+ source_was_empty 
+------------------
+                0
+(1 row)
+

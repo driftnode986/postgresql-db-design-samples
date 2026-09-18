@@ -1,0 +1,72 @@
+# 採取日時: 2026-09-18 18:11:24 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 検算用: 読んだ値を書き戻す書き方
+--
+-- 採取した AI の案は 3 本とも FOR UPDATE を書いていた（docs/research/ch05_first_idea.md）。
+-- この案は「AI がこう間違える」例ではなく、なぜ FOR UPDATE が要るのかを説明するための対照として置く。
+--
+-- CHECK (qty >= 0) を付けてあるのが要点。この制約があっても売り越しは止まらない。
+CREATE SCHEMA ch05_f;
+CREATE SCHEMA
+CREATE TABLE ch05_f.inventory (
+  product_id bigint  PRIMARY KEY,
+  qty        integer NOT NULL
+             CONSTRAINT inventory_qty_non_negative CHECK (qty >= 0)
+);
+CREATE TABLE
+-- 引き当てた事実を 1 行ずつ残す。qty の減り方ではなく、この行数で売れた数を数える
+CREATE TABLE ch05_f.allocations (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_id bigint NOT NULL,
+  qty        integer NOT NULL
+);
+CREATE TABLE
+-- search_path を関数に付ける。付けないと book_app から呼んだときに
+-- relation "inventory" does not exist で pgbench のクライアントが全滅する
+CREATE FUNCTION ch05_f.allocate(p_product bigint, p_qty int)
+RETURNS boolean LANGUAGE plpgsql SET search_path = ch05_f, public AS $$
+DECLARE
+  v_stock int;
+BEGIN
+  -- 読む。この時点の値をアプリ側（関数の変数）に持ち出す
+  SELECT qty INTO v_stock FROM inventory WHERE product_id = p_product;
+  IF v_stock IS NULL OR v_stock < p_qty THEN
+    RETURN false;
+  END IF;
+
+  -- 読んだ値から引いて書き戻す。読んでから書くまでの間に他の接続が更新していても気づかない
+  UPDATE inventory SET qty = v_stock - p_qty WHERE product_id = p_product;
+  INSERT INTO allocations (product_id, qty) VALUES (p_product, p_qty);
+  RETURN true;
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch05_f.allocate(bigint, int) TO book_app;
+GRANT
+GRANT SELECT, INSERT, UPDATE
+  ON ch05_f.inventory, ch05_f.allocations TO book_app;
+GRANT
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch05_f TO book_app;
+GRANT
+-- 在庫 100 個の商品 1 件だけを置く。16 接続がこの 1 件を取り合う形にする。
+-- 🔴 1 万商品に分散させると、どの商品も売り切れに達せず、売り越しが 0 件で通ってしまう
+SELECT count(*) AS src_rows FROM ch05_r.src_product \gset
+SELECT CASE WHEN :src_rows = 0
+            THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+TRUNCATE ch05_f.inventory, ch05_f.allocations RESTART IDENTITY;
+TRUNCATE TABLE
+INSERT INTO ch05_f.inventory (product_id, qty) VALUES (1, 100);
+INSERT 0 1

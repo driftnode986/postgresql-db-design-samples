@@ -1,0 +1,29 @@
+# 採取日時: 2026-09-18 18:11:27 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 3 案の保存サイズ。本体とインデックスを分けて出す。
+-- 🔴 単位を kB にそろえて出す。pg_size_pretty は行ごとに kB と MB を使い分けるので、
+--    図に載せる数値がログの文字列と一致しなくなる（図の生成器がログ本文と照合する）。
+SELECT c.relname::text AS rel,
+       pg_relation_size(c.oid) / 1024        AS heap_kb,
+       pg_indexes_size(c.oid) / 1024         AS indexes_kb,
+       pg_total_relation_size(c.oid) / 1024  AS total_kb
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE (n.nspname, c.relname) IN
+       (('ch05_a','inventory'), ('ch05_b','inventory'), ('ch05_c','inventory_entries'))
+ ORDER BY n.nspname;
+        rel        | heap_kb | indexes_kb | total_kb 
+-------------------+---------+------------+----------
+ inventory         |     512 |        240 |      776
+ inventory         |     512 |        240 |      776
+ inventory_entries |    7336 |       5656 |    13024
+(3 rows)
+

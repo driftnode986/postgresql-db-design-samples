@@ -1,0 +1,76 @@
+# 採取日時: 2026-09-18 18:11:25 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+CREATE SCHEMA IF NOT EXISTS ch05_x;
+CREATE SCHEMA
+-- 第5章で使う機能を、最小の例で確かめる。本文で断定する前に、この出力を根拠にする。
+--
+-- 🔴 版の帰属に注意。merge_action() と MERGE ... RETURNING は 17 で入った。
+--    18 で入ったのは RETURNING の old / new の別名のほう。
+--    「18 の新機能で入荷処理が 1 文になる」と書くと誤りになる。
+-- run-as: book_owner
+CREATE SCHEMA IF NOT EXISTS ch05_x;
+psql:/tmp/run-sql-57313.sql:7: NOTICE:  schema "ch05_x" already exists, skipping
+CREATE SCHEMA
+\echo '## MERGE ... RETURNING merge_action()（PostgreSQL 17。挿入と更新を 1 文で区別する）'
+## MERGE ... RETURNING merge_action()（PostgreSQL 17。挿入と更新を 1 文で区別する）
+DROP TABLE IF EXISTS ch05_x.inv;
+psql:/tmp/run-sql-57313.sql:10: NOTICE:  table "inv" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch05_x.inv (product_id bigint PRIMARY KEY, qty int NOT NULL);
+CREATE TABLE
+INSERT INTO ch05_x.inv VALUES (1, 10);
+INSERT 0 1
+MERGE INTO ch05_x.inv AS t
+USING (VALUES (1::bigint, 5), (2::bigint, 7)) AS s(product_id, delta)
+   ON t.product_id = s.product_id
+ WHEN MATCHED THEN UPDATE SET qty = t.qty + s.delta
+ WHEN NOT MATCHED THEN INSERT (product_id, qty) VALUES (s.product_id, s.delta)
+RETURNING merge_action() AS action, t.product_id, t.qty;
+ action | product_id | qty 
+--------+------------+-----
+ UPDATE |          1 |  15
+ INSERT |          2 |   7
+(2 rows)
+
+MERGE 2
+\echo '## RETURNING old / new（引当の前後の在庫を 1 文で取る。PostgreSQL 18）'
+## RETURNING old / new（引当の前後の在庫を 1 文で取る。PostgreSQL 18）
+UPDATE ch05_x.inv SET qty = qty - 3 WHERE product_id = 1
+RETURNING old.qty AS before, new.qty AS after;
+ before | after 
+--------+-------
+     15 |    12
+(1 row)
+
+UPDATE 1
+\echo '## FOR UPDATE SKIP LOCKED（期限切れの仮押さえを、掴まれている行を飛ばして取る）'
+## FOR UPDATE SKIP LOCKED（期限切れの仮押さえを、掴まれている行を飛ばして取る）
+DROP TABLE IF EXISTS ch05_x.holds;
+psql:/tmp/run-sql-57313.sql:26: NOTICE:  table "holds" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch05_x.holds (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_id bigint NOT NULL, qty int NOT NULL,
+  expires_at timestamptz NOT NULL);
+CREATE TABLE
+INSERT INTO ch05_x.holds (product_id, qty, expires_at)
+SELECT g, 1, now() - interval '20 minutes' FROM generate_series(1, 5) AS g;
+INSERT 0 5
+SELECT id, product_id FROM ch05_x.holds
+ WHERE expires_at < now() ORDER BY id LIMIT 3 FOR UPDATE SKIP LOCKED;
+ id | product_id 
+----+------------
+  1 |          1
+  2 |          2
+  3 |          3
+(3 rows)
+

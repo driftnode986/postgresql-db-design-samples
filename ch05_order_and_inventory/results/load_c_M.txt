@@ -1,0 +1,182 @@
+# 採取日時: 2026-09-18 18:11:22 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案C: 在庫の増減を行として追記し、有効在庫を集計で導出する
+--
+-- 在庫数を持つ列を更新しない。入荷を正、引当を負として 1 行ずつ足していき、
+-- 合計が現在の在庫になる。いつ・どの注文で何個減ったかが残る。
+CREATE SCHEMA ch05_c;
+CREATE SCHEMA
+CREATE TABLE ch05_c.products (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sku        text        NOT NULL UNIQUE,
+  name       text        NOT NULL,
+  price_yen  integer     NOT NULL CHECK (price_yen >= 0),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+-- 在庫の変動。入荷は正、引当は負
+CREATE TABLE ch05_c.inventory_entries (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  product_id bigint      NOT NULL REFERENCES ch05_c.products(id),
+  delta      integer     NOT NULL CHECK (delta <> 0),
+  reason     text        NOT NULL
+             CHECK (reason IN ('receipt', 'allocation', 'release')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+-- 商品ごとの合計を取るためのインデックス。delta を含めるので、
+-- テーブル本体を読まずにインデックスだけで合計できる
+CREATE INDEX inventory_entries_product_idx
+  ON ch05_c.inventory_entries (product_id) INCLUDE (delta);
+CREATE INDEX
+CREATE TABLE ch05_c.orders (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  status     text        NOT NULL DEFAULT 'pending'
+             CHECK (status IN ('pending', 'confirmed')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE
+CREATE TABLE ch05_c.order_items (
+  order_id   bigint  NOT NULL REFERENCES ch05_c.orders(id) ON DELETE CASCADE,
+  product_id bigint  NOT NULL REFERENCES ch05_c.products(id),
+  qty        integer NOT NULL CHECK (qty > 0),
+  PRIMARY KEY (order_id, product_id)
+);
+CREATE TABLE
+-- 有効在庫。商品ごとの合計
+CREATE VIEW ch05_c.available AS
+SELECT p.id AS product_id,
+       coalesce(sum(e.delta), 0)::int AS qty
+  FROM ch05_c.products p
+  LEFT JOIN ch05_c.inventory_entries e ON e.product_id = p.id
+ GROUP BY p.id;
+CREATE VIEW
+GRANT SELECT ON ch05_c.available TO book_app;
+GRANT
+-- 案C の引当。合計を取ってから、足りれば負の行を追記する。
+--
+-- 案A・案B と違い、減らす対象の行が無い。追記するだけなので、ロックを取る相手がいない。
+-- 何もしないと、2 つの接続が同じ合計を読んで両方が追記し、売り越しになる。
+-- そこで商品の行を FOR UPDATE でロックし、商品 1 件につき同時に 1 つの引当だけが進むようにする。
+CREATE FUNCTION ch05_c.allocate(p_product bigint, p_qty int)
+RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+  v_stock int;
+BEGIN
+  -- 追記先の行が無いので、商品の行を待ち合わせの場所として使う。
+  -- この行は更新しないが、FOR UPDATE は他の接続の FOR UPDATE を待たせる
+  PERFORM 1 FROM ch05_c.products WHERE id = p_product FOR UPDATE;
+
+  SELECT coalesce(sum(delta), 0) INTO v_stock
+    FROM ch05_c.inventory_entries WHERE product_id = p_product;
+
+  IF v_stock < p_qty THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO ch05_c.inventory_entries (product_id, delta, reason)
+  VALUES (p_product, -p_qty, 'allocation');
+  RETURN true;
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch05_c.allocate(bigint, int) TO book_app;
+GRANT
+-- 比較のため、ロックを取らない版も置く。売り越しが出ることを実証するのに使う
+CREATE FUNCTION ch05_c.allocate_nolock(p_product bigint, p_qty int)
+RETURNS boolean LANGUAGE plpgsql AS $$
+DECLARE
+  v_stock int;
+BEGIN
+  SELECT coalesce(sum(delta), 0) INTO v_stock
+    FROM ch05_c.inventory_entries WHERE product_id = p_product;
+
+  IF v_stock < p_qty THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO ch05_c.inventory_entries (product_id, delta, reason)
+  VALUES (p_product, -p_qty, 'allocation');
+  RETURN true;
+END $$;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch05_c.allocate_nolock(bigint, int) TO book_app;
+GRANT
+-- 元データを写す。案C は在庫数の列を持たないので、初期在庫を入荷の行として追記する
+SELECT count(*) AS src_rows FROM ch05_r.src_product \gset
+SELECT CASE WHEN :src_rows = 0
+            THEN 1/0 ELSE 1 END AS source_must_not_be_empty;  -- 空なら何も消さずに止まる
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch05_c.orders, ch05_c.order_items, ch05_c.inventory_entries, ch05_c.products
+  RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 2.720 ms
+INSERT INTO ch05_c.products (id, sku, name, price_yen)
+OVERRIDING SYSTEM VALUE
+SELECT id, sku, name, price_yen FROM ch05_r.src_product ORDER BY id;
+INSERT 0 10000
+Time: 28.183 ms
+SELECT setval(pg_get_serial_sequence('ch05_c.products', 'id'),
+              (SELECT max(id) FROM ch05_c.products));
+ setval 
+--------
+  10000
+(1 row)
+
+Time: 0.455 ms
+-- 初期在庫は「入荷が 1 回あった」として記録する
+INSERT INTO ch05_c.inventory_entries (product_id, delta, reason)
+SELECT id, qty, 'receipt' FROM ch05_r.src_product ORDER BY id;
+INSERT 0 10000
+Time: 48.313 ms
+ANALYZE ch05_c.products, ch05_c.inventory_entries;
+ANALYZE
+Time: 59.227 ms
+-- 元データと同じ商品が入り、入荷の合計が初期在庫と一致するか（全行の先頭列が 0 になること）
+SELECT count(*) AS products_diff FROM (
+  SELECT id, sku, name, price_yen FROM ch05_c.products
+  EXCEPT SELECT id, sku, name, price_yen FROM ch05_r.src_product) AS d;
+ products_diff 
+---------------
+             0
+(1 row)
+
+-- 🔴 有効在庫は測定で減るので、ここでは比べない。商品がそろっているかだけを見る
+SELECT count(*) AS available_rows_diff FROM (
+  SELECT product_id FROM ch05_c.available
+  EXCEPT SELECT id FROM ch05_r.src_product) AS d;
+ available_rows_diff 
+---------------------
+                   0
+(1 row)
+
+SELECT count(*) AS rows_diff FROM (
+  SELECT (SELECT count(*) FROM ch05_c.products)
+       - (SELECT count(*) FROM ch05_r.src_product) AS n) AS x WHERE n <> 0;
+ rows_diff 
+-----------
+         0
+(1 row)
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_was_empty
+  FROM ch05_r.src_product;
+ source_was_empty 
+------------------
+                0
+(1 row)
+
