@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 05:16:37 +0900
+# 採取日時: 2026-09-19 05:46:30 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,6 +9,7 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
+-- run-as: book_owner
 -- 🔴 「残高が足りないとき、消し込みはエラーにならず引ける分だけ引く」ことを示す。
 --
 -- CHECK (remaining >= 0) はロット 1 行ごとの制約なので、「合計が足りない」は捕まえない。
@@ -47,26 +48,26 @@ BEGIN
   RETURN v_taken;                 -- 🔴 検査せずに返す
 END $$;
 CREATE FUNCTION
-Time: 1.758 ms
+Time: 2.011 ms
 -- 残高の少ない会員を 1 人選ぶ
 SELECT user_id AS poor_user FROM ch07_a.point_lots
 WHERE remaining > 0 AND expires_at > now()
 GROUP BY user_id ORDER BY sum(remaining) ASC LIMIT 1 \gset
-Time: 7.541 ms
+Time: 7.917 ms
 SELECT :poor_user AS poor_user, ch07_a.balance_of(:poor_user) AS balance_before;
  poor_user | balance_before 
 -----------+----------------
        632 |          19440
 (1 row)
 
-Time: 0.391 ms
+Time: 0.285 ms
 SELECT ch07_a.balance_of(:poor_user) * 10 AS wanted \gset
-Time: 0.239 ms
+Time: 0.164 ms
 \echo '=== 検査を持たない版に、残高の 10 倍を要求する ==='
 === 検査を持たない版に、残高の 10 倍を要求する ===
 BEGIN;
 BEGIN
-Time: 0.057 ms
+Time: 0.042 ms
 -- 🔴 残高の確認は use_points_no_check とは別の文で行う。
 --    同じ SELECT の中に並べると、balance_of は STABLE なので
 --    文の開始時点の状態を読み、引いたあとの残高に見えない
@@ -77,14 +78,15 @@ WHERE user_id = :poor_user AND remaining > 0 AND expires_at > now();
           19440
 (1 row)
 
-Time: 0.139 ms
-SELECT :wanted AS wanted, ch07_a.use_points_no_check(:poor_user, :wanted) AS taken;
+Time: 0.222 ms
+SELECT :wanted AS wanted,
+       ch07_a.use_points_no_check(:poor_user, :wanted) AS taken;
  wanted | taken 
 --------+-------
  194400 | 19440
 (1 row)
 
-Time: 1.257 ms
+Time: 1.348 ms
 SELECT coalesce(sum(remaining), 0) AS balance_after FROM ch07_a.point_lots
 WHERE user_id = :poor_user AND remaining > 0 AND expires_at > now();
  balance_after 
@@ -92,24 +94,24 @@ WHERE user_id = :poor_user AND remaining > 0 AND expires_at > now();
              0
 (1 row)
 
-Time: 0.153 ms
+Time: 0.105 ms
 -- 🔴 エラーにならず、引ける分だけ引いて成功した。残高は 0 になり、
 --    要求額との差（wanted - taken）はどこにも記録されずに消えた
 ROLLBACK;
 ROLLBACK
-Time: 0.103 ms
+Time: 0.068 ms
 \echo '=== 検査を持つ版に、同じ要求をする ==='
 === 検査を持つ版に、同じ要求をする ===
 BEGIN;
 BEGIN
-Time: 0.064 ms
+Time: 0.075 ms
 SELECT ch07_a.use_points(:poor_user, :wanted) AS succeeded;
  succeeded 
 -----------
  f
 (1 row)
 
-Time: 0.588 ms
+Time: 0.832 ms
 SELECT coalesce(sum(remaining), 0) AS balance_after FROM ch07_a.point_lots
 WHERE user_id = :poor_user AND remaining > 0 AND expires_at > now();
  balance_after 
@@ -117,8 +119,8 @@ WHERE user_id = :poor_user AND remaining > 0 AND expires_at > now();
          19440
 (1 row)
 
-Time: 0.159 ms
+Time: 0.136 ms
 -- false が返り、残高は変わらない
 ROLLBACK;
 ROLLBACK
-Time: 0.077 ms
+Time: 0.074 ms

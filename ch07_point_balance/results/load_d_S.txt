@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 05:16:30 +0900
+# 採取日時: 2026-09-19 05:46:22 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -78,13 +78,13 @@ SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
 Timing is on.
 TRUNCATE ch07_d.point_snapshots, ch07_d.point_txns RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 1.776 ms
+Time: 2.170 ms
 INSERT INTO ch07_d.point_txns (id, user_id, kind, amount, expires_at, created_at)
 OVERRIDING SYSTEM VALUE
 SELECT id, user_id, kind, amount, expires_at, created_at
 FROM ch07_r.src_txn ORDER BY id;
 INSERT 0 101000
-Time: 174.999 ms
+Time: 201.883 ms
 SELECT setval(pg_get_serial_sequence('ch07_d.point_txns', 'id'),
               (SELECT max(id) FROM ch07_d.point_txns));
  setval 
@@ -92,7 +92,7 @@ SELECT setval(pg_get_serial_sequence('ch07_d.point_txns', 'id'),
  101000
 (1 row)
 
-Time: 0.742 ms
+Time: 0.572 ms
 -- 締め。会員ごとに「最後から 100 件手前」で締めたことにする。
 -- 🔴 締めの位置は運用で決まる（月次など）。ここでは案C との差が読めるように、
 --    締めのあとに残る取引の件数を会員によらずそろえた
@@ -110,14 +110,14 @@ FROM (
 GROUP BY user_id, cut
 HAVING cut > 0;
 INSERT 0 10
-Time: 2331.418 ms (00:02.331)
+Time: 2349.069 ms (00:02.349)
 ANALYZE ch07_d.point_txns, ch07_d.point_snapshots;
 ANALYZE
-Time: 29.441 ms
+Time: 29.505 ms
 SELECT count(*) AS snapshots FROM ch07_d.point_snapshots;
  snapshots 
 -----------
         10
 (1 row)
 
-Time: 0.189 ms
+Time: 0.184 ms

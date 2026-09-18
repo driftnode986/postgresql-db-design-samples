@@ -48,7 +48,7 @@ save "balance_plans$T.txt" run book_app ch07_a $D/queries/10_balance_plans.sql
 save "fefo_vs_fifo$T.txt" run book_app ch07_a $D/queries/20_fefo_vs_fifo.sql
 
 # 残高が足りないとき、検査を持たない消し込みはエラーにならない
-save "shortage$T.txt" run book_owner ch07_a $D/queries/30_shortage.sql
+save "shortage$T.txt" run book_owner ch07_a $D/a_lots/30_shortage.sql
 
 # 保存サイズ。🔴 消し込みのあとに測る（案の構築直後に測ると案A・案B のロットが満額のまま）
 save "sizes$T.txt" run book_app ch07_a $D/queries/90_sizes.sql

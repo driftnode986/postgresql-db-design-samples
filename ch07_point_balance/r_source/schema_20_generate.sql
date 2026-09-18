@@ -45,8 +45,9 @@ WITH src AS MATERIALIZED (
   SELECT g AS id,
          CASE WHEN random() < 0.8
               THEN 1 + floor(random() * greatest(:n_users / 100, 1))::bigint
-              ELSE greatest(:n_users / 100, 1)
-                   + 1 + floor(random() * (:n_users - greatest(:n_users / 100, 1)))::bigint
+              ELSE greatest(:n_users / 100, 1) + 1
+                   + floor(random()
+                           * (:n_users - greatest(:n_users / 100, 1)))::bigint
          END AS user_id,
          CASE WHEN random() < 0.6 THEN 'grant' ELSE 'use' END AS kind,
          -- 刻みの大きさは下の外側の SELECT で kind から決める。

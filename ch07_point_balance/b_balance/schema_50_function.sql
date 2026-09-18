@@ -22,7 +22,8 @@ RETURNS bigint LANGUAGE sql AS $$
     SELECT user_id, 'grant', p_amt, before, after FROM up
     RETURNING id
   )
-  INSERT INTO ch07_b.point_lots (user_id, granted, remaining, expires_at, granted_at)
+  INSERT INTO ch07_b.point_lots
+    (user_id, granted, remaining, expires_at, granted_at)
   VALUES (p_uid, p_amt, p_amt, p_expires, now())
   RETURNING id;
 $$;

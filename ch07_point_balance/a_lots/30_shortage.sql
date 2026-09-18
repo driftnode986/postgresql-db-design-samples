@@ -1,3 +1,4 @@
+-- run-as: book_owner
 -- 🔴 「残高が足りないとき、消し込みはエラーにならず引ける分だけ引く」ことを示す。
 --
 -- CHECK (remaining >= 0) はロット 1 行ごとの制約なので、「合計が足りない」は捕まえない。
@@ -53,7 +54,8 @@ BEGIN;
 SELECT coalesce(sum(remaining), 0) AS balance_before FROM ch07_a.point_lots
 WHERE user_id = :poor_user AND remaining > 0 AND expires_at > now();
 
-SELECT :wanted AS wanted, ch07_a.use_points_no_check(:poor_user, :wanted) AS taken;
+SELECT :wanted AS wanted,
+       ch07_a.use_points_no_check(:poor_user, :wanted) AS taken;
 
 SELECT coalesce(sum(remaining), 0) AS balance_after FROM ch07_a.point_lots
 WHERE user_id = :poor_user AND remaining > 0 AND expires_at > now();
