@@ -1,0 +1,39 @@
+-- 案A: 料金をプランの行に持ち、改定は上書きする。請求明細は plan_id だけを持つ。
+--
+-- 採取した 3 本は、どれもこの形を出さなかった（ch08_first_idea.md）。
+-- 要件に「過去の請求書は変わってはいけない」と書いてあるからである。
+-- それでも案A を置くのは、要件にその一行が無い状態で書かれた設計が実際にあるからで、
+-- 「何が起きるか」を測って示すために要る。
+--
+-- この案は「据え置き」を表せない。プランの行が 1 つの額しか持てないので、
+-- 契約ごとに違う額にする場所が無い。
+CREATE SCHEMA ch08_a;
+
+CREATE TABLE ch08_a.plans (
+  id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code      text   NOT NULL UNIQUE,
+  name      text   NOT NULL,
+  price_yen int    NOT NULL CHECK (price_yen > 0)   -- 改定するとこの値を上書きする
+);
+
+CREATE TABLE ch08_a.subscriptions (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  customer_id bigint NOT NULL,
+  plan_id     bigint NOT NULL REFERENCES ch08_a.plans (id),
+  period      daterange NOT NULL
+);
+
+CREATE INDEX subscriptions_period ON ch08_a.subscriptions USING gist (period);
+
+-- 請求書。明細は plan_id しか持たない。
+-- 金額は「発行のたびにプランの行を引いて計算する」ので、どこにも保存されていない。
+CREATE TABLE ch08_a.invoice_lines (
+  id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  subscription_id bigint NOT NULL REFERENCES ch08_a.subscriptions (id),
+  billed_month    date   NOT NULL,
+  plan_id         bigint NOT NULL REFERENCES ch08_a.plans (id),
+  charged_days    int    NOT NULL CHECK (charged_days > 0),
+  days_in_month   int    NOT NULL CHECK (days_in_month > 0)
+);
+
+CREATE INDEX invoice_lines_month ON ch08_a.invoice_lines (billed_month, subscription_id);

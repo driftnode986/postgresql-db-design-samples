@@ -1,0 +1,48 @@
+-- 消費税の端数処理を、2 つの計算のしかたで出して比べる。
+--
+--   (1) 明細ごとに税額を出して丸め、その合計を請求書の消費税額とする
+--   (2) 税抜の額を先に合計し、そこに税率を掛けてから丸める
+--
+-- 日本の適格請求書（インボイス）では、(2) しか認められない。
+-- 国税庁の「消費税の仕入税額控除制度における適格請求書等保存方式に関する Q&A」問57 が、
+-- 「個々の商品ごとに消費税額等を計算し、1 円未満の端数処理を行い、その合計額を
+--  消費税額等として記載することは認められません」と明記している。
+--
+-- 🔴 これは設計の選択肢ではなく、満たすべき要件である。
+--    ここで測るのは「どちらが良いか」ではなく「違反したときに金額がどれだけ違うか」である。
+\echo '--- 請求書ごとに、2 つの計算のしかたで消費税額がどれだけ違うか ---'
+-- 🔴 まとめる単位は契約の期間ではなく、顧客である。
+--    請求書は顧客に 1 枚出すものであり、月の途中でプランを変えた顧客の請求書には
+--    明細が 2 行並ぶ。1 行しかない請求書では、どちらの計算も同じ額になるので差が出ない。
+--    契約の期間ごとに集計すると、全部が 1 行の請求書になり、差額が 0 件と出てしまう。
+WITH per_invoice AS (
+  SELECT s.customer_id,
+         -- (1) 明細ごとに丸めてから合計する（認められない計算）
+         sum(floor(l.subtotal_yen * 0.10))          AS line_then_round,
+         -- (2) 合計してから丸める（適格請求書の要件）
+         floor(sum(l.subtotal_yen) * 0.10)          AS sum_then_round,
+         count(*)                                   AS lines
+  FROM ch08_b.invoice_lines l
+  JOIN ch08_b.subscriptions s ON s.id = l.subscription_id
+  GROUP BY s.customer_id
+)
+SELECT count(*)                                            AS invoices,
+       count(*) FILTER (WHERE line_then_round <> sum_then_round) AS differing,
+       sum(line_then_round - sum_then_round)               AS total_diff_yen,
+       max(abs(line_then_round - sum_then_round))          AS max_abs_diff_yen,
+       count(*) FILTER (WHERE lines > 1)                   AS multi_line_invoices
+FROM per_invoice;
+
+\echo '--- 国税庁の例の再現（8% 対象 27,060 円・10% 対象 28,158 円）---'
+-- 概要の資料が挙げている、認められる計算（税率ごとに合計してから 1 回丸める）の数値。
+-- 本書の計算式がこの値を再現できることを確かめる。
+SELECT 27060 AS base_8,  floor(27060 * 0.08) AS tax_8,
+       28158 AS base_10, floor(28158 * 0.10) AS tax_10;
+
+\echo '--- round() の丸め方は型で違う ---'
+-- 金額を浮動小数点で持つと、丸め方まで変わる。
+-- numeric は 0 から遠いほうへ、double precision は偶数へ丸める。
+SELECT v,
+       round(v::numeric)          AS numeric_round,
+       round(v::double precision) AS float_round
+FROM (VALUES (0.5),(1.5),(2.5),(3.5),(-0.5),(-1.5),(-2.5)) t(v);

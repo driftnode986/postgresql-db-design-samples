@@ -1,0 +1,72 @@
+# 採取日時: 2026-09-19 07:26:36 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案B: 請求明細に、確定した時点の値を写す。料金表は版つきにする。
+--
+-- 採取した 3 本が全部この形だった（ch08_first_idea.md）。
+-- 明細が単価・プラン名・税率・日割りの分子分母を自分で持つので、
+-- 料金表をあとから何度改定しても、発行済みの明細の金額は動かない。
+--
+-- 料金の版の重なりは EXCLUDE 制約で止める（採取では opus だけがこれを書いた。
+-- 残り 2 本は UNIQUE (plan_id, valid_from) だけで、重なる行を入れられる状態だった）。
+CREATE SCHEMA ch08_b;
+CREATE SCHEMA
+CREATE TABLE ch08_b.plans (
+  id   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code text   NOT NULL UNIQUE,
+  name text   NOT NULL
+);
+CREATE TABLE
+-- 料金の版。改定は「新しい行を足す」で、過去の行は変えない。
+-- valid は半開区間 [開始, 終了)。上端が NULL なら「今も有効」。
+CREATE TABLE ch08_b.plan_prices (
+  id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  plan_id   bigint    NOT NULL REFERENCES ch08_b.plans (id),
+  valid     daterange NOT NULL,
+  price_yen int       NOT NULL CHECK (price_yen > 0),
+  -- 同じプランの料金が期間で重ならないことを、データベース側で保証する
+  CONSTRAINT plan_prices_no_overlap
+    EXCLUDE USING gist (plan_id WITH =, valid WITH &&)
+);
+CREATE TABLE
+CREATE TABLE ch08_b.subscriptions (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  customer_id bigint    NOT NULL,
+  plan_id     bigint    NOT NULL REFERENCES ch08_b.plans (id),
+  period      daterange NOT NULL,
+  -- 据え置き。入っていればこの額で請求し、料金表を引かない
+  grandfathered_yen int
+);
+CREATE TABLE
+CREATE INDEX subscriptions_period ON ch08_b.subscriptions USING gist (period);
+CREATE INDEX
+-- 請求明細。計算に使った値を全部ここへ写す。
+-- 🔴 subtotal_yen は保存する生成列にする。
+--    仮想にすると読み出しが遅くなり（実測で約 3.9 倍）、インデックスも張れない。
+CREATE TABLE ch08_b.invoice_lines (
+  id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  subscription_id bigint NOT NULL REFERENCES ch08_b.subscriptions (id),
+  billed_month    date   NOT NULL,
+  plan_id         bigint NOT NULL REFERENCES ch08_b.plans (id),
+  plan_name       text   NOT NULL,          -- 当時のプラン名
+  unit_yen        int    NOT NULL,          -- 当時の月額
+  charged_days    int    NOT NULL CHECK (charged_days > 0),
+  days_in_month   int    NOT NULL CHECK (days_in_month > 0),
+  subtotal_yen    int    GENERATED ALWAYS AS (
+                    CASE WHEN charged_days = days_in_month THEN unit_yen
+                         ELSE unit_yen * charged_days / days_in_month END
+                  ) STORED
+);
+CREATE TABLE
+CREATE INDEX invoice_lines_month ON ch08_b.invoice_lines (billed_month, subscription_id);
+CREATE INDEX

@@ -1,0 +1,32 @@
+# 採取日時: 2026-09-19 07:26:35 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 開始日が違うだけの、期間の重なる 2 行。UNIQUE は通してしまう。
+TRUNCATE ch08_x.plan_prices RESTART IDENTITY;
+TRUNCATE TABLE
+INSERT INTO ch08_x.plan_prices (plan_id, valid_from, valid_to, price_yen)
+VALUES (1, DATE '2024-01-01', DATE '2024-07-01', 1000),
+       (1, DATE '2024-03-01', DATE '2024-09-01', 1200);
+INSERT 0 2
+\echo '--- 2024-04-01 の時点で有効な料金が何行あるか（1 行が正しい）---'
+--- 2024-04-01 の時点で有効な料金が何行あるか（1 行が正しい）---
+SELECT count(*) AS rows_matched
+FROM ch08_x.plan_prices
+WHERE plan_id = 1
+  AND valid_from <= DATE '2024-04-01'
+  AND (valid_to IS NULL OR valid_to > DATE '2024-04-01');
+ rows_matched 
+--------------
+            2
+(1 row)
+

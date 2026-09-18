@@ -1,0 +1,86 @@
+# 採取日時: 2026-09-19 07:26:37 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案C: 料金表の版を 18 の期間つき主キーで持ち、契約から期間つき外部キーで参照する。
+--
+-- 採取した 3 本は、どれもこの形を出さなかった（ch08_first_idea.md）。
+-- 18 で入った機能なので、2021〜2023 年の記事を下敷きにすると出てこない。
+--
+-- 案B との違いは 2 つある。
+--   1. 料金の重なりが「主キー」として宣言される（案B は EXCLUDE 制約。中身は同じ GiST だが、
+--      主キーなら外部キーの参照先になれる）
+--   2. 契約の期間が、料金の版で覆われていることをデータベースが検査する
+--      （案B は何も検査しない。料金の無い期間の契約を入れられる）
+--
+-- 🔴 この案が検査しないものが 1 つある。料金の期間の「すき間」である。
+--    重ならないことは保証するが、切れ目なく続くことは保証しない（実測: ch08_verification.md §2）。
+--    すき間は「料金表に登録する時点」では見逃され、「契約が参照する時点」で外部キーが拒否する。
+CREATE SCHEMA ch08_c;
+CREATE SCHEMA
+-- 期間つきの主キーを int の列と組むには btree_gist が要る。
+-- 公式マニュアルが「which is the expected way to use this feature」と書いている使い方である。
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA public;
+psql:/tmp/run-sql.sql:19: NOTICE:  extension "btree_gist" already exists, skipping
+CREATE EXTENSION
+CREATE TABLE ch08_c.plans (
+  id   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  code text   NOT NULL UNIQUE,
+  name text   NOT NULL
+);
+CREATE TABLE
+-- 料金の版。主キーが (plan_id, valid WITHOUT OVERLAPS)。
+-- 同じプランで期間が重なる行を入れようとすると、主キー違反になる。
+CREATE TABLE ch08_c.plan_prices (
+  plan_id   bigint    NOT NULL REFERENCES ch08_c.plans (id),
+  valid     daterange NOT NULL,
+  price_yen int       NOT NULL CHECK (price_yen > 0),
+  PRIMARY KEY (plan_id, valid WITHOUT OVERLAPS)
+);
+CREATE TABLE
+-- 契約。期間つき外部キーで料金の版を参照する。
+--
+-- 🔴 参照動作は NO ACTION だけしか使えない（18.6 で 7 通りを実機確認。SQLSTATE 0A000）。
+--    CASCADE も SET NULL も SET DEFAULT も RESTRICT も、ここでは書けない。
+--
+-- 🔴 DEFERRABLE を付ける。付けないと料金を改定できない。
+--    改定は「今の版を閉じる」と「新しい版を足す」の 2 文になるが、
+--    1 文目を実行した時点では 5 月以降を覆う版がまだ無く、上端なしの契約が覆われなくなる。
+--    順序を入れ替えても、今度は期間が重なって主キーに弾かれる。
+--    どちらの順序でも、途中の状態が制約に触れる。
+--    トランザクションの終わりまで検査を待たせるほかに、この改定を通す方法が無い。
+CREATE TABLE ch08_c.subscriptions (
+  id          bigint    GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  customer_id bigint    NOT NULL,
+  plan_id     bigint    NOT NULL,
+  period      daterange NOT NULL,
+  FOREIGN KEY (plan_id, PERIOD period)
+    REFERENCES ch08_c.plan_prices (plan_id, PERIOD valid)
+    DEFERRABLE INITIALLY IMMEDIATE
+);
+CREATE TABLE
+CREATE INDEX subscriptions_period ON ch08_c.subscriptions USING gist (period);
+CREATE INDEX
+-- 請求明細は、案C では金額を写さない。発行のたびに料金の版から引き直す。
+-- 版は消えないので過去の金額は再現できる（案A との違い）。
+-- ただし「そのとき実際にいくら請求したか」は記録に無い（案B との違い）。
+CREATE TABLE ch08_c.invoice_lines (
+  id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  subscription_id bigint NOT NULL REFERENCES ch08_c.subscriptions (id),
+  billed_month    date   NOT NULL,
+  plan_id         bigint NOT NULL,
+  charged_days    int    NOT NULL CHECK (charged_days > 0),
+  days_in_month   int    NOT NULL CHECK (days_in_month > 0)
+);
+CREATE TABLE
+CREATE INDEX invoice_lines_month ON ch08_c.invoice_lines (billed_month, subscription_id);
+CREATE INDEX
