@@ -9,6 +9,9 @@
 --    改定する前の「正しい請求書」を 4 案ぶん作り、あとで改定してから再発行して比べる。
 \set m '2024-04-01'
 \set mr 'daterange(''2024-04-01'',''2024-05-01'')'
+-- 🔴 月の日数をリテラルで書かない。範囲の上端と下端の差で求める。
+--    30 と書くと、31 日の月・28 日の月で写経したときに誤った日割りになる。
+\set dim '(upper(daterange(''2024-04-01'',''2024-05-01'')) - lower(daterange(''2024-04-01'',''2024-05-01'')))'
 \timing on
 
 -- 案A: プランの現在の料金を引く（版が無いので、これしか引けない）
@@ -16,7 +19,7 @@ INSERT INTO ch08_a.invoice_lines
   (subscription_id, billed_month, plan_id, charged_days, days_in_month)
 SELECT s.id, DATE :'m', s.plan_id,
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_a.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
@@ -29,7 +32,7 @@ INSERT INTO ch08_b.invoice_lines
 SELECT s.id, DATE :'m', s.plan_id, p.name,
        COALESCE(s.grandfathered_yen, pr.price_yen),
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_b.subscriptions s
 JOIN ch08_b.plans p ON p.id = s.plan_id
 JOIN ch08_b.plan_prices pr
@@ -43,7 +46,7 @@ INSERT INTO ch08_c.invoice_lines
   (subscription_id, billed_month, plan_id, charged_days, days_in_month)
 SELECT s.id, DATE :'m', s.plan_id,
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_c.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
@@ -60,7 +63,7 @@ SELECT s.id, DATE :'m', s.plan_id, p.name,
        COALESCE(s.grandfathered_yen, pr.price_yen),
        lower(pr.valid),
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_d.subscriptions s
 JOIN ch08_d.plans p ON p.id = s.plan_id
 JOIN ch08_d.plan_prices pr

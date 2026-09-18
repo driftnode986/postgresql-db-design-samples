@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:36:17 +0900
+# 採取日時: 2026-09-19 07:45:57 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -22,6 +22,9 @@
 --    改定する前の「正しい請求書」を 4 案ぶん作り、あとで改定してから再発行して比べる。
 \set m '2024-04-01'
 \set mr 'daterange(''2024-04-01'',''2024-05-01'')'
+-- 🔴 月の日数をリテラルで書かない。範囲の上端と下端の差で求める。
+--    30 と書くと、31 日の月・28 日の月で写経したときに誤った日割りになる。
+\set dim '(upper(daterange(''2024-04-01'',''2024-05-01'')) - lower(daterange(''2024-04-01'',''2024-05-01'')))'
 \timing on
 Timing is on.
 -- 案A: プランの現在の料金を引く（版が無いので、これしか引けない）
@@ -29,12 +32,12 @@ INSERT INTO ch08_a.invoice_lines
   (subscription_id, billed_month, plan_id, charged_days, days_in_month)
 SELECT s.id, DATE :'m', s.plan_id,
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_a.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 81.381 ms
+Time: 82.790 ms
 -- 案B: 料金の版から、その期間の開始時点の額を引いて写す。
 -- 据え置きの契約は grandfathered_yen を使い、料金表を引かない
 INSERT INTO ch08_b.invoice_lines
@@ -43,7 +46,7 @@ INSERT INTO ch08_b.invoice_lines
 SELECT s.id, DATE :'m', s.plan_id, p.name,
        COALESCE(s.grandfathered_yen, pr.price_yen),
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_b.subscriptions s
 JOIN ch08_b.plans p ON p.id = s.plan_id
 JOIN ch08_b.plan_prices pr
@@ -52,18 +55,18 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 94.482 ms
+Time: 98.811 ms
 -- 案C: 金額を写さず、plan_id と日数だけを記録する
 INSERT INTO ch08_c.invoice_lines
   (subscription_id, billed_month, plan_id, charged_days, days_in_month)
 SELECT s.id, DATE :'m', s.plan_id,
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_c.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 55.231 ms
+Time: 57.177 ms
 -- 案D: 写しと、どの版から引いたかの両方を記録する
 --
 -- 🔴 priced_on には、引いた版そのものの開始日（lower(pr.valid)）を入れる。
@@ -76,7 +79,7 @@ SELECT s.id, DATE :'m', s.plan_id, p.name,
        COALESCE(s.grandfathered_yen, pr.price_yen),
        lower(pr.valid),
        upper(s.period * :mr) - lower(s.period * :mr),
-       30
+       :dim
 FROM ch08_d.subscriptions s
 JOIN ch08_d.plans p ON p.id = s.plan_id
 JOIN ch08_d.plan_prices pr
@@ -85,7 +88,7 @@ JOIN ch08_d.plan_prices pr
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 75.282 ms
+Time: 68.278 ms
 \echo '--- 発行した明細の件数 ---'
 --- 発行した明細の件数 ---
 SELECT (SELECT count(*) FROM ch08_a.invoice_lines) AS a,
@@ -97,4 +100,4 @@ SELECT (SELECT count(*) FROM ch08_a.invoice_lines) AS a,
  10239 | 10239 | 10239 | 10239
 (1 row)
 
-Time: 1.846 ms
+Time: 1.895 ms

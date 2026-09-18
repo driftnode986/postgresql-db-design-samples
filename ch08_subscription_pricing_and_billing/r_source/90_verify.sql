@@ -49,7 +49,37 @@ WHERE NOT (
 SELECT count(*) AS bad_days FROM ch08_b.invoice_lines
 WHERE charged_days > days_in_month OR charged_days <= 0;
 
-\echo '--- 5. 同じ契約・同じ月の明細が、案によって件数が違う（0 が正常）---'
+\echo '--- 5. 案C が再計算した額と、案B が写した額の食い違い（据え置きのぶんだけ出る）---'
+-- 🔴 この検査は 0 にならない。0 にならないことが正しい。
+--    案C は据え置きの額を持てない（subscriptions に grandfathered_yen が無い）ので、
+--    料金表から引き直すと、据え置きの契約はその時点の版の額になる。
+--
+--    検査 1（改定の前後で動かないか）は、案C についてはこれを検出できない。
+--    改定の前も後も同じ「据え置きを無視した式」で計算しているため、
+--    誤った値どうしを引き算して 0 になるからである。
+--    「動かないこと」と「正しいこと」は別である。
+WITH c AS (
+  SELECT l.subscription_id,
+         (pr.price_yen * l.charged_days / l.days_in_month)::bigint AS amt
+  FROM ch08_c.invoice_lines l
+  JOIN ch08_c.subscriptions s ON s.id = l.subscription_id
+  JOIN ch08_c.plan_prices pr
+    ON pr.plan_id = l.plan_id
+   AND pr.valid @> lower(s.period * daterange('2024-04-01','2024-05-01'))
+),
+b AS (
+  SELECT l.subscription_id, l.subtotal_yen AS amt, s.grandfathered_yen
+  FROM ch08_b.invoice_lines l
+  JOIN ch08_b.subscriptions s ON s.id = l.subscription_id
+)
+SELECT count(*) FILTER (WHERE c.amt <> b.amt
+                          AND b.grandfathered_yen IS NULL) AS unexplained_diff,
+       count(*) FILTER (WHERE c.amt <> b.amt)              AS c_differs_from_b,
+       count(*) FILTER (WHERE c.amt <> b.amt
+                          AND b.grandfathered_yen IS NOT NULL) AS of_which_grandfathered
+FROM b JOIN c USING (subscription_id);
+
+\echo '--- 6. 同じ契約・同じ月の明細が、案によって件数が違う（0 が正常）---'
 SELECT count(*) AS count_mismatch FROM (
   SELECT (SELECT count(*) FROM ch08_a.invoice_lines) a,
          (SELECT count(*) FROM ch08_b.invoice_lines) b,

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:36:15 +0900
+# 採取日時: 2026-09-19 07:45:55 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -31,28 +31,28 @@ Timing is on.
 TRUNCATE ch08_c.invoice_lines, ch08_c.subscriptions, ch08_c.plan_prices,
          ch08_c.plans RESTART IDENTITY;
 TRUNCATE TABLE
-Time: 2.901 ms
+Time: 3.400 ms
 INSERT INTO ch08_c.plans (code, name)
 SELECT code, name FROM ch08_r.src_plan ORDER BY id;
 INSERT 0 5
-Time: 0.804 ms
+Time: 0.772 ms
 INSERT INTO ch08_c.plan_prices (plan_id, valid, price_yen)
 SELECT plan_id, valid, price_yen FROM ch08_r.src_price ORDER BY id;
 INSERT 0 25
-Time: 0.873 ms
+Time: 2.279 ms
 INSERT INTO ch08_c.subscriptions (customer_id, plan_id, period)
 SELECT s.customer_id, sp.plan_id, sp.period
 FROM ch08_r.src_sub_period sp
 JOIN ch08_r.src_subscription s ON s.id = sp.subscription_id
 ORDER BY sp.id;
 INSERT 0 10924
-Time: 97.425 ms
+Time: 94.989 ms
 ANALYZE ch08_c.plans;
 ANALYZE
-Time: 0.651 ms
+Time: 0.845 ms
 ANALYZE ch08_c.plan_prices;
 ANALYZE
-Time: 0.449 ms
+Time: 0.397 ms
 ANALYZE ch08_c.subscriptions;
 ANALYZE
-Time: 4.085 ms
+Time: 4.334 ms

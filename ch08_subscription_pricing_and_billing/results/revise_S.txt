@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:36:17 +0900
+# 採取日時: 2026-09-19 07:45:58 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -30,7 +30,7 @@ Timing is on.
 DROP TABLE IF EXISTS ch08_r.before_amounts;
 psql:/tmp/run-sql.sql:17: NOTICE:  table "before_amounts" does not exist, skipping
 DROP TABLE
-Time: 0.190 ms
+Time: 0.204 ms
 CREATE TABLE ch08_r.before_amounts AS
 SELECT 'A' AS plan_kind, l.subscription_id,
        (p.price_yen * l.charged_days / l.days_in_month)::bigint AS amount_yen
@@ -47,21 +47,21 @@ JOIN ch08_c.plan_prices pr
 UNION ALL
 SELECT 'D', l.subscription_id, l.subtotal_yen FROM ch08_d.invoice_lines l;
 SELECT 40956
-Time: 37.923 ms
+Time: 38.921 ms
 -- ここで値上げする（2024-05-01 から 20% 値上げ）
 UPDATE ch08_a.plans SET price_yen = (price_yen * 1.2)::int;
 UPDATE 5
-Time: 0.672 ms
+Time: 0.524 ms
 -- 案B・C・D: 今の版（上端なし）を 2024-05-01 で閉じ、新しい版を足す
 UPDATE ch08_b.plan_prices SET valid = daterange(lower(valid), DATE '2024-05-01')
 WHERE upper_inf(valid);
 UPDATE 5
-Time: 0.848 ms
+Time: 0.768 ms
 INSERT INTO ch08_b.plan_prices (plan_id, valid, price_yen)
 SELECT plan_id, daterange(DATE '2024-05-01', NULL), (price_yen * 1.2)::int
 FROM ch08_b.plan_prices WHERE upper(valid) = DATE '2024-05-01';
 INSERT 0 5
-Time: 0.646 ms
+Time: 0.549 ms
 -- 🔴 案C・案D は、案B と同じ 2 文をそのまま流せない。
 --    契約が上端なしの期間（[開始, ∞)）で今の版を参照しているので、
 --    版を 2024-05-01 で閉じた時点で「5 月以降を覆う版が無い」状態になり、
@@ -73,40 +73,40 @@ Time: 0.646 ms
 --    これができるのは、表を作るときに DEFERRABLE を付けておいた場合だけである。
 BEGIN;
 BEGIN
-Time: 0.079 ms
+Time: 0.077 ms
 SET CONSTRAINTS ALL DEFERRED;
 SET CONSTRAINTS
-Time: 0.094 ms
+Time: 0.060 ms
 UPDATE ch08_c.plan_prices SET valid = daterange(lower(valid), DATE '2024-05-01')
 WHERE upper_inf(valid);
 UPDATE 5
-Time: 0.201 ms
+Time: 0.258 ms
 INSERT INTO ch08_c.plan_prices (plan_id, valid, price_yen)
 SELECT plan_id, daterange(DATE '2024-05-01', NULL), (price_yen * 1.2)::int
 FROM ch08_c.plan_prices WHERE upper(valid) = DATE '2024-05-01';
 INSERT 0 5
-Time: 0.281 ms
+Time: 0.262 ms
 COMMIT;
 COMMIT
-Time: 5.670 ms
+Time: 5.446 ms
 BEGIN;
 BEGIN
-Time: 0.058 ms
+Time: 0.057 ms
 SET CONSTRAINTS ALL DEFERRED;
 SET CONSTRAINTS
-Time: 0.062 ms
+Time: 0.047 ms
 UPDATE ch08_d.plan_prices SET valid = daterange(lower(valid), DATE '2024-05-01')
 WHERE upper_inf(valid);
 UPDATE 5
-Time: 0.239 ms
+Time: 0.248 ms
 INSERT INTO ch08_d.plan_prices (plan_id, valid, price_yen)
 SELECT plan_id, daterange(DATE '2024-05-01', NULL), (price_yen * 1.2)::int
 FROM ch08_d.plan_prices WHERE upper(valid) = DATE '2024-05-01';
 INSERT 0 5
-Time: 0.265 ms
+Time: 0.301 ms
 COMMIT;
 COMMIT
-Time: 5.974 ms
+Time: 6.117 ms
 \echo '--- 改定後に、同じ 4 月分を再発行したときの金額との差額 ---'
 --- 改定後に、同じ 4 月分を再発行したときの金額との差額 ---
 WITH after_amounts AS (
@@ -140,4 +140,4 @@ GROUP BY b.plan_kind ORDER BY b.plan_kind;
  D         |             0 |        0
 (4 rows)
 
-Time: 47.534 ms
+Time: 47.199 ms
