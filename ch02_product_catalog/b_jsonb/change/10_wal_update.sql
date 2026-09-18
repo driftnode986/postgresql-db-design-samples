@@ -5,14 +5,16 @@ SELECT pg_stat_force_next_flush();
 SELECT pg_current_wal_insert_lsn() AS lsn0, wal_records AS rec0, wal_fpi AS fpi0
 FROM pg_stat_wal \gset
 
-UPDATE products SET attrs = jsonb_set(attrs, '{material}', '"wool"') WHERE id IN (
+UPDATE products SET attrs = jsonb_set(attrs, '{material}', '"wool"')
+WHERE id IN (
   SELECT id FROM products WHERE kind = 'apparel' ORDER BY id LIMIT 1000);
 
 SELECT pg_stat_force_next_flush();
 SELECT pg_current_wal_insert_lsn() AS lsn1, wal_records AS rec1, wal_fpi AS fpi1
 FROM pg_stat_wal \gset
 
-UPDATE products SET attrs = jsonb_set(attrs, '{material}', '"linen"') WHERE id IN (
+UPDATE products SET attrs = jsonb_set(attrs, '{material}', '"linen"')
+WHERE id IN (
   SELECT id FROM products WHERE kind = 'apparel' ORDER BY id LIMIT 1000);
 
 SELECT pg_stat_force_next_flush();

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:40:18 +0900
+# 採取日時: 2026-09-18 09:25:23 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -20,17 +20,17 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..21.28 rows=20 width=34) (actual time=0.054..0.083 rows=20.00 loops=1)
+ Limit  (cost=0.42..21.17 rows=20 width=34) (actual time=0.077..0.108 rows=20.00 loops=1)
    Buffers: shared read=7
-   ->  Index Scan using products_created on products  (cost=0.42..45066.93 rows=43212 width=34) (actual time=0.053..0.079 rows=20.00 loops=1)
+   ->  Index Scan using products_created on products  (cost=0.42..45066.58 rows=43442 width=34) (actual time=0.076..0.105 rows=20.00 loops=1)
          Filter: ((color = 'black'::text) AND (size = 'M'::text))
          Rows Removed by Filter: 223
          Index Searches: 1
          Buffers: shared read=7
  Planning:
    Buffers: shared hit=147 read=5 dirtied=1
- Planning Time: 0.342 ms
- Execution Time: 0.093 ms
+ Planning Time: 0.428 ms
+ Execution Time: 0.126 ms
 (11 rows)
 
 ## 10_popular.sql run 2
@@ -43,17 +43,17 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..21.28 rows=20 width=34) (actual time=0.024..0.045 rows=20.00 loops=1)
+ Limit  (cost=0.42..21.17 rows=20 width=34) (actual time=0.025..0.048 rows=20.00 loops=1)
    Buffers: shared hit=7
-   ->  Index Scan using products_created on products  (cost=0.42..45066.93 rows=43212 width=34) (actual time=0.024..0.042 rows=20.00 loops=1)
+   ->  Index Scan using products_created on products  (cost=0.42..45066.58 rows=43442 width=34) (actual time=0.024..0.045 rows=20.00 loops=1)
          Filter: ((color = 'black'::text) AND (size = 'M'::text))
          Rows Removed by Filter: 223
          Index Searches: 1
          Buffers: shared hit=7
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.294 ms
- Execution Time: 0.056 ms
+ Planning Time: 0.264 ms
+ Execution Time: 0.059 ms
 (11 rows)
 
 ## 10_popular.sql run 3
@@ -66,17 +66,17 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..21.28 rows=20 width=34) (actual time=0.027..0.063 rows=20.00 loops=1)
+ Limit  (cost=0.42..21.17 rows=20 width=34) (actual time=0.024..0.044 rows=20.00 loops=1)
    Buffers: shared hit=7
-   ->  Index Scan using products_created on products  (cost=0.42..45066.93 rows=43212 width=34) (actual time=0.026..0.060 rows=20.00 loops=1)
+   ->  Index Scan using products_created on products  (cost=0.42..45066.58 rows=43442 width=34) (actual time=0.023..0.041 rows=20.00 loops=1)
          Filter: ((color = 'black'::text) AND (size = 'M'::text))
          Rows Removed by Filter: 223
          Index Searches: 1
          Buffers: shared hit=7
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.312 ms
- Execution Time: 0.076 ms
+ Planning Time: 0.255 ms
+ Execution Time: 0.054 ms
 (11 rows)
 
 ## 11_middle.sql run 1
@@ -89,16 +89,16 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                       QUERY PLAN                                                                      
 ------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..77.26 rows=20 width=34) (actual time=0.103..0.279 rows=20.00 loops=1)
+ Limit  (cost=0.42..76.88 rows=20 width=34) (actual time=0.065..0.207 rows=20.00 loops=1)
    Buffers: shared read=23
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3112.39 rows=810 width=34) (actual time=0.102..0.275 rows=20.00 loops=1)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3318.64 rows=868 width=34) (actual time=0.064..0.203 rows=20.00 loops=1)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
          Index Searches: 1
          Buffers: shared read=23
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.338 ms
- Execution Time: 0.292 ms
+ Planning Time: 0.270 ms
+ Execution Time: 0.218 ms
 (10 rows)
 
 ## 11_middle.sql run 2
@@ -111,16 +111,16 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                       QUERY PLAN                                                                      
 ------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..77.26 rows=20 width=34) (actual time=0.030..0.074 rows=20.00 loops=1)
+ Limit  (cost=0.42..76.88 rows=20 width=34) (actual time=0.028..0.068 rows=20.00 loops=1)
    Buffers: shared hit=23
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3112.39 rows=810 width=34) (actual time=0.029..0.071 rows=20.00 loops=1)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3318.64 rows=868 width=34) (actual time=0.027..0.065 rows=20.00 loops=1)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
          Index Searches: 1
          Buffers: shared hit=23
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.306 ms
- Execution Time: 0.086 ms
+ Planning Time: 0.257 ms
+ Execution Time: 0.078 ms
 (10 rows)
 
 ## 11_middle.sql run 3
@@ -133,16 +133,16 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                       QUERY PLAN                                                                      
 ------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..77.26 rows=20 width=34) (actual time=0.029..0.068 rows=20.00 loops=1)
+ Limit  (cost=0.42..76.88 rows=20 width=34) (actual time=0.030..0.075 rows=20.00 loops=1)
    Buffers: shared hit=23
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3112.39 rows=810 width=34) (actual time=0.028..0.065 rows=20.00 loops=1)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3318.64 rows=868 width=34) (actual time=0.029..0.072 rows=20.00 loops=1)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
          Index Searches: 1
          Buffers: shared hit=23
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.283 ms
- Execution Time: 0.079 ms
+ Planning Time: 0.247 ms
+ Execution Time: 0.086 ms
 (10 rows)
 
 ## 12_rare.sql run 1
@@ -153,18 +153,18 @@ FROM products
 WHERE color = 'teal' AND size = 'XXS'
 ORDER BY created_at DESC
 LIMIT 20;
-                                                                    QUERY PLAN                                                                    
---------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..35.94 rows=8 width=34) (actual time=0.073..0.237 rows=19.00 loops=1)
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..43.69 rows=10 width=34) (actual time=0.055..0.219 rows=19.00 loops=1)
    Buffers: shared hit=1 read=21
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..35.94 rows=8 width=34) (actual time=0.072..0.233 rows=19.00 loops=1)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..43.69 rows=10 width=34) (actual time=0.054..0.216 rows=19.00 loops=1)
          Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
          Index Searches: 1
          Buffers: shared hit=1 read=21
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.303 ms
- Execution Time: 0.249 ms
+ Planning Time: 0.260 ms
+ Execution Time: 0.230 ms
 (10 rows)
 
 ## 12_rare.sql run 2
@@ -175,17 +175,17 @@ FROM products
 WHERE color = 'teal' AND size = 'XXS'
 ORDER BY created_at DESC
 LIMIT 20;
-                                                                    QUERY PLAN                                                                    
---------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..35.94 rows=8 width=34) (actual time=0.042..0.094 rows=19.00 loops=1)
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..43.69 rows=10 width=34) (actual time=0.026..0.097 rows=19.00 loops=1)
    Buffers: shared hit=22
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..35.94 rows=8 width=34) (actual time=0.041..0.091 rows=19.00 loops=1)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..43.69 rows=10 width=34) (actual time=0.025..0.094 rows=19.00 loops=1)
          Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
          Index Searches: 1
          Buffers: shared hit=22
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.343 ms
+ Planning Time: 0.280 ms
  Execution Time: 0.108 ms
 (10 rows)
 
@@ -197,18 +197,18 @@ FROM products
 WHERE color = 'teal' AND size = 'XXS'
 ORDER BY created_at DESC
 LIMIT 20;
-                                                                    QUERY PLAN                                                                    
---------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..35.94 rows=8 width=34) (actual time=0.032..0.077 rows=19.00 loops=1)
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..43.69 rows=10 width=34) (actual time=0.032..0.091 rows=19.00 loops=1)
    Buffers: shared hit=22
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..35.94 rows=8 width=34) (actual time=0.032..0.073 rows=19.00 loops=1)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..43.69 rows=10 width=34) (actual time=0.031..0.088 rows=19.00 loops=1)
          Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
          Index Searches: 1
          Buffers: shared hit=22
  Planning:
    Buffers: shared hit=152
- Planning Time: 0.288 ms
- Execution Time: 0.089 ms
+ Planning Time: 0.331 ms
+ Execution Time: 0.106 ms
 (10 rows)
 
 -- 見積もりの行数（rows=）と実際の行数（actual rows=）を比べる。LIMIT を付けずに、条件に合う商品を全部取る
@@ -218,18 +218,18 @@ FROM products
 WHERE color = 'black' AND size = 'M';
                                                                     QUERY PLAN                                                                    
 --------------------------------------------------------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=1123.35..15852.53 rows=43212 width=8) (actual time=6.299..55.064 rows=71884.00 loops=1)
+ Bitmap Heap Scan on products  (cost=1125.71..15858.34 rows=43442 width=8) (actual time=6.550..56.757 rows=71884.00 loops=1)
    Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
    Heap Blocks: exact=14004
-   Buffers: shared hit=43 read=14239 written=11220
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1112.55 rows=43212 width=0) (actual time=4.762..4.762 rows=71884.00 loops=1)
+   Buffers: shared hit=43 read=14239 written=11234
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1114.85 rows=43442 width=0) (actual time=5.038..5.038 rows=71884.00 loops=1)
          Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
          Index Searches: 1
          Buffers: shared hit=1 read=277
  Planning:
    Buffers: shared hit=111
- Planning Time: 0.282 ms
- Execution Time: 57.416 ms
+ Planning Time: 0.273 ms
+ Execution Time: 59.220 ms
 (12 rows)
 
 EXPLAIN (ANALYZE)
@@ -238,30 +238,30 @@ FROM products
 WHERE color = 'yellow' AND size = 'XL';
                                                                  QUERY PLAN                                                                  
 ---------------------------------------------------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=24.73..2629.64 rows=810 width=8) (actual time=0.326..1.687 rows=1457.00 loops=1)
+ Bitmap Heap Scan on products  (cost=25.32..2791.55 rows=868 width=8) (actual time=0.275..1.598 rows=1457.00 loops=1)
    Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
    Heap Blocks: exact=1393
    Buffers: shared hit=1389 read=14 written=14
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..24.53 rows=810 width=0) (actual time=0.214..0.214 rows=1457.00 loops=1)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..25.11 rows=868 width=0) (actual time=0.166..0.166 rows=1457.00 loops=1)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
          Index Searches: 1
          Buffers: shared hit=3 read=7 written=7
- Planning Time: 0.055 ms
- Execution Time: 1.735 ms
+ Planning Time: 0.060 ms
+ Execution Time: 1.650 ms
 (10 rows)
 
 EXPLAIN (ANALYZE)
 SELECT id
 FROM products
 WHERE color = 'teal' AND size = 'XXS';
-                                                                QUERY PLAN                                                                 
--------------------------------------------------------------------------------------------------------------------------------------------
- Index Scan using products_color_size_created on products  (cost=0.42..35.94 rows=8 width=8) (actual time=0.010..0.023 rows=19.00 loops=1)
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using products_color_size_created on products  (cost=0.42..43.69 rows=10 width=8) (actual time=0.012..0.023 rows=19.00 loops=1)
    Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
    Index Searches: 1
    Buffers: shared hit=22
- Planning Time: 0.026 ms
- Execution Time: 0.029 ms
+ Planning Time: 0.017 ms
+ Execution Time: 0.027 ms
 (6 rows)
 
 #### ch02_b
@@ -275,17 +275,17 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..19.45 rows=20 width=34) (actual time=0.061..0.138 rows=20.00 loops=1)
+ Limit  (cost=0.42..11.48 rows=20 width=34) (actual time=0.062..0.136 rows=20.00 loops=1)
    Buffers: shared read=12
-   ->  Index Scan using products_created on products  (cost=0.42..52638.23 rows=55334 width=34) (actual time=0.060..0.135 rows=20.00 loops=1)
+   ->  Index Scan using products_created on products  (cost=0.42..52637.74 rows=95252 width=34) (actual time=0.061..0.133 rows=20.00 loops=1)
          Filter: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
          Rows Removed by Filter: 223
          Index Searches: 1
          Buffers: shared read=12
  Planning:
-   Buffers: shared hit=153 read=10 dirtied=2
- Planning Time: 0.476 ms
- Execution Time: 0.152 ms
+   Buffers: shared hit=156 read=8
+ Planning Time: 0.489 ms
+ Execution Time: 0.149 ms
 (11 rows)
 
 ## 10_popular.sql run 2
@@ -298,17 +298,17 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..19.45 rows=20 width=34) (actual time=0.024..0.061 rows=20.00 loops=1)
+ Limit  (cost=0.42..11.48 rows=20 width=34) (actual time=0.024..0.060 rows=20.00 loops=1)
    Buffers: shared hit=12
-   ->  Index Scan using products_created on products  (cost=0.42..52638.23 rows=55334 width=34) (actual time=0.023..0.057 rows=20.00 loops=1)
+   ->  Index Scan using products_created on products  (cost=0.42..52637.74 rows=95252 width=34) (actual time=0.022..0.057 rows=20.00 loops=1)
          Filter: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
          Rows Removed by Filter: 223
          Index Searches: 1
          Buffers: shared hit=12
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.366 ms
- Execution Time: 0.074 ms
+   Buffers: shared hit=164
+ Planning Time: 0.371 ms
+ Execution Time: 0.073 ms
 (11 rows)
 
 ## 10_popular.sql run 3
@@ -321,17 +321,17 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..19.45 rows=20 width=34) (actual time=0.024..0.060 rows=20.00 loops=1)
+ Limit  (cost=0.42..11.48 rows=20 width=34) (actual time=0.021..0.051 rows=20.00 loops=1)
    Buffers: shared hit=12
-   ->  Index Scan using products_created on products  (cost=0.42..52638.23 rows=55334 width=34) (actual time=0.023..0.057 rows=20.00 loops=1)
+   ->  Index Scan using products_created on products  (cost=0.42..52637.74 rows=95252 width=34) (actual time=0.020..0.048 rows=20.00 loops=1)
          Filter: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
          Rows Removed by Filter: 223
          Index Searches: 1
          Buffers: shared hit=12
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.379 ms
- Execution Time: 0.074 ms
+   Buffers: shared hit=164
+ Planning Time: 0.326 ms
+ Execution Time: 0.063 ms
 (11 rows)
 
 ## 11_middle.sql run 1
@@ -344,24 +344,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=11.248..11.253 rows=20.00 loops=1)
-   Buffers: shared hit=16 read=1444 written=968
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=11.247..11.248 rows=20.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=10.600..10.611 rows=20.00 loops=1)
+   Buffers: shared hit=16 read=1444 written=1029
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=10.599..10.600 rows=20.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
-         Buffers: shared hit=16 read=1444 written=968
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=1.616..10.984 rows=1457.00 loops=1)
+         Buffers: shared hit=16 read=1444 written=1029
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=1.561..10.322 rows=1457.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                Heap Blocks: exact=1423
-               Buffers: shared hit=13 read=1444 written=968
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=1.395..1.395 rows=1457.00 loops=1)
+               Buffers: shared hit=13 read=1444 written=1029
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=1.319..1.319 rows=1457.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=12 read=22
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.385 ms
- Execution Time: 11.287 ms
+   Buffers: shared hit=164
+ Planning Time: 0.336 ms
+ Execution Time: 10.651 ms
 (18 rows)
 
 ## 11_middle.sql run 2
@@ -374,24 +374,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=3.354..3.358 rows=20.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=3.000..3.004 rows=20.00 loops=1)
    Buffers: shared hit=1460
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=3.353..3.354 rows=20.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=2.999..3.000 rows=20.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=1460
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=1.268..3.152 rows=1457.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=1.239..2.799 rows=1457.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                Heap Blocks: exact=1423
                Buffers: shared hit=1457
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=1.143..1.143 rows=1457.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=1.134..1.134 rows=1457.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=34
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.345 ms
- Execution Time: 3.388 ms
+   Buffers: shared hit=164
+ Planning Time: 0.397 ms
+ Execution Time: 3.036 ms
 (18 rows)
 
 ## 11_middle.sql run 3
@@ -404,24 +404,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=3.147..3.151 rows=20.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=2.923..2.927 rows=20.00 loops=1)
    Buffers: shared hit=1460
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=3.147..3.148 rows=20.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=2.922..2.923 rows=20.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=1460
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=1.366..2.930 rows=1457.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=1.274..2.690 rows=1457.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                Heap Blocks: exact=1423
                Buffers: shared hit=1457
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=1.237..1.237 rows=1457.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=1.159..1.159 rows=1457.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=34
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.358 ms
- Execution Time: 3.176 ms
+   Buffers: shared hit=164
+ Planning Time: 0.315 ms
+ Execution Time: 2.953 ms
 (18 rows)
 
 ## 12_rare.sql run 1
@@ -434,24 +434,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=0.558..0.561 rows=19.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=0.609..0.613 rows=19.00 loops=1)
    Buffers: shared hit=9 read=23
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=0.556..0.557 rows=19.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=0.608..0.609 rows=19.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: quicksort  Memory: 26kB
          Buffers: shared hit=9 read=23
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=0.332..0.540 rows=19.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=0.377..0.588 rows=19.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
                Heap Blocks: exact=19
                Buffers: shared hit=6 read=23
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=0.236..0.236 rows=19.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=0.255..0.255 rows=19.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=5 read=5
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.371 ms
- Execution Time: 0.582 ms
+   Buffers: shared hit=164
+ Planning Time: 0.366 ms
+ Execution Time: 0.661 ms
 (18 rows)
 
 ## 12_rare.sql run 2
@@ -464,24 +464,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=0.229..0.232 rows=19.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=0.245..0.248 rows=19.00 loops=1)
    Buffers: shared hit=32
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=0.228..0.229 rows=19.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=0.244..0.245 rows=19.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: quicksort  Memory: 26kB
          Buffers: shared hit=32
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=0.182..0.214 rows=19.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=0.198..0.229 rows=19.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
                Heap Blocks: exact=19
                Buffers: shared hit=29
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=0.174..0.174 rows=19.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=0.189..0.189 rows=19.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=10
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.346 ms
- Execution Time: 0.252 ms
+   Buffers: shared hit=164
+ Planning Time: 0.349 ms
+ Execution Time: 0.269 ms
 (18 rows)
 
 ## 12_rare.sql run 3
@@ -494,24 +494,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=0.245..0.248 rows=19.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=0.256..0.259 rows=19.00 loops=1)
    Buffers: shared hit=32
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=0.244..0.245 rows=19.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=0.255..0.256 rows=19.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: quicksort  Memory: 26kB
          Buffers: shared hit=32
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=0.190..0.218 rows=19.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=0.207..0.238 rows=19.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
                Heap Blocks: exact=19
                Buffers: shared hit=29
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=0.182..0.182 rows=19.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=0.199..0.199 rows=19.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=10
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.353 ms
- Execution Time: 0.273 ms
+   Buffers: shared hit=164
+ Planning Time: 0.390 ms
+ Execution Time: 0.282 ms
 (18 rows)
 
 ## 13_popular_arrow.sql run 1
@@ -524,26 +524,26 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                 QUERY PLAN                                                                 
 -------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=44.863..46.047 rows=20.00 loops=1)
+ Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=44.953..46.497 rows=20.00 loops=1)
    Buffers: shared hit=1527 read=22705
-   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=44.862..46.044 rows=20.00 loops=1)
+   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=44.952..46.494 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=1527 read=22705
-         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=43.590..43.591 rows=20.00 loops=3)
+         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=43.436..43.437 rows=20.00 loops=3)
                Sort Key: created_at DESC
                Sort Method: top-N heapsort  Memory: 27kB
                Buffers: shared hit=1527 read=22705
                Worker 0:  Sort Method: top-N heapsort  Memory: 27kB
                Worker 1:  Sort Method: top-N heapsort  Memory: 27kB
-               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=0.095..40.383 rows=23961.33 loops=3)
+               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=0.090..40.208 rows=23961.33 loops=3)
                      Filter: (((attrs ->> 'color'::text) = 'black'::text) AND ((attrs ->> 'size'::text) = 'M'::text))
                      Rows Removed by Filter: 309372
                      Buffers: shared hit=1449 read=22705
  Planning:
-   Buffers: shared hit=132
- Planning Time: 0.291 ms
- Execution Time: 46.075 ms
+   Buffers: shared hit=133
+ Planning Time: 0.305 ms
+ Execution Time: 46.520 ms
 (20 rows)
 
 ## 13_popular_arrow.sql run 2
@@ -556,26 +556,26 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                 QUERY PLAN                                                                 
 -------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=44.549..45.926 rows=20.00 loops=1)
+ Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=46.033..47.349 rows=20.00 loops=1)
    Buffers: shared hit=1809 read=22423
-   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=44.548..45.923 rows=20.00 loops=1)
+   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=46.032..47.346 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=1809 read=22423
-         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=43.328..43.329 rows=14.67 loops=3)
+         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=44.714..44.715 rows=18.00 loops=3)
                Sort Key: created_at DESC
                Sort Method: top-N heapsort  Memory: 27kB
                Buffers: shared hit=1809 read=22423
                Worker 0:  Sort Method: top-N heapsort  Memory: 27kB
                Worker 1:  Sort Method: top-N heapsort  Memory: 27kB
-               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=0.075..40.188 rows=23961.33 loops=3)
+               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=0.115..41.533 rows=23961.33 loops=3)
                      Filter: (((attrs ->> 'color'::text) = 'black'::text) AND ((attrs ->> 'size'::text) = 'M'::text))
                      Rows Removed by Filter: 309372
                      Buffers: shared hit=1731 read=22423
  Planning:
-   Buffers: shared hit=132
- Planning Time: 0.291 ms
- Execution Time: 45.950 ms
+   Buffers: shared hit=133
+ Planning Time: 0.280 ms
+ Execution Time: 47.371 ms
 (20 rows)
 
 ## 13_popular_arrow.sql run 3
@@ -588,26 +588,26 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                 QUERY PLAN                                                                 
 -------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=44.620..46.526 rows=20.00 loops=1)
+ Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=44.727..46.641 rows=20.00 loops=1)
    Buffers: shared hit=2091 read=22141
-   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=44.618..46.523 rows=20.00 loops=1)
+   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=44.726..46.638 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=2091 read=22141
-         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=43.312..43.313 rows=15.00 loops=3)
+         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=43.520..43.521 rows=17.00 loops=3)
                Sort Key: created_at DESC
                Sort Method: top-N heapsort  Memory: 27kB
                Buffers: shared hit=2091 read=22141
                Worker 0:  Sort Method: top-N heapsort  Memory: 27kB
                Worker 1:  Sort Method: top-N heapsort  Memory: 27kB
-               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=0.096..40.154 rows=23961.33 loops=3)
+               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=0.075..40.378 rows=23961.33 loops=3)
                      Filter: (((attrs ->> 'color'::text) = 'black'::text) AND ((attrs ->> 'size'::text) = 'M'::text))
                      Rows Removed by Filter: 309372
                      Buffers: shared hit=2013 read=22141
  Planning:
-   Buffers: shared hit=132
- Planning Time: 0.253 ms
- Execution Time: 46.550 ms
+   Buffers: shared hit=133
+ Planning Time: 0.238 ms
+ Execution Time: 46.666 ms
 (20 rows)
 
 ## 14_rare_arrow.sql run 1
@@ -620,26 +620,26 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=39.202..40.709 rows=19.00 loops=1)
+ Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=38.178..40.390 rows=19.00 loops=1)
    Buffers: shared hit=2373 read=21859
-   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=39.201..40.707 rows=19.00 loops=1)
+   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=38.177..40.387 rows=19.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=2373 read=21859
-         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=38.045..38.046 rows=6.33 loops=3)
+         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=36.833..36.834 rows=6.33 loops=3)
                Sort Key: created_at DESC
                Sort Method: quicksort  Memory: 25kB
                Buffers: shared hit=2373 read=21859
                Worker 0:  Sort Method: quicksort  Memory: 25kB
                Worker 1:  Sort Method: quicksort  Memory: 25kB
-               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=6.419..38.011 rows=6.33 loops=3)
+               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=5.657..36.787 rows=6.33 loops=3)
                      Filter: (((attrs ->> 'color'::text) = 'teal'::text) AND ((attrs ->> 'size'::text) = 'XXS'::text))
                      Rows Removed by Filter: 333327
                      Buffers: shared hit=2295 read=21859
  Planning:
-   Buffers: shared hit=132
- Planning Time: 0.253 ms
- Execution Time: 40.732 ms
+   Buffers: shared hit=133
+ Planning Time: 0.224 ms
+ Execution Time: 40.413 ms
 (20 rows)
 
 ## 14_rare_arrow.sql run 2
@@ -652,26 +652,26 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=37.082..39.037 rows=19.00 loops=1)
+ Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=37.459..39.500 rows=19.00 loops=1)
    Buffers: shared hit=2655 read=21577
-   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=37.081..39.035 rows=19.00 loops=1)
+   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=37.458..39.493 rows=19.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=2655 read=21577
-         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=35.767..35.768 rows=6.33 loops=3)
+         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=36.122..36.123 rows=6.33 loops=3)
                Sort Key: created_at DESC
                Sort Method: quicksort  Memory: 25kB
                Buffers: shared hit=2655 read=21577
                Worker 0:  Sort Method: quicksort  Memory: 25kB
                Worker 1:  Sort Method: quicksort  Memory: 25kB
-               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=6.888..35.725 rows=6.33 loops=3)
+               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=7.401..36.080 rows=6.33 loops=3)
                      Filter: (((attrs ->> 'color'::text) = 'teal'::text) AND ((attrs ->> 'size'::text) = 'XXS'::text))
                      Rows Removed by Filter: 333327
                      Buffers: shared hit=2577 read=21577
  Planning:
-   Buffers: shared hit=132
- Planning Time: 0.266 ms
- Execution Time: 39.062 ms
+   Buffers: shared hit=133
+ Planning Time: 0.229 ms
+ Execution Time: 39.522 ms
 (20 rows)
 
 ## 14_rare_arrow.sql run 3
@@ -684,26 +684,26 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=36.806..38.825 rows=19.00 loops=1)
+ Limit  (cost=33487.52..33489.85 rows=20 width=34) (actual time=38.255..40.242 rows=19.00 loops=1)
    Buffers: shared hit=2937 read=21295
-   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=36.805..38.822 rows=19.00 loops=1)
+   ->  Gather Merge  (cost=33487.52..33490.32 rows=24 width=34) (actual time=38.253..40.239 rows=19.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=2937 read=21295
-         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=35.517..35.517 rows=6.33 loops=3)
+         ->  Sort  (cost=32487.50..32487.52 rows=10 width=34) (actual time=36.800..36.801 rows=6.33 loops=3)
                Sort Key: created_at DESC
                Sort Method: quicksort  Memory: 25kB
                Buffers: shared hit=2937 read=21295
                Worker 0:  Sort Method: quicksort  Memory: 25kB
                Worker 1:  Sort Method: quicksort  Memory: 25kB
-               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=5.334..35.476 rows=6.33 loops=3)
+               ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=34) (actual time=5.584..36.760 rows=6.33 loops=3)
                      Filter: (((attrs ->> 'color'::text) = 'teal'::text) AND ((attrs ->> 'size'::text) = 'XXS'::text))
                      Rows Removed by Filter: 333327
                      Buffers: shared hit=2859 read=21295
  Planning:
-   Buffers: shared hit=132
- Planning Time: 0.292 ms
- Execution Time: 38.853 ms
+   Buffers: shared hit=133
+ Planning Time: 0.233 ms
+ Execution Time: 40.263 ms
 (20 rows)
 
 ## 15_middle_both_plans.sql run 1
@@ -723,24 +723,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=2.963..2.968 rows=20.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=2.802..2.806 rows=20.00 loops=1)
    Buffers: shared hit=1460
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=2.962..2.963 rows=20.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=2.801..2.802 rows=20.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=1460
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=1.220..2.752 rows=1457.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=1.197..2.603 rows=1457.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                Heap Blocks: exact=1423
                Buffers: shared hit=1457
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=1.109..1.109 rows=1457.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=1.088..1.088 rows=1457.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=34
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.319 ms
- Execution Time: 2.995 ms
+   Buffers: shared hit=164
+ Planning Time: 0.302 ms
+ Execution Time: 2.832 ms
 (18 rows)
 
 ROLLBACK;
@@ -758,21 +758,21 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.45..10549.31 rows=20 width=34) (actual time=5.322..6.553 rows=20.00 loops=1)
-   Buffers: shared hit=980 read=87
-   ->  Gather Merge  (cost=1000.45..46357.55 rows=95 width=34) (actual time=5.321..6.550 rows=20.00 loops=1)
+ Limit  (cost=1000.45..10650.77 rows=20 width=34) (actual time=4.725..6.062 rows=20.00 loops=1)
+   Buffers: shared hit=986 read=87
+   ->  Gather Merge  (cost=1000.45..46356.94 rows=94 width=34) (actual time=4.724..6.059 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=980 read=87
-         ->  Parallel Index Scan using products_created on products  (cost=0.42..45346.56 rows=40 width=34) (actual time=0.196..2.211 rows=14.00 loops=3)
+         Buffers: shared hit=986 read=87
+         ->  Parallel Index Scan using products_created on products  (cost=0.42..45346.07 rows=39 width=34) (actual time=0.122..1.977 rows=14.00 loops=3)
                Filter: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
-               Rows Removed by Filter: 10435
+               Rows Removed by Filter: 10469
                Index Searches: 1
-               Buffers: shared hit=980 read=87
+               Buffers: shared hit=986 read=87
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.103 ms
- Execution Time: 6.576 ms
+ Planning Time: 0.096 ms
+ Execution Time: 6.070 ms
 (15 rows)
 
 ROLLBACK;
@@ -794,24 +794,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=3.505..3.509 rows=20.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=2.908..2.912 rows=20.00 loops=1)
    Buffers: shared hit=1460
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=3.504..3.505 rows=20.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=2.907..2.908 rows=20.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=1460
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=1.276..3.273 rows=1457.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=1.287..2.696 rows=1457.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                Heap Blocks: exact=1423
                Buffers: shared hit=1457
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=1.165..1.165 rows=1457.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=1.174..1.174 rows=1457.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=34
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.392 ms
- Execution Time: 3.543 ms
+   Buffers: shared hit=164
+ Planning Time: 0.338 ms
+ Execution Time: 2.940 ms
 (18 rows)
 
 ROLLBACK;
@@ -829,21 +829,21 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.45..10549.31 rows=20 width=34) (actual time=5.138..5.938 rows=20.00 loops=1)
-   Buffers: shared hit=1072
-   ->  Gather Merge  (cost=1000.45..46357.55 rows=95 width=34) (actual time=5.137..5.935 rows=20.00 loops=1)
+ Limit  (cost=1000.45..10650.77 rows=20 width=34) (actual time=5.093..6.487 rows=20.00 loops=1)
+   Buffers: shared hit=1071
+   ->  Gather Merge  (cost=1000.45..46356.94 rows=94 width=34) (actual time=5.092..6.485 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=1072
-         ->  Parallel Index Scan using products_created on products  (cost=0.42..45346.56 rows=40 width=34) (actual time=0.197..2.127 rows=14.00 loops=3)
+         Buffers: shared hit=1071
+         ->  Parallel Index Scan using products_created on products  (cost=0.42..45346.07 rows=39 width=34) (actual time=0.131..2.059 rows=14.00 loops=3)
                Filter: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                Rows Removed by Filter: 10469
                Index Searches: 1
-               Buffers: shared hit=1072
+               Buffers: shared hit=1071
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.092 ms
- Execution Time: 5.948 ms
+ Planning Time: 0.075 ms
+ Execution Time: 6.497 ms
 (15 rows)
 
 ROLLBACK;
@@ -865,24 +865,24 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=34) (actual time=3.288..3.292 rows=20.00 loops=1)
+ Limit  (cost=392.65..392.70 rows=20 width=34) (actual time=3.593..3.597 rows=20.00 loops=1)
    Buffers: shared hit=1460
-   ->  Sort  (cost=396.41..396.65 rows=95 width=34) (actual time=3.287..3.288 rows=20.00 loops=1)
+   ->  Sort  (cost=392.65..392.88 rows=94 width=34) (actual time=3.591..3.592 rows=20.00 loops=1)
          Sort Key: created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=1460
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=34) (actual time=1.296..3.081 rows=1457.00 loops=1)
+         ->  Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=34) (actual time=1.334..3.364 rows=1457.00 loops=1)
                Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                Heap Blocks: exact=1423
                Buffers: shared hit=1457
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=1.186..1.186 rows=1457.00 loops=1)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=1.212..1.212 rows=1457.00 loops=1)
                      Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=34
  Planning:
-   Buffers: shared hit=163
- Planning Time: 0.353 ms
- Execution Time: 3.323 ms
+   Buffers: shared hit=164
+ Planning Time: 0.357 ms
+ Execution Time: 3.677 ms
 (18 rows)
 
 ROLLBACK;
@@ -900,21 +900,21 @@ ORDER BY created_at DESC
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.45..10549.31 rows=20 width=34) (actual time=4.737..6.307 rows=20.00 loops=1)
-   Buffers: shared hit=1074
-   ->  Gather Merge  (cost=1000.45..46357.55 rows=95 width=34) (actual time=4.736..6.305 rows=20.00 loops=1)
+ Limit  (cost=1000.45..10650.77 rows=20 width=34) (actual time=5.668..7.191 rows=20.00 loops=1)
+   Buffers: shared hit=1063
+   ->  Gather Merge  (cost=1000.45..46356.94 rows=94 width=34) (actual time=5.667..7.186 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=1074
-         ->  Parallel Index Scan using products_created on products  (cost=0.42..45346.56 rows=40 width=34) (actual time=0.104..1.983 rows=14.00 loops=3)
+         Buffers: shared hit=1063
+         ->  Parallel Index Scan using products_created on products  (cost=0.42..45346.07 rows=39 width=34) (actual time=0.133..2.241 rows=14.00 loops=3)
                Filter: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
-               Rows Removed by Filter: 10433
+               Rows Removed by Filter: 10435
                Index Searches: 1
-               Buffers: shared hit=1074
+               Buffers: shared hit=1063
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.107 ms
- Execution Time: 6.318 ms
+ Planning Time: 0.080 ms
+ Execution Time: 7.209 ms
 (15 rows)
 
 ROLLBACK;
@@ -926,18 +926,18 @@ FROM products
 WHERE attrs @> '{"color": "black", "size": "M"}';
                                                                 QUERY PLAN                                                                 
 -------------------------------------------------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=403.07..25248.75 rows=55334 width=8) (actual time=15.435..62.020 rows=71884.00 loops=1)
+ Bitmap Heap Scan on products  (cost=670.39..26015.04 rows=95252 width=8) (actual time=13.965..58.949 rows=71884.00 loops=1)
    Recheck Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
    Heap Blocks: exact=23030
-   Buffers: shared hit=2120 read=21013 written=8
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..389.24 rows=55334 width=0) (actual time=13.055..13.055 rows=71884.00 loops=1)
+   Buffers: shared hit=2120 read=21013 written=10
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..646.58 rows=95252 width=0) (actual time=11.655..11.655 rows=71884.00 loops=1)
          Index Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
          Index Searches: 1
          Buffers: shared hit=35 read=68
  Planning:
-   Buffers: shared hit=126
- Planning Time: 0.299 ms
- Execution Time: 64.184 ms
+   Buffers: shared hit=127
+ Planning Time: 0.301 ms
+ Execution Time: 61.130 ms
 (12 rows)
 
 EXPLAIN (ANALYZE)
@@ -946,18 +946,18 @@ FROM products
 WHERE attrs @> '{"color": "yellow", "size": "XL"}';
                                                              QUERY PLAN                                                             
 ------------------------------------------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8) (actual time=1.136..2.129 rows=1457.00 loops=1)
+ Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=8) (actual time=1.148..1.992 rows=1457.00 loops=1)
    Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
    Heap Blocks: exact=1423
    Buffers: shared hit=1457
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=1.038..1.038 rows=1457.00 loops=1)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=1.046..1.046 rows=1457.00 loops=1)
          Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
          Index Searches: 1
          Buffers: shared hit=34
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.081 ms
- Execution Time: 2.180 ms
+ Planning Time: 0.075 ms
+ Execution Time: 2.040 ms
 (12 rows)
 
 EXPLAIN (ANALYZE)
@@ -966,18 +966,18 @@ FROM products
 WHERE attrs @> '{"color": "teal", "size": "XXS"}';
                                                             QUERY PLAN                                                            
 ----------------------------------------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8) (actual time=0.159..0.175 rows=19.00 loops=1)
+ Bitmap Heap Scan on products  (cost=30.57..390.15 rows=94 width=8) (actual time=0.155..0.171 rows=19.00 loops=1)
    Recheck Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
    Heap Blocks: exact=19
    Buffers: shared hit=29
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0) (actual time=0.153..0.153 rows=19.00 loops=1)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=94 width=0) (actual time=0.148..0.148 rows=19.00 loops=1)
          Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
          Index Searches: 1
          Buffers: shared hit=10
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.064 ms
- Execution Time: 0.182 ms
+ Planning Time: 0.069 ms
+ Execution Time: 0.181 ms
 (12 rows)
 
 -- 同じ 3 つの条件を ->> で書いたときの見積もり
@@ -987,18 +987,18 @@ FROM products
 WHERE attrs->>'color' = 'black' AND attrs->>'size' = 'M';
                                                           QUERY PLAN                                                          
 ------------------------------------------------------------------------------------------------------------------------------
- Gather  (cost=1000.00..33489.83 rows=25 width=8) (actual time=0.199..48.379 rows=71884.00 loops=1)
+ Gather  (cost=1000.00..33489.83 rows=25 width=8) (actual time=0.261..48.913 rows=71884.00 loops=1)
    Workers Planned: 2
    Workers Launched: 2
-   Buffers: shared hit=15705 read=8449
-   ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=8) (actual time=0.092..43.208 rows=23961.33 loops=3)
+   Buffers: shared hit=15726 read=8428
+   ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=8) (actual time=0.105..43.436 rows=23961.33 loops=3)
          Filter: (((attrs ->> 'color'::text) = 'black'::text) AND ((attrs ->> 'size'::text) = 'M'::text))
          Rows Removed by Filter: 309372
-         Buffers: shared hit=15705 read=8449
+         Buffers: shared hit=15726 read=8428
  Planning:
-   Buffers: shared hit=95
- Planning Time: 0.173 ms
- Execution Time: 50.492 ms
+   Buffers: shared hit=96
+ Planning Time: 0.207 ms
+ Execution Time: 51.061 ms
 (12 rows)
 
 EXPLAIN (ANALYZE)
@@ -1007,16 +1007,16 @@ FROM products
 WHERE attrs->>'color' = 'yellow' AND attrs->>'size' = 'XL';
                                                          QUERY PLAN                                                         
 ----------------------------------------------------------------------------------------------------------------------------
- Gather  (cost=1000.00..33489.83 rows=25 width=8) (actual time=0.227..37.471 rows=1457.00 loops=1)
+ Gather  (cost=1000.00..33489.83 rows=25 width=8) (actual time=0.248..40.704 rows=1457.00 loops=1)
    Workers Planned: 2
    Workers Launched: 2
-   Buffers: shared hit=15862 read=8292
-   ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=8) (actual time=0.282..34.251 rows=485.67 loops=3)
+   Buffers: shared hit=15816 read=8338
+   ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=8) (actual time=0.165..37.368 rows=485.67 loops=3)
          Filter: (((attrs ->> 'color'::text) = 'yellow'::text) AND ((attrs ->> 'size'::text) = 'XL'::text))
          Rows Removed by Filter: 332848
-         Buffers: shared hit=15862 read=8292
- Planning Time: 0.040 ms
- Execution Time: 37.544 ms
+         Buffers: shared hit=15816 read=8338
+ Planning Time: 0.046 ms
+ Execution Time: 40.771 ms
 (10 rows)
 
 EXPLAIN (ANALYZE)
@@ -1025,16 +1025,16 @@ FROM products
 WHERE attrs->>'color' = 'teal' AND attrs->>'size' = 'XXS';
                                                         QUERY PLAN                                                        
 --------------------------------------------------------------------------------------------------------------------------
- Gather  (cost=1000.00..33489.83 rows=25 width=8) (actual time=1.772..36.662 rows=19.00 loops=1)
+ Gather  (cost=1000.00..33489.83 rows=25 width=8) (actual time=1.856..39.246 rows=19.00 loops=1)
    Workers Planned: 2
    Workers Launched: 2
    Buffers: shared hit=15909 read=8245
-   ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=8) (actual time=7.226..33.369 rows=6.33 loops=3)
+   ->  Parallel Seq Scan on products  (cost=0.00..32487.33 rows=10 width=8) (actual time=5.134..34.715 rows=6.33 loops=3)
          Filter: (((attrs ->> 'color'::text) = 'teal'::text) AND ((attrs ->> 'size'::text) = 'XXS'::text))
          Rows Removed by Filter: 333327
          Buffers: shared hit=15909 read=8245
- Planning Time: 0.043 ms
- Execution Time: 36.677 ms
+ Planning Time: 0.040 ms
+ Execution Time: 39.261 ms
 (10 rows)
 
 #### ch02_c
@@ -1049,11 +1049,11 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.85..142.10 rows=20 width=34) (actual time=0.105..0.235 rows=20.00 loops=1)
+ Limit  (cost=0.85..143.27 rows=20 width=34) (actual time=0.113..0.265 rows=20.00 loops=1)
    Buffers: shared hit=869 read=9
-   ->  Nested Loop  (cost=0.85..510467.37 rows=72277 width=34) (actual time=0.104..0.232 rows=20.00 loops=1)
+   ->  Nested Loop  (cost=0.85..510467.37 rows=71686 width=34) (actual time=0.113..0.261 rows=20.00 loops=1)
          Buffers: shared hit=869 read=9
-         ->  Index Scan using products_created on products p  (cost=0.42..35027.43 rows=1000000 width=34) (actual time=0.030..0.056 rows=243.00 loops=1)
+         ->  Index Scan using products_created on products p  (cost=0.42..35027.43 rows=1000000 width=34) (actual time=0.034..0.068 rows=243.00 loops=1)
                Index Searches: 1
                Buffers: shared read=6
          ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8) (actual time=0.001..0.001 rows=0.08 loops=243)
@@ -1063,9 +1063,9 @@ LIMIT 20;
                Index Searches: 243
                Buffers: shared hit=869 read=3
  Planning:
-   Buffers: shared hit=253 read=26 dirtied=3
- Planning Time: 0.791 ms
- Execution Time: 0.253 ms
+   Buffers: shared hit=256 read=25
+ Planning Time: 0.874 ms
+ Execution Time: 0.282 ms
 (17 rows)
 
 ## 10_popular.sql run 2
@@ -1079,11 +1079,11 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.85..142.10 rows=20 width=34) (actual time=0.070..0.212 rows=20.00 loops=1)
+ Limit  (cost=0.85..143.27 rows=20 width=34) (actual time=0.067..0.210 rows=20.00 loops=1)
    Buffers: shared hit=878
-   ->  Nested Loop  (cost=0.85..510467.37 rows=72277 width=34) (actual time=0.069..0.209 rows=20.00 loops=1)
+   ->  Nested Loop  (cost=0.85..510467.37 rows=71686 width=34) (actual time=0.066..0.207 rows=20.00 loops=1)
          Buffers: shared hit=878
-         ->  Index Scan using products_created on products p  (cost=0.42..35027.43 rows=1000000 width=34) (actual time=0.008..0.029 rows=243.00 loops=1)
+         ->  Index Scan using products_created on products p  (cost=0.42..35027.43 rows=1000000 width=34) (actual time=0.010..0.028 rows=243.00 loops=1)
                Index Searches: 1
                Buffers: shared hit=6
          ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8) (actual time=0.001..0.001 rows=0.08 loops=243)
@@ -1093,9 +1093,9 @@ LIMIT 20;
                Index Searches: 243
                Buffers: shared hit=872
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.436 ms
- Execution Time: 0.228 ms
+   Buffers: shared hit=281
+ Planning Time: 0.472 ms
+ Execution Time: 0.226 ms
 (17 rows)
 
 ## 10_popular.sql run 3
@@ -1109,11 +1109,11 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.85..142.10 rows=20 width=34) (actual time=0.066..0.194 rows=20.00 loops=1)
+ Limit  (cost=0.85..143.27 rows=20 width=34) (actual time=0.069..0.205 rows=20.00 loops=1)
    Buffers: shared hit=878
-   ->  Nested Loop  (cost=0.85..510467.37 rows=72277 width=34) (actual time=0.065..0.191 rows=20.00 loops=1)
+   ->  Nested Loop  (cost=0.85..510467.37 rows=71686 width=34) (actual time=0.068..0.202 rows=20.00 loops=1)
          Buffers: shared hit=878
-         ->  Index Scan using products_created on products p  (cost=0.42..35027.43 rows=1000000 width=34) (actual time=0.008..0.029 rows=243.00 loops=1)
+         ->  Index Scan using products_created on products p  (cost=0.42..35027.43 rows=1000000 width=34) (actual time=0.010..0.028 rows=243.00 loops=1)
                Index Searches: 1
                Buffers: shared hit=6
          ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8) (actual time=0.001..0.001 rows=0.08 loops=243)
@@ -1123,9 +1123,9 @@ LIMIT 20;
                Index Searches: 243
                Buffers: shared hit=872
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.458 ms
- Execution Time: 0.214 ms
+   Buffers: shared hit=281
+ Planning Time: 0.490 ms
+ Execution Time: 0.223 ms
 (17 rows)
 
 ## 11_middle.sql run 1
@@ -1139,15 +1139,15 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                QUERY PLAN                                                                                
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4021.69 rows=20 width=34) (actual time=20.324..21.449 rows=20.00 loops=1)
+ Limit  (cost=1000.87..4083.04 rows=20 width=34) (actual time=20.895..21.671 rows=20.00 loops=1)
    Buffers: shared hit=113154 read=590
-   ->  Gather Merge  (cost=1000.87..228468.10 rows=1506 width=34) (actual time=20.323..21.442 rows=20.00 loops=1)
+   ->  Gather Merge  (cost=1000.87..228464.64 rows=1476 width=34) (actual time=20.894..21.669 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=113154 read=590
-         ->  Nested Loop  (cost=0.85..227294.25 rows=628 width=34) (actual time=0.711..12.112 rows=14.00 loops=3)
+         ->  Nested Loop  (cost=0.85..227294.25 rows=615 width=34) (actual time=0.503..12.613 rows=14.00 loops=3)
                Buffers: shared hit=113154 read=590
-               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=34) (actual time=0.027..1.653 rows=10483.00 loops=3)
+               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=34) (actual time=0.025..1.658 rows=10483.00 loops=3)
                      Index Searches: 1
                      Buffers: shared hit=100 read=370
                ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8) (actual time=0.001..0.001 rows=0.00 loops=31449)
@@ -1157,9 +1157,9 @@ LIMIT 20;
                      Index Searches: 31449
                      Buffers: shared hit=113054 read=220
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.407 ms
- Execution Time: 21.472 ms
+   Buffers: shared hit=281
+ Planning Time: 0.379 ms
+ Execution Time: 21.698 ms
 (21 rows)
 
 ## 11_middle.sql run 2
@@ -1173,15 +1173,15 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                QUERY PLAN                                                                                
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4021.69 rows=20 width=34) (actual time=17.309..18.183 rows=20.00 loops=1)
+ Limit  (cost=1000.87..4083.04 rows=20 width=34) (actual time=20.163..20.850 rows=20.00 loops=1)
    Buffers: shared hit=113744
-   ->  Gather Merge  (cost=1000.87..228468.10 rows=1506 width=34) (actual time=17.308..18.180 rows=20.00 loops=1)
+   ->  Gather Merge  (cost=1000.87..228464.64 rows=1476 width=34) (actual time=20.162..20.847 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
          Buffers: shared hit=113744
-         ->  Nested Loop  (cost=0.85..227294.25 rows=628 width=34) (actual time=0.481..9.918 rows=14.00 loops=3)
+         ->  Nested Loop  (cost=0.85..227294.25 rows=615 width=34) (actual time=0.605..11.887 rows=14.00 loops=3)
                Buffers: shared hit=113744
-               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=34) (actual time=0.010..0.974 rows=10483.00 loops=3)
+               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=34) (actual time=0.010..1.106 rows=10483.00 loops=3)
                      Index Searches: 1
                      Buffers: shared hit=470
                ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8) (actual time=0.001..0.001 rows=0.00 loops=31449)
@@ -1191,9 +1191,9 @@ LIMIT 20;
                      Index Searches: 31449
                      Buffers: shared hit=113274
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.510 ms
- Execution Time: 18.208 ms
+   Buffers: shared hit=281
+ Planning Time: 0.483 ms
+ Execution Time: 20.875 ms
 (21 rows)
 
 ## 11_middle.sql run 3
@@ -1207,27 +1207,27 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                QUERY PLAN                                                                                
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4021.69 rows=20 width=34) (actual time=18.980..19.730 rows=20.00 loops=1)
-   Buffers: shared hit=113352
-   ->  Gather Merge  (cost=1000.87..228468.10 rows=1506 width=34) (actual time=18.979..19.727 rows=20.00 loops=1)
+ Limit  (cost=1000.87..4083.04 rows=20 width=34) (actual time=16.911..17.561 rows=20.00 loops=1)
+   Buffers: shared hit=113743
+   ->  Gather Merge  (cost=1000.87..228464.64 rows=1476 width=34) (actual time=16.910..17.558 rows=20.00 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=113352
-         ->  Nested Loop  (cost=0.85..227294.25 rows=628 width=34) (actual time=0.466..11.506 rows=14.00 loops=3)
-               Buffers: shared hit=113352
-               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=34) (actual time=0.012..0.995 rows=10447.00 loops=3)
+         Buffers: shared hit=113743
+         ->  Nested Loop  (cost=0.85..227294.25 rows=615 width=34) (actual time=0.468..9.839 rows=14.00 loops=3)
+               Buffers: shared hit=113743
+               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=34) (actual time=0.009..0.938 rows=10483.00 loops=3)
                      Index Searches: 1
-                     Buffers: shared hit=473
-               ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8) (actual time=0.001..0.001 rows=0.00 loops=31341)
+                     Buffers: shared hit=469
+               ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8) (actual time=0.001..0.001 rows=0.00 loops=31449)
                      Index Cond: (product_id = p.id)
                      Filter: ((color = 'yellow'::text) AND (size = 'XL'::text))
                      Rows Removed by Filter: 1
-                     Index Searches: 31341
-                     Buffers: shared hit=112879
+                     Index Searches: 31449
+                     Buffers: shared hit=113274
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.469 ms
- Execution Time: 19.754 ms
+   Buffers: shared hit=281
+ Planning Time: 0.472 ms
+ Execution Time: 17.589 ms
 (21 rows)
 
 ## 12_rare.sql run 1
@@ -1241,26 +1241,26 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                       QUERY PLAN                                                                      
 ------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=190.40..190.44 rows=15 width=34) (actual time=0.574..0.577 rows=19.00 loops=1)
+ Limit  (cost=165.51..165.55 rows=13 width=34) (actual time=0.617..0.620 rows=19.00 loops=1)
    Buffers: shared hit=33 read=68
-   ->  Sort  (cost=190.40..190.44 rows=15 width=34) (actual time=0.573..0.574 rows=19.00 loops=1)
+   ->  Sort  (cost=165.51..165.55 rows=13 width=34) (actual time=0.616..0.617 rows=19.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: quicksort  Memory: 26kB
          Buffers: shared hit=33 read=68
-         ->  Nested Loop  (cost=0.85..190.10 rows=15 width=34) (actual time=0.086..0.550 rows=19.00 loops=1)
+         ->  Nested Loop  (cost=0.85..165.27 rows=13 width=34) (actual time=0.117..0.588 rows=19.00 loops=1)
                Buffers: shared hit=30 read=68
-               ->  Index Scan using apparel_color_size on apparel a  (cost=0.42..63.47 rows=15 width=8) (actual time=0.065..0.226 rows=19.00 loops=1)
+               ->  Index Scan using apparel_color_size on apparel a  (cost=0.42..55.52 rows=13 width=8) (actual time=0.083..0.217 rows=19.00 loops=1)
                      Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
                      Index Searches: 1
                      Buffers: shared read=22
-               ->  Index Scan using products_pkey on products p  (cost=0.42..8.44 rows=1 width=34) (actual time=0.017..0.017 rows=1.00 loops=19)
+               ->  Index Scan using products_pkey on products p  (cost=0.42..8.44 rows=1 width=34) (actual time=0.019..0.019 rows=1.00 loops=19)
                      Index Cond: (id = a.product_id)
                      Index Searches: 19
                      Buffers: shared hit=30 read=46
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.472 ms
- Execution Time: 0.593 ms
+   Buffers: shared hit=281
+ Planning Time: 0.509 ms
+ Execution Time: 0.644 ms
 (20 rows)
 
 ## 12_rare.sql run 2
@@ -1274,26 +1274,26 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                       QUERY PLAN                                                                      
 ------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=190.40..190.44 rows=15 width=34) (actual time=0.153..0.157 rows=19.00 loops=1)
+ Limit  (cost=165.51..165.55 rows=13 width=34) (actual time=0.136..0.139 rows=19.00 loops=1)
    Buffers: shared hit=101
-   ->  Sort  (cost=190.40..190.44 rows=15 width=34) (actual time=0.152..0.153 rows=19.00 loops=1)
+   ->  Sort  (cost=165.51..165.55 rows=13 width=34) (actual time=0.135..0.136 rows=19.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: quicksort  Memory: 26kB
          Buffers: shared hit=101
-         ->  Nested Loop  (cost=0.85..190.10 rows=15 width=34) (actual time=0.029..0.121 rows=19.00 loops=1)
+         ->  Nested Loop  (cost=0.85..165.27 rows=13 width=34) (actual time=0.033..0.113 rows=19.00 loops=1)
                Buffers: shared hit=98
-               ->  Index Scan using apparel_color_size on apparel a  (cost=0.42..63.47 rows=15 width=8) (actual time=0.019..0.038 rows=19.00 loops=1)
+               ->  Index Scan using apparel_color_size on apparel a  (cost=0.42..55.52 rows=13 width=8) (actual time=0.025..0.044 rows=19.00 loops=1)
                      Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
                      Index Searches: 1
                      Buffers: shared hit=22
-               ->  Index Scan using products_pkey on products p  (cost=0.42..8.44 rows=1 width=34) (actual time=0.004..0.004 rows=1.00 loops=19)
+               ->  Index Scan using products_pkey on products p  (cost=0.42..8.44 rows=1 width=34) (actual time=0.003..0.003 rows=1.00 loops=19)
                      Index Cond: (id = a.product_id)
                      Index Searches: 19
                      Buffers: shared hit=76
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.732 ms
- Execution Time: 0.177 ms
+   Buffers: shared hit=281
+ Planning Time: 0.521 ms
+ Execution Time: 0.158 ms
 (20 rows)
 
 ## 12_rare.sql run 3
@@ -1307,26 +1307,26 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                       QUERY PLAN                                                                      
 ------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=190.40..190.44 rows=15 width=34) (actual time=0.152..0.155 rows=19.00 loops=1)
+ Limit  (cost=165.51..165.55 rows=13 width=34) (actual time=0.119..0.122 rows=19.00 loops=1)
    Buffers: shared hit=101
-   ->  Sort  (cost=190.40..190.44 rows=15 width=34) (actual time=0.151..0.152 rows=19.00 loops=1)
+   ->  Sort  (cost=165.51..165.55 rows=13 width=34) (actual time=0.118..0.119 rows=19.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: quicksort  Memory: 26kB
          Buffers: shared hit=101
-         ->  Nested Loop  (cost=0.85..190.10 rows=15 width=34) (actual time=0.031..0.131 rows=19.00 loops=1)
+         ->  Nested Loop  (cost=0.85..165.27 rows=13 width=34) (actual time=0.025..0.101 rows=19.00 loops=1)
                Buffers: shared hit=98
-               ->  Index Scan using apparel_color_size on apparel a  (cost=0.42..63.47 rows=15 width=8) (actual time=0.020..0.042 rows=19.00 loops=1)
+               ->  Index Scan using apparel_color_size on apparel a  (cost=0.42..55.52 rows=13 width=8) (actual time=0.018..0.033 rows=19.00 loops=1)
                      Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
                      Index Searches: 1
                      Buffers: shared hit=22
-               ->  Index Scan using products_pkey on products p  (cost=0.42..8.44 rows=1 width=34) (actual time=0.004..0.004 rows=1.00 loops=19)
+               ->  Index Scan using products_pkey on products p  (cost=0.42..8.44 rows=1 width=34) (actual time=0.003..0.003 rows=1.00 loops=19)
                      Index Cond: (id = a.product_id)
                      Index Searches: 19
                      Buffers: shared hit=76
  Planning:
-   Buffers: shared hit=279
- Planning Time: 0.558 ms
- Execution Time: 0.174 ms
+   Buffers: shared hit=281
+ Planning Time: 0.407 ms
+ Execution Time: 0.137 ms
 (20 rows)
 
 -- 見積もりの行数（rows=）と実際の行数（actual rows=）を比べる。LIMIT を付けずに、条件に合う商品を全部取る
@@ -1337,32 +1337,32 @@ JOIN products AS p ON p.id = a.product_id
 WHERE a.color = 'black' AND a.size = 'M';
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Gather  (cost=8154.43..29686.55 rows=72277 width=8) (actual time=13.564..63.774 rows=71884.00 loops=1)
+ Gather  (cost=8141.61..29614.62 rows=71686 width=8) (actual time=12.513..60.275 rows=71884.00 loops=1)
    Workers Planned: 2
    Workers Launched: 2
    Buffers: shared hit=496 read=13948
-   ->  Parallel Hash Join  (cost=7154.43..21458.85 rows=30115 width=8) (actual time=12.204..59.154 rows=23961.33 loops=3)
+   ->  Parallel Hash Join  (cost=7141.61..21446.02 rows=29869 width=8) (actual time=11.085..56.229 rows=23961.33 loops=3)
          Hash Cond: (p.id = a.product_id)
          Buffers: shared hit=496 read=13948
-         ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8) (actual time=0.068..18.125 rows=333333.33 loops=3)
+         ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8) (actual time=0.054..17.892 rows=333333.33 loops=3)
                Buffers: shared hit=306 read=8738
-         ->  Parallel Hash  (cost=6778.00..6778.00 rows=30115 width=8) (actual time=11.931..11.932 rows=23961.33 loops=3)
-               Buckets: 131072  Batches: 1  Memory Usage: 3872kB
+         ->  Parallel Hash  (cost=6768.24..6768.24 rows=29869 width=8) (actual time=10.794..10.795 rows=23961.33 loops=3)
+               Buckets: 131072  Batches: 1  Memory Usage: 3904kB
                Buffers: shared hit=190 read=5210
-               ->  Parallel Bitmap Heap Scan on apparel a  (cost=989.26..6778.00 rows=30115 width=8) (actual time=1.505..7.697 rows=23961.33 loops=3)
+               ->  Parallel Bitmap Heap Scan on apparel a  (cost=983.21..6768.24 rows=29869 width=8) (actual time=1.433..7.093 rows=23961.33 loops=3)
                      Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-                     Heap Blocks: exact=1810
+                     Heap Blocks: exact=1833
                      Buffers: shared hit=190 read=5210
-                     Worker 0:  Heap Blocks: exact=1689
-                     Worker 1:  Heap Blocks: exact=1837
-                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..971.19 rows=72277 width=0) (actual time=1.708..1.708 rows=71884.00 loops=1)
+                     Worker 0:  Heap Blocks: exact=1711
+                     Worker 1:  Heap Blocks: exact=1792
+                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..965.28 rows=71686 width=0) (actual time=1.680..1.680 rows=71884.00 loops=1)
                            Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
                            Index Searches: 1
                            Buffers: shared hit=1 read=63
  Planning:
-   Buffers: shared hit=273
- Planning Time: 0.551 ms
- Execution Time: 65.945 ms
+   Buffers: shared hit=275
+ Planning Time: 0.459 ms
+ Execution Time: 62.520 ms
 (26 rows)
 
 EXPLAIN (ANALYZE)
@@ -1372,30 +1372,30 @@ JOIN products AS p ON p.id = a.product_id
 WHERE a.color = 'yellow' AND a.size = 'XL';
                                                                    QUERY PLAN                                                                    
 -------------------------------------------------------------------------------------------------------------------------------------------------
- Gather  (cost=1024.29..7671.95 rows=1506 width=8) (actual time=0.485..7.768 rows=1457.00 loops=1)
+ Gather  (cost=1023.98..7576.20 rows=1476 width=8) (actual time=0.437..8.576 rows=1457.00 loops=1)
    Workers Planned: 1
    Workers Launched: 1
    Buffers: shared hit=4565 read=1127
-   ->  Nested Loop  (cost=24.29..6521.35 rows=886 width=8) (actual time=0.209..5.532 rows=728.50 loops=2)
+   ->  Nested Loop  (cost=23.98..6428.60 rows=868 width=8) (actual time=0.203..5.961 rows=728.50 loops=2)
          Buffers: shared hit=4565 read=1127
-         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.86..3347.75 rows=886 width=8) (actual time=0.190..1.251 rows=728.50 loops=2)
+         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.55..3306.43 rows=868 width=8) (actual time=0.184..1.302 rows=728.50 loops=2)
                Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-               Heap Blocks: exact=794
+               Heap Blocks: exact=814
                Buffers: shared hit=1315 read=3
-               Worker 0:  Heap Blocks: exact=500
-               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..23.48 rows=1506 width=0) (actual time=0.225..0.225 rows=1457.00 loops=1)
+               Worker 0:  Heap Blocks: exact=480
+               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..23.19 rows=1476 width=0) (actual time=0.201..0.201 rows=1457.00 loops=1)
                      Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
                      Index Searches: 1
                      Buffers: shared hit=1 read=3
-         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.58 rows=1 width=8) (actual time=0.006..0.006 rows=1.00 loops=1457)
+         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.60 rows=1 width=8) (actual time=0.006..0.006 rows=1.00 loops=1457)
                Index Cond: (id = a.product_id)
                Heap Fetches: 0
                Index Searches: 1457
                Buffers: shared hit=3250 read=1124
  Planning:
    Buffers: shared hit=16
- Planning Time: 0.131 ms
- Execution Time: 7.837 ms
+ Planning Time: 0.129 ms
+ Execution Time: 8.649 ms
 (24 rows)
 
 EXPLAIN (ANALYZE)
@@ -1405,13 +1405,13 @@ JOIN products AS p ON p.id = a.product_id
 WHERE a.color = 'teal' AND a.size = 'XXS';
                                                                QUERY PLAN                                                                
 -----------------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=5.00..129.06 rows=15 width=8) (actual time=0.017..0.064 rows=19.00 loops=1)
+ Nested Loop  (cost=4.98..112.58 rows=13 width=8) (actual time=0.017..0.058 rows=19.00 loops=1)
    Buffers: shared hit=80
-   ->  Bitmap Heap Scan on apparel a  (cost=4.58..62.42 rows=15 width=8) (actual time=0.012..0.024 rows=19.00 loops=1)
+   ->  Bitmap Heap Scan on apparel a  (cost=4.56..54.83 rows=13 width=8) (actual time=0.013..0.024 rows=19.00 loops=1)
          Recheck Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
          Heap Blocks: exact=19
          Buffers: shared hit=22
-         ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..4.58 rows=15 width=0) (actual time=0.009..0.009 rows=19.00 loops=1)
+         ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..4.55 rows=13 width=0) (actual time=0.010..0.010 rows=19.00 loops=1)
                Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
                Index Searches: 1
                Buffers: shared hit=3
@@ -1422,7 +1422,7 @@ WHERE a.color = 'teal' AND a.size = 'XXS';
          Buffers: shared hit=58
  Planning:
    Buffers: shared hit=16
- Planning Time: 0.097 ms
- Execution Time: 0.072 ms
+ Planning Time: 0.102 ms
+ Execution Time: 0.069 ms
 (19 rows)
 

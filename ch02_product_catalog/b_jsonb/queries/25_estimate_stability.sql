@@ -5,40 +5,60 @@
 
 -- 1 回目
 ANALYZE ch02_b.products;
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 2 回目
 ANALYZE ch02_b.products;
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 3 回目
 ANALYZE ch02_b.products;
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 4 回目
 ANALYZE ch02_b.products;
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 5 回目
 ANALYZE ch02_b.products;
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;

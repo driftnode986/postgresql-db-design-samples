@@ -5,40 +5,60 @@
 
 -- 1 回目
 ANALYZE ch02_a.products;
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 2 回目
 ANALYZE ch02_a.products;
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 3 回目
 ANALYZE ch02_a.products;
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 4 回目
 ANALYZE ch02_a.products;
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
 
 -- 5 回目
 ANALYZE ch02_a.products;
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;

@@ -2,13 +2,14 @@
 -- 元データが空のまま写すと、空のテーブルで測ることになる。何も消す前に止める
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM ch02_r.src) THEN
-    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行する';
+    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行';
   END IF;
 END $$;
 
 \timing on
 DROP STATISTICS IF EXISTS ch02_a.products_color_size;
-DROP INDEX IF EXISTS ch02_a.products_created, ch02_a.products_color_size_created;
+DROP INDEX IF EXISTS ch02_a.products_created,
+                     ch02_a.products_color_size_created;
 TRUNCATE ch02_a.products RESTART IDENTITY;
 
 -- 列の並びが元データと同じなので、SELECT * で写せる。

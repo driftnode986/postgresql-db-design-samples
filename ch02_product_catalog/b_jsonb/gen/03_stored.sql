@@ -9,7 +9,8 @@ ALTER TABLE ch02_b.products
   ADD COLUMN size  text GENERATED ALWAYS AS (attrs->>'size')  STORED;
 SELECT mode FROM pg_locks
 WHERE relation = 'ch02_b.products'::regclass AND pid = pg_backend_pid();
-SELECT pg_relation_filenode('ch02_b.products') = :filenode_before AS not_rewritten;
+SELECT pg_relation_filenode('ch02_b.products') = :filenode_before
+       AS not_rewritten;
 
 CREATE INDEX products_color_size_created
   ON ch02_b.products (color, size, created_at DESC);

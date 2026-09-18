@@ -9,4 +9,5 @@ FROM products WHERE kind = 'appliance' ORDER BY id LIMIT 1;
 SELECT ('{"watt": null}'::jsonb->'watt')::int AS null_to_int;
 
 -- JSON_VALUE は、変換できない値でも既定では NULL を返す。エラーにしたいときは ERROR ON ERROR
-SELECT JSON_VALUE('{"watt": "1200W"}'::jsonb, '$.watt' RETURNING int) AS silently_null;
+SELECT JSON_VALUE('{"watt": "1200W"}'::jsonb, '$.watt' RETURNING int)
+       AS silently_null;

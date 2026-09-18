@@ -2,7 +2,7 @@
 -- 元データが空のまま写すと、空のテーブルで測ることになる。何も消す前に止める
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM ch02_r.src) THEN
-    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行する';
+    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行';
   END IF;
 END $$;
 

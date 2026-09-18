@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:40:10 +0900
+# 採取日時: 2026-09-18 09:25:15 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -23,21 +23,24 @@ CREATE TABLE ch02_c.products (
 );
 CREATE TABLE
 CREATE TABLE ch02_c.apparel (
-  product_id  bigint PRIMARY KEY REFERENCES ch02_c.products (id) ON DELETE CASCADE,
+  product_id  bigint PRIMARY KEY
+              REFERENCES ch02_c.products (id) ON DELETE CASCADE,
   color text NOT NULL, size text NOT NULL, material text NOT NULL,
   season text, fit text, sleeve_cm int, length_cm int, chest_cm int,
   weight_g int, pockets int
 );
 CREATE TABLE
 CREATE TABLE ch02_c.appliance (
-  product_id  bigint PRIMARY KEY REFERENCES ch02_c.products (id) ON DELETE CASCADE,
+  product_id  bigint PRIMARY KEY
+              REFERENCES ch02_c.products (id) ON DELETE CASCADE,
   watt int NOT NULL, voltage int NOT NULL, warranty_months int NOT NULL,
   width_mm int, depth_mm int, height_mm int, weight_kg int,
   noise_db int, cord_cm int, energy_rank int
 );
 CREATE TABLE
 CREATE TABLE ch02_c.book (
-  product_id  bigint PRIMARY KEY REFERENCES ch02_c.products (id) ON DELETE CASCADE,
+  product_id  bigint PRIMARY KEY
+              REFERENCES ch02_c.products (id) ON DELETE CASCADE,
   author text NOT NULL, isbn text NOT NULL, pages int NOT NULL,
   publisher text, published_year int, edition int, series_no int,
   thickness_mm int, age_from int, chapters int
@@ -47,27 +50,27 @@ CREATE TABLE
 -- 元データが空のまま写すと、空のテーブルで測ることになる。何も消す前に止める
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM ch02_r.src) THEN
-    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行する';
+    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行';
   END IF;
 END $$;
 DO
 \timing on
 Timing is on.
 DROP INDEX IF EXISTS ch02_c.products_created, ch02_c.apparel_color_size;
-psql:/tmp/run-sql-21194.sql:10: NOTICE:  index "products_created" does not exist, skipping
-psql:/tmp/run-sql-21194.sql:10: NOTICE:  index "apparel_color_size" does not exist, skipping
+psql:/tmp/run-sql-98444.sql:10: NOTICE:  index "products_created" does not exist, skipping
+psql:/tmp/run-sql-98444.sql:10: NOTICE:  index "apparel_color_size" does not exist, skipping
 DROP INDEX
-Time: 0.124 ms
+Time: 0.098 ms
 TRUNCATE ch02_c.products RESTART IDENTITY CASCADE;
-psql:/tmp/run-sql-21194.sql:11: NOTICE:  truncate cascades to table "apparel"
-psql:/tmp/run-sql-21194.sql:11: NOTICE:  truncate cascades to table "appliance"
-psql:/tmp/run-sql-21194.sql:11: NOTICE:  truncate cascades to table "book"
+psql:/tmp/run-sql-98444.sql:11: NOTICE:  truncate cascades to table "apparel"
+psql:/tmp/run-sql-98444.sql:11: NOTICE:  truncate cascades to table "appliance"
+psql:/tmp/run-sql-98444.sql:11: NOTICE:  truncate cascades to table "book"
 TRUNCATE TABLE
-Time: 3.229 ms
+Time: 3.289 ms
 INSERT INTO ch02_c.products OVERRIDING SYSTEM VALUE
 SELECT id, kind, name, price, created_at FROM ch02_r.src ORDER BY id;
 INSERT 0 1000000
-Time: 1062.157 ms (00:01.062)
+Time: 1091.331 ms (00:01.091)
 SELECT setval(pg_get_serial_sequence('ch02_c.products', 'id'),
               (SELECT max(id) FROM ch02_c.products));
  setval  
@@ -75,31 +78,31 @@ SELECT setval(pg_get_serial_sequence('ch02_c.products', 'id'),
  1000000
 (1 row)
 
-Time: 0.745 ms
+Time: 0.696 ms
 INSERT INTO ch02_c.apparel
 SELECT id, color, size, material, season, fit, sleeve_cm, length_cm, chest_cm,
        weight_g, pockets
 FROM ch02_r.src WHERE kind = 'apparel' ORDER BY id;
 INSERT 0 600000
-Time: 2547.715 ms (00:02.548)
+Time: 2524.525 ms (00:02.525)
 INSERT INTO ch02_c.appliance
 SELECT id, watt, voltage, warranty_months, width_mm, depth_mm, height_mm,
        weight_kg, noise_db, cord_cm, energy_rank
 FROM ch02_r.src WHERE kind = 'appliance' ORDER BY id;
 INSERT 0 99799
-Time: 468.090 ms
+Time: 493.570 ms
 INSERT INTO ch02_c.book
 SELECT id, author, isbn, pages, publisher, published_year, edition, series_no,
        thickness_mm, age_from, chapters
 FROM ch02_r.src WHERE kind = 'book' ORDER BY id;
 INSERT 0 300201
-Time: 1186.211 ms (00:01.186)
+Time: 1180.645 ms (00:01.181)
 CREATE INDEX products_created ON ch02_c.products (created_at DESC);
 CREATE INDEX
-Time: 154.095 ms
+Time: 157.190 ms
 CREATE INDEX apparel_color_size ON ch02_c.apparel (color, size);
 CREATE INDEX
-Time: 392.836 ms
+Time: 409.253 ms
 VACUUM (ANALYZE) ch02_c.products, ch02_c.apparel, ch02_c.appliance, ch02_c.book;
 VACUUM
-Time: 328.620 ms
+Time: 329.684 ms

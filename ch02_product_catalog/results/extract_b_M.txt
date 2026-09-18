@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:41:40 +0900
+# 採取日時: 2026-09-18 09:26:50 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -14,50 +14,51 @@
 -- 必須の属性の CHECK が attrs の中の color を見ているので、制約も置き換える
 \timing on
 Timing is on.
-SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_before;
+SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products'))
+       AS total_before;
  total_before 
 --------------
  262 MB
 (1 row)
 
-Time: 0.741 ms
+Time: 0.848 ms
 ALTER TABLE ch02_b.products ADD COLUMN color text;
 ALTER TABLE
-Time: 2.817 ms
+Time: 3.254 ms
 UPDATE ch02_b.products SET color = attrs->>'color' WHERE attrs ? 'color';
 UPDATE 600000
-Time: 3838.548 ms (00:03.839)
+Time: 3986.845 ms (00:03.987)
 -- 新しい制約は NOT VALID で足し、既存の行の検査は VALIDATE で別に行う（読み書きを止めないため）
 ALTER TABLE ch02_b.products
   DROP CONSTRAINT apparel_required,
   ADD CONSTRAINT apparel_required_2 CHECK (kind <> 'apparel'
     OR (color IS NOT NULL AND attrs ?& ARRAY['size', 'material'])) NOT VALID;
 ALTER TABLE
-Time: 1.029 ms
+Time: 4.668 ms
 ALTER TABLE ch02_b.products VALIDATE CONSTRAINT apparel_required_2;
 ALTER TABLE
-Time: 376.719 ms
+Time: 398.554 ms
 UPDATE ch02_b.products SET attrs = attrs - 'color' WHERE attrs ? 'color';
 UPDATE 600000
-Time: 3849.619 ms (00:03.850)
+Time: 3808.416 ms (00:03.808)
 SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_after;
  total_after 
 -------------
  529 MB
 (1 row)
 
-Time: 0.226 ms
+Time: 0.208 ms
 -- 元に戻す。テーブルが大きくなったままなので、測定を続けるときは load.sql で入れ直す
 UPDATE ch02_b.products SET attrs = attrs || jsonb_build_object('color', color)
 WHERE color IS NOT NULL;
 UPDATE 600000
-Time: 4699.064 ms (00:04.699)
+Time: 4934.345 ms (00:04.934)
 ALTER TABLE ch02_b.products
   DROP CONSTRAINT apparel_required_2,
   ADD CONSTRAINT apparel_required CHECK (kind <> 'apparel'
     OR attrs ?& ARRAY['color', 'size', 'material']);
 ALTER TABLE
-Time: 351.473 ms
+Time: 355.245 ms
 ALTER TABLE ch02_b.products DROP COLUMN color;
 ALTER TABLE
-Time: 0.527 ms
+Time: 0.657 ms

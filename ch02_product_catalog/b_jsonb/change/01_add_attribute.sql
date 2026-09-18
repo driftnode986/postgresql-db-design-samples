@@ -4,7 +4,8 @@
 
 -- 1. 属性を足す。テーブルの定義は変えない（0 文）。新しい商品の attrs にキーを入れるだけ。
 --    既存の商品にも値を持たせるなら、全行の UPDATE になる
-SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_before;
+SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products'))
+       AS total_before;
 UPDATE ch02_b.products SET attrs = attrs || '{"origin": "JP"}';
 -- 更新前の行の回収と、GIN インデックスの未整理の項目の取り込みを済ませてから測る
 VACUUM (ANALYZE) ch02_b.products;
@@ -31,7 +32,8 @@ COMMIT;
 --    比べるのは Bitmap Index Scan が読んだページの数（Buffers）。
 --    どちらも先に 1 回実行して、読むページを共有バッファに載せておく
 SELECT count(*) FROM products WHERE attrs @> '{"color": "teal"}';
-SELECT count(*) FROM products WHERE attrs @> '{"origin": "JP", "color": "teal"}';
+SELECT count(*) FROM products
+WHERE attrs @> '{"origin": "JP", "color": "teal"}';
 EXPLAIN (ANALYZE)
 SELECT id FROM products WHERE attrs @> '{"color": "teal"}';
 EXPLAIN (ANALYZE)

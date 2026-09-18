@@ -8,11 +8,13 @@ SELECT relation::regclass, mode FROM pg_locks
 WHERE relation IN ('ch02_c.products'::regclass, 'ch02_c.apparel'::regclass,
                    'ch02_c.appliance'::regclass, 'ch02_c.book'::regclass)
   AND pid = pg_backend_pid();
-SELECT pg_relation_filenode('ch02_c.apparel') = :filenode_before AS not_rewritten;
+SELECT pg_relation_filenode('ch02_c.apparel') = :filenode_before
+       AS not_rewritten;
 COMMIT;
 
 BEGIN;
-ALTER TABLE ch02_c.apparel ADD CONSTRAINT apparel_origin_nn NOT NULL origin NOT VALID;
+ALTER TABLE ch02_c.apparel
+  ADD CONSTRAINT apparel_origin_nn NOT NULL origin NOT VALID;
 COMMIT;
 BEGIN;
 ALTER TABLE ch02_c.apparel VALIDATE CONSTRAINT apparel_origin_nn;

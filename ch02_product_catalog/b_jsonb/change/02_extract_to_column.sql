@@ -2,7 +2,8 @@
 -- テーブルを止めずにできるが、全行を 2 回更新するので、総サイズが一時的に大きくなる。
 -- 必須の属性の CHECK が attrs の中の color を見ているので、制約も置き換える
 \timing on
-SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products')) AS total_before;
+SELECT pg_size_pretty(pg_total_relation_size('ch02_b.products'))
+       AS total_before;
 
 ALTER TABLE ch02_b.products ADD COLUMN color text;
 UPDATE ch02_b.products SET color = attrs->>'color' WHERE attrs ? 'color';

@@ -23,7 +23,8 @@ CREATE TABLE ch02_a.products (
   CONSTRAINT apparel_required CHECK (kind <> 'apparel'
     OR (color IS NOT NULL AND size IS NOT NULL AND material IS NOT NULL)),
   CONSTRAINT appliance_required CHECK (kind <> 'appliance'
-    OR (watt IS NOT NULL AND voltage IS NOT NULL AND warranty_months IS NOT NULL)),
+    OR (watt IS NOT NULL AND voltage IS NOT NULL
+        AND warranty_months IS NOT NULL)),
   CONSTRAINT book_required CHECK (kind <> 'book'
     OR (author IS NOT NULL AND isbn IS NOT NULL AND pages IS NOT NULL))
 );

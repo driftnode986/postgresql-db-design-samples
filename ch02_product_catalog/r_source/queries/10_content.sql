@@ -1,6 +1,7 @@
 -- 元データの内容を確かめる。content_hash は、同じ SIZE なら何度作り直しても同じ値になる
 SELECT count(*) AS products,
-       count(color) AS has_color, count(watt) AS has_watt, count(isbn) AS has_isbn,
+       count(color) AS has_color, count(watt) AS has_watt,
+       count(isbn) AS has_isbn,
        md5(string_agg(md5(s::text), '' ORDER BY id)) AS content_hash
 FROM ch02_r.src AS s;
 

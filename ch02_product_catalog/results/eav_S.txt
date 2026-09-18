@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:42:03 +0900
+# 採取日時: 2026-09-18 09:27:14 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -22,18 +22,18 @@ SELECT :n AS rows_to_load;   -- S・M 以外なら、ここで構文エラーに
 Timing is on.
 TRUNCATE ch02_r.src;
 TRUNCATE TABLE
-Time: 13.068 ms
+Time: 11.810 ms
 DROP TABLE IF EXISTS ch02_r.draw;
-psql:/tmp/run-sql-22484.sql:8: NOTICE:  table "draw" does not exist, skipping
+psql:/tmp/run-sql-1036.sql:8: NOTICE:  table "draw" does not exist, skipping
 DROP TABLE
-Time: 0.244 ms
+Time: 0.154 ms
 SELECT setseed(0.42);
  setseed 
 ---------
  
 (1 row)
 
-Time: 0.257 ms
+Time: 0.483 ms
 -- 1 商品につき乱数を 19 個引いて、作業用のテーブルに置く。
 -- k は種類、c・s・m は必ず持つ属性、p1〜p7 は「その属性を持つか」、v1〜v7 はその値に使う
 CREATE TABLE ch02_r.draw AS
@@ -55,11 +55,12 @@ FROM (
   ORDER BY g
 ) AS r;
 SELECT 100000
-Time: 79.155 ms
+Time: 81.808 ms
 -- 衣料（6 割）。色とサイズに偏りを付ける。black は衣料の 30%、teal は 0.5%。
 -- M は 40%、XXS は 0.5%。season より後ろの 7 つは、3 割の商品だけが持つ
-INSERT INTO ch02_r.src (id, kind, name, price, created_at, color, size, material,
-  season, fit, sleeve_cm, length_cm, chest_cm, weight_g, pockets)
+INSERT INTO ch02_r.src (id, kind, name, price, created_at,
+  color, size, material, season, fit, sleeve_cm, length_cm, chest_cm,
+  weight_g, pockets)
 SELECT id, kind, kind || '-' || id, price, created_at,
        CASE WHEN c < 0.30 THEN 'black' WHEN c < 0.55 THEN 'white'
             WHEN c < 0.72 THEN 'navy'  WHEN c < 0.84 THEN 'gray'
@@ -68,9 +69,10 @@ SELECT id, kind, kind || '-' || id, price, created_at,
        CASE WHEN s < 0.40 THEN 'M' WHEN s < 0.70 THEN 'L' WHEN s < 0.90 THEN 'S'
             WHEN s < 0.995 THEN 'XL' ELSE 'XXS' END,
        (ARRAY['cotton', 'polyester', 'wool', 'linen'])[1 + floor(m * 4)::int],
-       CASE WHEN p1 < 0.3
-            THEN (ARRAY['spring', 'summer', 'autumn', 'winter'])[1 + v1 % 4] END,
-       CASE WHEN p2 < 0.3 THEN (ARRAY['slim', 'regular', 'loose'])[1 + v2 % 3] END,
+       CASE WHEN p1 < 0.3 THEN
+         (ARRAY['spring', 'summer', 'autumn', 'winter'])[1 + v1 % 4] END,
+       CASE WHEN p2 < 0.3 THEN
+         (ARRAY['slim', 'regular', 'loose'])[1 + v2 % 3] END,
        CASE WHEN p3 < 0.3 THEN 40 + v3 % 30 END,
        CASE WHEN p4 < 0.3 THEN 55 + v4 % 40 END,
        CASE WHEN p5 < 0.3 THEN 80 + v5 % 50 END,
@@ -78,7 +80,7 @@ SELECT id, kind, kind || '-' || id, price, created_at,
        CASE WHEN p7 < 0.3 THEN v7 % 6 END
 FROM ch02_r.draw WHERE kind = 'apparel' ORDER BY id;
 INSERT 0 60153
-Time: 104.722 ms
+Time: 116.660 ms
 -- 家電（1 割）
 INSERT INTO ch02_r.src (id, kind, name, price, created_at, watt, voltage,
   warranty_months, width_mm, depth_mm, height_mm, weight_kg, noise_db, cord_cm,
@@ -96,10 +98,11 @@ SELECT id, kind, kind || '-' || id, price, created_at,
        CASE WHEN p7 < 0.3 THEN 1 + v7 % 5 END
 FROM ch02_r.draw WHERE kind = 'appliance' ORDER BY id;
 INSERT 0 10002
-Time: 24.206 ms
+Time: 24.312 ms
 -- 書籍（3 割）。著者にも偏りを付ける（番号の小さい著者に集中する）
-INSERT INTO ch02_r.src (id, kind, name, price, created_at, author, isbn, pages,
-  publisher, published_year, edition, series_no, thickness_mm, age_from, chapters)
+INSERT INTO ch02_r.src (id, kind, name, price, created_at,
+  author, isbn, pages, publisher, published_year, edition, series_no,
+  thickness_mm, age_from, chapters)
 SELECT id, kind, kind || '-' || id, price, created_at,
        'author-' || (1 + floor(power(c, 3) * 5000)::int),
        '978' || lpad(id::text, 10, '0'),
@@ -113,13 +116,13 @@ SELECT id, kind, kind || '-' || id, price, created_at,
        CASE WHEN p7 < 0.3 THEN 3 + v7 % 20 END
 FROM ch02_r.draw WHERE kind = 'book' ORDER BY id;
 INSERT 0 29845
-Time: 56.135 ms
+Time: 57.293 ms
 DROP TABLE ch02_r.draw;
 DROP TABLE
-Time: 1.054 ms
+Time: 1.351 ms
 ANALYZE ch02_r.src;
 ANALYZE
-Time: 112.933 ms
+Time: 121.936 ms
 -- 参考の案D: 属性を「商品・属性・値」の 3 つ組で縦に持つ（EAV）。
 -- 要件だけを AI に渡して採取した案の 1 つ。主キーの定義だけ、本書の規約
 -- （bigint の IDENTITY）に合わせた
@@ -159,7 +162,7 @@ CREATE TABLE
 -- 元データが空のまま写すと、空のテーブルで測ることになる。何も消す前に止める
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM ch02_r.src) THEN
-    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行する';
+    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行';
   END IF;
 END $$;
 DO
@@ -167,19 +170,19 @@ DO
 Timing is on.
 DROP INDEX IF EXISTS ch02_d.products_kind_created,
   ch02_d.product_attributes_def_text, ch02_d.product_attributes_def_number;
-psql:/tmp/run-sql-22505.sql:11: NOTICE:  index "products_kind_created" does not exist, skipping
-psql:/tmp/run-sql-22505.sql:11: NOTICE:  index "product_attributes_def_text" does not exist, skipping
-psql:/tmp/run-sql-22505.sql:11: NOTICE:  index "product_attributes_def_number" does not exist, skipping
+psql:/tmp/run-sql-1070.sql:11: NOTICE:  index "products_kind_created" does not exist, skipping
+psql:/tmp/run-sql-1070.sql:11: NOTICE:  index "product_attributes_def_text" does not exist, skipping
+psql:/tmp/run-sql-1070.sql:11: NOTICE:  index "product_attributes_def_number" does not exist, skipping
 DROP INDEX
-Time: 0.119 ms
+Time: 0.174 ms
 TRUNCATE ch02_d.products, ch02_d.attribute_defs RESTART IDENTITY CASCADE;
-psql:/tmp/run-sql-22505.sql:12: NOTICE:  truncate cascades to table "product_attributes"
+psql:/tmp/run-sql-1070.sql:12: NOTICE:  truncate cascades to table "product_attributes"
 TRUNCATE TABLE
-Time: 2.988 ms
+Time: 4.045 ms
 INSERT INTO ch02_d.products OVERRIDING SYSTEM VALUE
 SELECT id, kind, name, price, created_at FROM ch02_r.src ORDER BY id;
 INSERT 0 100000
-Time: 111.165 ms
+Time: 113.840 ms
 SELECT setval(pg_get_serial_sequence('ch02_d.products', 'id'),
               (SELECT max(id) FROM ch02_d.products));
  setval 
@@ -187,7 +190,7 @@ SELECT setval(pg_get_serial_sequence('ch02_d.products', 'id'),
  100000
 (1 row)
 
-Time: 0.483 ms
+Time: 1.434 ms
 -- 属性の定義は、元データの列から作る（種類ごとに、先頭の 3 つが必須）
 INSERT INTO ch02_d.attribute_defs (kind, code, value_type, is_required)
 SELECT kind, code, value_type, pos <= 3
@@ -207,7 +210,7 @@ CROSS JOIN LATERAL (
 ) AS t
 ORDER BY kind, pos;
 INSERT 0 30
-Time: 0.902 ms
+Time: 0.952 ms
 -- 1 商品の行を「属性の名前と値」の行に開き、属性の定義と突き合わせて入れる
 INSERT INTO ch02_d.product_attributes
 SELECT s.id, d.id,
@@ -218,22 +221,22 @@ CROSS JOIN LATERAL jsonb_each(jsonb_strip_nulls(to_jsonb(s))) AS e
 JOIN ch02_d.attribute_defs AS d ON d.kind = s.kind AND d.code = e.key
 ORDER BY s.id, d.id;
 INSERT 0 509988
-Time: 4012.802 ms (00:04.013)
+Time: 4163.218 ms (00:04.163)
 -- インデックスは、採取した案のとおり
 CREATE INDEX products_kind_created ON ch02_d.products (kind, created_at DESC);
 CREATE INDEX
-Time: 60.773 ms
+Time: 66.338 ms
 CREATE INDEX product_attributes_def_text
   ON ch02_d.product_attributes (attribute_def_id, value_text);
 CREATE INDEX
-Time: 204.141 ms
+Time: 232.583 ms
 CREATE INDEX product_attributes_def_number
   ON ch02_d.product_attributes (attribute_def_id, value_number);
 CREATE INDEX
-Time: 166.747 ms
+Time: 199.687 ms
 VACUUM (ANALYZE) ch02_d.products, ch02_d.attribute_defs, ch02_d.product_attributes;
 VACUUM
-Time: 133.760 ms
+Time: 146.952 ms
 -- 保存サイズ。いま search_path の先頭にあるスキーマのテーブルを全部並べる
 SELECT c.relname AS table_name,
        pg_size_pretty(pg_relation_size(c.oid))       AS heap,
@@ -275,36 +278,36 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                    
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=2326.70..2326.71 rows=3 width=33) (actual time=68.812..68.828 rows=20.00 loops=1)
+ Limit  (cost=2269.59..2269.60 rows=3 width=33) (actual time=72.676..72.696 rows=20.00 loops=1)
    Buffers: shared hit=143985 read=18
-   ->  Sort  (cost=2326.70..2326.71 rows=3 width=33) (actual time=68.811..68.814 rows=20.00 loops=1)
+   ->  Sort  (cost=2269.59..2269.60 rows=3 width=33) (actual time=72.675..72.677 rows=20.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=143985 read=18
-         ->  Nested Loop Semi Join  (cost=1572.87..2326.67 rows=3 width=33) (actual time=10.562..68.123 rows=7207.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=1535.10..2269.56 rows=3 width=33) (actual time=9.500..71.879 rows=7207.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=143982 read=18
-               ->  Nested Loop  (cost=1572.31..1936.39 rows=367 width=41) (actual time=10.519..32.085 rows=17989.00 loops=1)
+               ->  Nested Loop  (cost=1534.54..1891.95 rows=355 width=41) (actual time=9.432..32.256 rows=17989.00 loops=1)
                      Buffers: shared hit=57297 read=18
-                     ->  HashAggregate  (cost=1572.02..1578.08 rows=606 width=8) (actual time=10.513..12.229 rows=17989.00 loops=1)
+                     ->  HashAggregate  (cost=1534.24..1540.10 rows=586 width=8) (actual time=9.417..11.382 rows=17989.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 1049kB
                            Buffers: shared hit=3330 read=18
-                           ->  Nested Loop  (cost=10.63..1570.51 rows=606 width=8) (actual time=0.914..7.631 rows=17989.00 loops=1)
+                           ->  Nested Loop  (cost=10.43..1532.78 rows=586 width=8) (actual time=0.808..6.904 rows=17989.00 loops=1)
                                  Buffers: shared hit=3330 read=18
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.009 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.005..0.008 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=10.63..1563.07 rows=606 width=16) (actual time=0.907..6.333 rows=17989.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=10.43..1525.54 rows=586 width=16) (actual time=0.802..5.720 rows=17989.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                                        Heap Blocks: exact=3329
                                        Buffers: shared hit=3329 read=18
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.48 rows=606 width=0) (actual time=0.610..0.610 rows=17989.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.28 rows=586 width=0) (actual time=0.555..0.555 rows=17989.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                                              Index Searches: 1
                                              Buffers: shared read=18
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..0.59 rows=1 width=33) (actual time=0.001..0.001 rows=1.00 loops=17989)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..0.60 rows=1 width=33) (actual time=0.001..0.001 rows=1.00 loops=17989)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 17989
@@ -323,9 +326,9 @@ LIMIT 20;
                            Index Searches: 7207
                            Buffers: shared hit=14414
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.849 ms
- Execution Time: 69.028 ms
+   Buffers: shared hit=402
+ Planning Time: 0.752 ms
+ Execution Time: 72.852 ms
 (51 rows)
 
 ## 10_popular.sql run 2
@@ -346,36 +349,36 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                    
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=2326.70..2326.71 rows=3 width=33) (actual time=69.416..69.431 rows=20.00 loops=1)
+ Limit  (cost=2269.59..2269.60 rows=3 width=33) (actual time=78.472..78.482 rows=20.00 loops=1)
    Buffers: shared hit=144003
-   ->  Sort  (cost=2326.70..2326.71 rows=3 width=33) (actual time=69.415..69.417 rows=20.00 loops=1)
+   ->  Sort  (cost=2269.59..2269.60 rows=3 width=33) (actual time=78.471..78.474 rows=20.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=144003
-         ->  Nested Loop Semi Join  (cost=1572.87..2326.67 rows=3 width=33) (actual time=11.010..68.726 rows=7207.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=1535.10..2269.56 rows=3 width=33) (actual time=10.302..77.714 rows=7207.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=144000
-               ->  Nested Loop  (cost=1572.31..1936.39 rows=367 width=41) (actual time=10.958..32.722 rows=17989.00 loops=1)
+               ->  Nested Loop  (cost=1534.54..1891.95 rows=355 width=41) (actual time=10.231..35.204 rows=17989.00 loops=1)
                      Buffers: shared hit=57315
-                     ->  HashAggregate  (cost=1572.02..1578.08 rows=606 width=8) (actual time=10.949..12.719 rows=17989.00 loops=1)
+                     ->  HashAggregate  (cost=1534.24..1540.10 rows=586 width=8) (actual time=10.209..12.469 rows=17989.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 1049kB
                            Buffers: shared hit=3348
-                           ->  Nested Loop  (cost=10.63..1570.51 rows=606 width=8) (actual time=0.768..8.333 rows=17989.00 loops=1)
+                           ->  Nested Loop  (cost=10.43..1532.78 rows=586 width=8) (actual time=0.794..7.245 rows=17989.00 loops=1)
                                  Buffers: shared hit=3348
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.010 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.011 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=10.63..1563.07 rows=606 width=16) (actual time=0.760..7.108 rows=17989.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=10.43..1525.54 rows=586 width=16) (actual time=0.786..6.070 rows=17989.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                                        Heap Blocks: exact=3329
                                        Buffers: shared hit=3347
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.48 rows=606 width=0) (actual time=0.490..0.490 rows=17989.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.28 rows=586 width=0) (actual time=0.534..0.535 rows=17989.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=18
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..0.59 rows=1 width=33) (actual time=0.001..0.001 rows=1.00 loops=17989)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..0.60 rows=1 width=33) (actual time=0.001..0.001 rows=1.00 loops=17989)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 17989
@@ -394,9 +397,9 @@ LIMIT 20;
                            Index Searches: 7207
                            Buffers: shared hit=14414
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.819 ms
- Execution Time: 69.585 ms
+   Buffers: shared hit=402
+ Planning Time: 0.898 ms
+ Execution Time: 78.627 ms
 (51 rows)
 
 ## 10_popular.sql run 3
@@ -417,36 +420,36 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                    
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=2326.70..2326.71 rows=3 width=33) (actual time=80.111..80.124 rows=20.00 loops=1)
+ Limit  (cost=2269.59..2269.60 rows=3 width=33) (actual time=85.675..85.689 rows=20.00 loops=1)
    Buffers: shared hit=144003
-   ->  Sort  (cost=2326.70..2326.71 rows=3 width=33) (actual time=80.110..80.115 rows=20.00 loops=1)
+   ->  Sort  (cost=2269.59..2269.60 rows=3 width=33) (actual time=85.674..85.677 rows=20.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=144003
-         ->  Nested Loop Semi Join  (cost=1572.87..2326.67 rows=3 width=33) (actual time=12.284..79.389 rows=7207.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=1535.10..2269.56 rows=3 width=33) (actual time=10.489..84.870 rows=7207.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=144000
-               ->  Nested Loop  (cost=1572.31..1936.39 rows=367 width=41) (actual time=12.224..37.429 rows=17989.00 loops=1)
+               ->  Nested Loop  (cost=1534.54..1891.95 rows=355 width=41) (actual time=10.431..38.734 rows=17989.00 loops=1)
                      Buffers: shared hit=57315
-                     ->  HashAggregate  (cost=1572.02..1578.08 rows=606 width=8) (actual time=12.210..14.394 rows=17989.00 loops=1)
+                     ->  HashAggregate  (cost=1534.24..1540.10 rows=586 width=8) (actual time=10.413..13.205 rows=17989.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 1049kB
                            Buffers: shared hit=3348
-                           ->  Nested Loop  (cost=10.63..1570.51 rows=606 width=8) (actual time=0.788..9.120 rows=17989.00 loops=1)
+                           ->  Nested Loop  (cost=10.43..1532.78 rows=586 width=8) (actual time=0.758..7.609 rows=17989.00 loops=1)
                                  Buffers: shared hit=3348
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.010 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.009 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=10.63..1563.07 rows=606 width=16) (actual time=0.781..7.840 rows=17989.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=10.43..1525.54 rows=586 width=16) (actual time=0.750..6.396 rows=17989.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                                        Heap Blocks: exact=3329
                                        Buffers: shared hit=3347
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.48 rows=606 width=0) (actual time=0.498..0.498 rows=17989.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.28 rows=586 width=0) (actual time=0.478..0.478 rows=17989.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=18
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..0.59 rows=1 width=33) (actual time=0.001..0.001 rows=1.00 loops=17989)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..0.60 rows=1 width=33) (actual time=0.001..0.001 rows=1.00 loops=17989)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 17989
@@ -465,9 +468,9 @@ LIMIT 20;
                            Index Searches: 7207
                            Buffers: shared hit=14414
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.869 ms
- Execution Time: 80.239 ms
+   Buffers: shared hit=402
+ Planning Time: 0.761 ms
+ Execution Time: 85.845 ms
 (51 rows)
 
 ## 11_middle.sql run 1
@@ -488,36 +491,36 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                    QUERY PLAN                                                                                   
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=417.97..417.98 rows=1 width=33) (actual time=9.803..9.809 rows=20.00 loops=1)
+ Limit  (cost=384.57..384.57 rows=1 width=33) (actual time=8.529..8.535 rows=20.00 loops=1)
    Buffers: shared hit=12016 read=2
-   ->  Sort  (cost=417.97..417.98 rows=1 width=33) (actual time=9.802..9.804 rows=20.00 loops=1)
+   ->  Sort  (cost=384.57..384.57 rows=1 width=33) (actual time=8.528..8.531 rows=20.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=12016 read=2
-         ->  Nested Loop Semi Join  (cost=211.01..417.96 rows=1 width=33) (actual time=3.332..9.767 rows=158.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=190.18..384.56 rows=1 width=33) (actual time=2.774..8.482 rows=158.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=12013 read=2
-               ->  Nested Loop  (cost=210.45..381.71 rows=34 width=41) (actual time=3.171..6.187 rows=1490.00 loops=1)
+               ->  Nested Loop  (cost=189.62..352.57 rows=30 width=41) (actual time=2.601..5.152 rows=1490.00 loops=1)
                      Buffers: shared hit=5694 read=2
-                     ->  HashAggregate  (cost=210.15..210.71 rows=56 width=8) (actual time=3.161..3.275 rows=1490.00 loops=1)
+                     ->  HashAggregate  (cost=189.33..189.83 rows=50 width=8) (actual time=2.591..2.707 rows=1490.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 145kB
                            Buffers: shared hit=1224 read=2
-                           ->  Nested Loop  (cost=5.00..210.01 rows=56 width=8) (actual time=0.275..2.915 rows=1490.00 loops=1)
+                           ->  Nested Loop  (cost=4.94..189.20 rows=50 width=8) (actual time=0.259..2.353 rows=1490.00 loops=1)
                                  Buffers: shared hit=1224 read=2
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.007..0.009 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.005..0.008 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=5.00..208.08 rows=56 width=16) (actual time=0.267..2.798 rows=1490.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.94..187.33 rows=50 width=16) (actual time=0.253..2.245 rows=1490.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                                        Heap Blocks: exact=1221
                                        Buffers: shared hit=1223 read=2
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.98 rows=56 width=0) (actual time=0.162..0.162 rows=1490.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.92 rows=50 width=0) (actual time=0.155..0.155 rows=1490.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=2 read=2
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..3.05 rows=1 width=33) (actual time=0.002..0.002 rows=1.00 loops=1490)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..3.25 rows=1 width=33) (actual time=0.001..0.001 rows=1.00 loops=1490)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 1490
@@ -530,15 +533,15 @@ LIMIT 20;
                            Rows Removed by Filter: 5
                            Index Searches: 1490
                            Buffers: shared hit=6003
-                     ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.16 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=158)
+                     ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.16 rows=1 width=8) (actual time=0.000..0.000 rows=1.00 loops=158)
                            Index Cond: (id = pa_1.attribute_def_id)
                            Filter: (code = 'size'::text)
                            Index Searches: 158
                            Buffers: shared hit=316
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.875 ms
- Execution Time: 9.871 ms
+   Buffers: shared hit=402
+ Planning Time: 0.705 ms
+ Execution Time: 8.595 ms
 (51 rows)
 
 ## 11_middle.sql run 2
@@ -559,36 +562,36 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                    QUERY PLAN                                                                                   
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=417.97..417.98 rows=1 width=33) (actual time=10.855..10.860 rows=20.00 loops=1)
+ Limit  (cost=384.57..384.57 rows=1 width=33) (actual time=9.257..9.265 rows=20.00 loops=1)
    Buffers: shared hit=12018
-   ->  Sort  (cost=417.97..417.98 rows=1 width=33) (actual time=10.854..10.856 rows=20.00 loops=1)
+   ->  Sort  (cost=384.57..384.57 rows=1 width=33) (actual time=9.256..9.259 rows=20.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=12018
-         ->  Nested Loop Semi Join  (cost=211.01..417.96 rows=1 width=33) (actual time=3.736..10.822 rows=158.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=190.18..384.56 rows=1 width=33) (actual time=2.925..9.222 rows=158.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=12015
-               ->  Nested Loop  (cost=210.45..381.71 rows=34 width=41) (actual time=3.550..6.964 rows=1490.00 loops=1)
+               ->  Nested Loop  (cost=189.62..352.57 rows=30 width=41) (actual time=2.722..5.515 rows=1490.00 loops=1)
                      Buffers: shared hit=5696
-                     ->  HashAggregate  (cost=210.15..210.71 rows=56 width=8) (actual time=3.535..3.642 rows=1490.00 loops=1)
+                     ->  HashAggregate  (cost=189.33..189.83 rows=50 width=8) (actual time=2.709..2.836 rows=1490.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 145kB
                            Buffers: shared hit=1226
-                           ->  Nested Loop  (cost=5.00..210.01 rows=56 width=8) (actual time=0.234..3.284 rows=1490.00 loops=1)
+                           ->  Nested Loop  (cost=4.94..189.20 rows=50 width=8) (actual time=0.214..2.478 rows=1490.00 loops=1)
                                  Buffers: shared hit=1226
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.009 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.005..0.008 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=5.00..208.08 rows=56 width=16) (actual time=0.226..3.164 rows=1490.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.94..187.33 rows=50 width=16) (actual time=0.207..2.364 rows=1490.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                                        Heap Blocks: exact=1221
                                        Buffers: shared hit=1225
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.98 rows=56 width=0) (actual time=0.128..0.128 rows=1490.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.92 rows=50 width=0) (actual time=0.113..0.113 rows=1490.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=4
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..3.05 rows=1 width=33) (actual time=0.002..0.002 rows=1.00 loops=1490)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..3.25 rows=1 width=33) (actual time=0.002..0.002 rows=1.00 loops=1490)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 1490
@@ -607,9 +610,9 @@ LIMIT 20;
                            Index Searches: 158
                            Buffers: shared hit=316
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.900 ms
- Execution Time: 10.947 ms
+   Buffers: shared hit=402
+ Planning Time: 0.744 ms
+ Execution Time: 9.325 ms
 (51 rows)
 
 ## 11_middle.sql run 3
@@ -630,36 +633,36 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                    QUERY PLAN                                                                                   
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=417.97..417.98 rows=1 width=33) (actual time=10.263..10.270 rows=20.00 loops=1)
+ Limit  (cost=384.57..384.57 rows=1 width=33) (actual time=9.668..9.679 rows=20.00 loops=1)
    Buffers: shared hit=12018
-   ->  Sort  (cost=417.97..417.98 rows=1 width=33) (actual time=10.262..10.265 rows=20.00 loops=1)
+   ->  Sort  (cost=384.57..384.57 rows=1 width=33) (actual time=9.667..9.674 rows=20.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=12018
-         ->  Nested Loop Semi Join  (cost=211.01..417.96 rows=1 width=33) (actual time=3.090..10.230 rows=158.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=190.18..384.56 rows=1 width=33) (actual time=2.838..9.630 rows=158.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=12015
-               ->  Nested Loop  (cost=210.45..381.71 rows=34 width=41) (actual time=2.906..6.247 rows=1490.00 loops=1)
+               ->  Nested Loop  (cost=189.62..352.57 rows=30 width=41) (actual time=2.645..5.700 rows=1490.00 loops=1)
                      Buffers: shared hit=5696
-                     ->  HashAggregate  (cost=210.15..210.71 rows=56 width=8) (actual time=2.894..3.028 rows=1490.00 loops=1)
+                     ->  HashAggregate  (cost=189.33..189.83 rows=50 width=8) (actual time=2.630..2.779 rows=1490.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 145kB
                            Buffers: shared hit=1226
-                           ->  Nested Loop  (cost=5.00..210.01 rows=56 width=8) (actual time=0.221..2.647 rows=1490.00 loops=1)
+                           ->  Nested Loop  (cost=4.94..189.20 rows=50 width=8) (actual time=0.205..2.400 rows=1490.00 loops=1)
                                  Buffers: shared hit=1226
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.008 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.014 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=5.00..208.08 rows=56 width=16) (actual time=0.214..2.530 rows=1490.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.94..187.33 rows=50 width=16) (actual time=0.198..2.281 rows=1490.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                                        Heap Blocks: exact=1221
                                        Buffers: shared hit=1225
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.98 rows=56 width=0) (actual time=0.115..0.116 rows=1490.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.92 rows=50 width=0) (actual time=0.108..0.108 rows=1490.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=4
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..3.05 rows=1 width=33) (actual time=0.002..0.002 rows=1.00 loops=1490)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..3.25 rows=1 width=33) (actual time=0.002..0.002 rows=1.00 loops=1490)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 1490
@@ -678,9 +681,9 @@ LIMIT 20;
                            Index Searches: 158
                            Buffers: shared hit=316
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.752 ms
- Execution Time: 10.345 ms
+   Buffers: shared hit=402
+ Planning Time: 0.756 ms
+ Execution Time: 9.750 ms
 (51 rows)
 
 ## 12_rare.sql run 1
@@ -701,41 +704,41 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                   QUERY PLAN                                                                                   
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=64.53..64.54 rows=1 width=33) (actual time=2.839..2.843 rows=1.00 loops=1)
+ Limit  (cost=115.22..115.23 rows=1 width=33) (actual time=2.659..2.663 rows=1.00 loops=1)
    Buffers: shared hit=2183 read=1
-   ->  Sort  (cost=64.53..64.54 rows=1 width=33) (actual time=2.838..2.840 rows=1.00 loops=1)
+   ->  Sort  (cost=115.22..115.23 rows=1 width=33) (actual time=2.658..2.660 rows=1.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: quicksort  Memory: 25kB
          Buffers: shared hit=2183 read=1
-         ->  Nested Loop Semi Join  (cost=26.27..64.52 rows=1 width=33) (actual time=1.496..2.830 rows=1.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=45.40..115.21 rows=1 width=33) (actual time=1.408..2.638 rows=1.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=2180 read=1
-               ->  Nested Loop  (cost=25.70..61.27 rows=3 width=41) (actual time=0.974..2.053 rows=272.00 loops=1)
+               ->  Nested Loop  (cost=44.83..108.66 rows=6 width=41) (actual time=0.948..1.844 rows=272.00 loops=1)
                      Buffers: shared hit=1083 read=1
-                     ->  HashAggregate  (cost=25.41..25.46 rows=5 width=8) (actual time=0.961..0.984 rows=272.00 loops=1)
+                     ->  HashAggregate  (cost=44.53..44.63 rows=10 width=8) (actual time=0.932..0.954 rows=272.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 56kB
                            Buffers: shared hit=267 read=1
-                           ->  Nested Loop  (cost=4.47..25.39 rows=5 width=8) (actual time=0.113..0.906 rows=272.00 loops=1)
+                           ->  Nested Loop  (cost=4.53..44.51 rows=10 width=8) (actual time=0.119..0.876 rows=272.00 loops=1)
                                  Buffers: shared hit=267 read=1
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.007..0.009 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.007..0.010 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.47..23.97 rows=5 width=16) (actual time=0.106..0.877 rows=272.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.53..43.03 rows=10 width=16) (actual time=0.110..0.845 rows=272.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                                        Heap Blocks: exact=264
                                        Buffers: shared hit=266 read=1
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.47 rows=5 width=0) (actual time=0.080..0.081 rows=272.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.52 rows=10 width=0) (actual time=0.079..0.079 rows=272.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=2 read=1
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..7.16 rows=1 width=33) (actual time=0.004..0.004 rows=1.00 loops=272)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..6.40 rows=1 width=33) (actual time=0.003..0.003 rows=1.00 loops=272)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 272
                            Buffers: shared hit=816
-               ->  Nested Loop  (cost=0.57..1.07 rows=1 width=8) (actual time=0.003..0.003 rows=0.00 loops=272)
+               ->  Nested Loop  (cost=0.57..1.08 rows=1 width=8) (actual time=0.003..0.003 rows=0.00 loops=272)
                      Buffers: shared hit=1097
                      ->  Index Scan using product_attributes_pkey on product_attributes pa_1  (cost=0.42..0.87 rows=1 width=16) (actual time=0.003..0.003 rows=0.00 loops=272)
                            Index Cond: (product_id = p.id)
@@ -743,20 +746,20 @@ LIMIT 20;
                            Rows Removed by Filter: 5
                            Index Searches: 272
                            Buffers: shared hit=1095
-                     ->  Memoize  (cost=0.15..0.19 rows=1 width=8) (actual time=0.006..0.006 rows=1.00 loops=1)
+                     ->  Memoize  (cost=0.15..0.20 rows=1 width=8) (actual time=0.004..0.004 rows=1.00 loops=1)
                            Cache Key: pa_1.attribute_def_id
                            Cache Mode: logical
                            Hits: 0  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
                            Buffers: shared hit=2
-                           ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.18 rows=1 width=8) (actual time=0.004..0.004 rows=1.00 loops=1)
+                           ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.19 rows=1 width=8) (actual time=0.002..0.002 rows=1.00 loops=1)
                                  Index Cond: (id = pa_1.attribute_def_id)
                                  Filter: (code = 'size'::text)
                                  Index Searches: 1
                                  Buffers: shared hit=2
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.791 ms
- Execution Time: 2.898 ms
+   Buffers: shared hit=402
+ Planning Time: 0.830 ms
+ Execution Time: 2.770 ms
 (56 rows)
 
 ## 12_rare.sql run 2
@@ -777,41 +780,41 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                   QUERY PLAN                                                                                   
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=64.53..64.54 rows=1 width=33) (actual time=2.847..2.852 rows=1.00 loops=1)
+ Limit  (cost=115.22..115.23 rows=1 width=33) (actual time=2.739..2.742 rows=1.00 loops=1)
    Buffers: shared hit=2184
-   ->  Sort  (cost=64.53..64.54 rows=1 width=33) (actual time=2.846..2.848 rows=1.00 loops=1)
+   ->  Sort  (cost=115.22..115.23 rows=1 width=33) (actual time=2.738..2.739 rows=1.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: quicksort  Memory: 25kB
          Buffers: shared hit=2184
-         ->  Nested Loop Semi Join  (cost=26.27..64.52 rows=1 width=33) (actual time=1.427..2.838 rows=1.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=45.40..115.21 rows=1 width=33) (actual time=1.476..2.700 rows=1.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=2181
-               ->  Nested Loop  (cost=25.70..61.27 rows=3 width=41) (actual time=0.916..2.008 rows=272.00 loops=1)
+               ->  Nested Loop  (cost=44.83..108.66 rows=6 width=41) (actual time=0.967..1.885 rows=272.00 loops=1)
                      Buffers: shared hit=1084
-                     ->  HashAggregate  (cost=25.41..25.46 rows=5 width=8) (actual time=0.904..0.927 rows=272.00 loops=1)
+                     ->  HashAggregate  (cost=44.53..44.63 rows=10 width=8) (actual time=0.950..0.972 rows=272.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 56kB
                            Buffers: shared hit=268
-                           ->  Nested Loop  (cost=4.47..25.39 rows=5 width=8) (actual time=0.069..0.854 rows=272.00 loops=1)
+                           ->  Nested Loop  (cost=4.53..44.51 rows=10 width=8) (actual time=0.092..0.875 rows=272.00 loops=1)
                                  Buffers: shared hit=268
                                  ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.007..0.009 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.47..23.97 rows=5 width=16) (actual time=0.060..0.824 rows=272.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.53..43.03 rows=10 width=16) (actual time=0.083..0.844 rows=272.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                                        Heap Blocks: exact=264
                                        Buffers: shared hit=267
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.47 rows=5 width=0) (actual time=0.034..0.034 rows=272.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.52 rows=10 width=0) (actual time=0.051..0.051 rows=272.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=3
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..7.16 rows=1 width=33) (actual time=0.004..0.004 rows=1.00 loops=272)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..6.40 rows=1 width=33) (actual time=0.003..0.003 rows=1.00 loops=272)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 272
                            Buffers: shared hit=816
-               ->  Nested Loop  (cost=0.57..1.07 rows=1 width=8) (actual time=0.003..0.003 rows=0.00 loops=272)
+               ->  Nested Loop  (cost=0.57..1.08 rows=1 width=8) (actual time=0.003..0.003 rows=0.00 loops=272)
                      Buffers: shared hit=1097
                      ->  Index Scan using product_attributes_pkey on product_attributes pa_1  (cost=0.42..0.87 rows=1 width=16) (actual time=0.003..0.003 rows=0.00 loops=272)
                            Index Cond: (product_id = p.id)
@@ -819,20 +822,20 @@ LIMIT 20;
                            Rows Removed by Filter: 5
                            Index Searches: 272
                            Buffers: shared hit=1095
-                     ->  Memoize  (cost=0.15..0.19 rows=1 width=8) (actual time=0.006..0.006 rows=1.00 loops=1)
+                     ->  Memoize  (cost=0.15..0.20 rows=1 width=8) (actual time=0.009..0.010 rows=1.00 loops=1)
                            Cache Key: pa_1.attribute_def_id
                            Cache Mode: logical
                            Hits: 0  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
                            Buffers: shared hit=2
-                           ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.18 rows=1 width=8) (actual time=0.004..0.004 rows=1.00 loops=1)
+                           ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.19 rows=1 width=8) (actual time=0.007..0.008 rows=1.00 loops=1)
                                  Index Cond: (id = pa_1.attribute_def_id)
                                  Filter: (code = 'size'::text)
                                  Index Searches: 1
                                  Buffers: shared hit=2
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.754 ms
- Execution Time: 2.913 ms
+   Buffers: shared hit=402
+ Planning Time: 1.021 ms
+ Execution Time: 2.947 ms
 (56 rows)
 
 ## 12_rare.sql run 3
@@ -853,62 +856,62 @@ ORDER BY p.created_at DESC
 LIMIT 20;
                                                                                   QUERY PLAN                                                                                   
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=64.53..64.54 rows=1 width=33) (actual time=2.787..2.790 rows=1.00 loops=1)
+ Limit  (cost=115.22..115.23 rows=1 width=33) (actual time=2.344..2.347 rows=1.00 loops=1)
    Buffers: shared hit=2184
-   ->  Sort  (cost=64.53..64.54 rows=1 width=33) (actual time=2.786..2.788 rows=1.00 loops=1)
+   ->  Sort  (cost=115.22..115.23 rows=1 width=33) (actual time=2.343..2.344 rows=1.00 loops=1)
          Sort Key: p.created_at DESC
          Sort Method: quicksort  Memory: 25kB
          Buffers: shared hit=2184
-         ->  Nested Loop Semi Join  (cost=26.27..64.52 rows=1 width=33) (actual time=1.410..2.777 rows=1.00 loops=1)
+         ->  Nested Loop Semi Join  (cost=45.40..115.21 rows=1 width=33) (actual time=1.220..2.334 rows=1.00 loops=1)
                Join Filter: (pa.product_id = pa_1.product_id)
                Buffers: shared hit=2181
-               ->  Nested Loop  (cost=25.70..61.27 rows=3 width=41) (actual time=0.912..1.985 rows=272.00 loops=1)
+               ->  Nested Loop  (cost=44.83..108.66 rows=6 width=41) (actual time=0.803..1.622 rows=272.00 loops=1)
                      Buffers: shared hit=1084
-                     ->  HashAggregate  (cost=25.41..25.46 rows=5 width=8) (actual time=0.900..0.923 rows=272.00 loops=1)
+                     ->  HashAggregate  (cost=44.53..44.63 rows=10 width=8) (actual time=0.794..0.815 rows=272.00 loops=1)
                            Group Key: pa.product_id
                            Batches: 1  Memory Usage: 56kB
                            Buffers: shared hit=268
-                           ->  Nested Loop  (cost=4.47..25.39 rows=5 width=8) (actual time=0.079..0.849 rows=272.00 loops=1)
+                           ->  Nested Loop  (cost=4.53..44.51 rows=10 width=8) (actual time=0.059..0.746 rows=272.00 loops=1)
                                  Buffers: shared hit=268
-                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.010..0.012 rows=1.00 loops=1)
+                                 ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.008 rows=1.00 loops=1)
                                        Filter: (code = 'color'::text)
                                        Rows Removed by Filter: 29
                                        Buffers: shared hit=1
-                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.47..23.97 rows=5 width=16) (actual time=0.068..0.816 rows=272.00 loops=1)
+                                 ->  Bitmap Heap Scan on product_attributes pa  (cost=4.53..43.03 rows=10 width=16) (actual time=0.052..0.719 rows=272.00 loops=1)
                                        Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                                        Heap Blocks: exact=264
                                        Buffers: shared hit=267
-                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.47 rows=5 width=0) (actual time=0.034..0.034 rows=272.00 loops=1)
+                                       ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.52 rows=10 width=0) (actual time=0.029..0.029 rows=272.00 loops=1)
                                              Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                                              Index Searches: 1
                                              Buffers: shared hit=3
-                     ->  Index Scan using products_pkey on products p  (cost=0.29..7.16 rows=1 width=33) (actual time=0.004..0.004 rows=1.00 loops=272)
+                     ->  Index Scan using products_pkey on products p  (cost=0.29..6.40 rows=1 width=33) (actual time=0.003..0.003 rows=1.00 loops=272)
                            Index Cond: (id = pa.product_id)
                            Filter: (kind = 'apparel'::text)
                            Index Searches: 272
                            Buffers: shared hit=816
-               ->  Nested Loop  (cost=0.57..1.07 rows=1 width=8) (actual time=0.003..0.003 rows=0.00 loops=272)
+               ->  Nested Loop  (cost=0.57..1.08 rows=1 width=8) (actual time=0.003..0.003 rows=0.00 loops=272)
                      Buffers: shared hit=1097
-                     ->  Index Scan using product_attributes_pkey on product_attributes pa_1  (cost=0.42..0.87 rows=1 width=16) (actual time=0.003..0.003 rows=0.00 loops=272)
+                     ->  Index Scan using product_attributes_pkey on product_attributes pa_1  (cost=0.42..0.87 rows=1 width=16) (actual time=0.002..0.002 rows=0.00 loops=272)
                            Index Cond: (product_id = p.id)
                            Filter: (value_text = 'XXS'::text)
                            Rows Removed by Filter: 5
                            Index Searches: 272
                            Buffers: shared hit=1095
-                     ->  Memoize  (cost=0.15..0.19 rows=1 width=8) (actual time=0.006..0.006 rows=1.00 loops=1)
+                     ->  Memoize  (cost=0.15..0.20 rows=1 width=8) (actual time=0.004..0.004 rows=1.00 loops=1)
                            Cache Key: pa_1.attribute_def_id
                            Cache Mode: logical
                            Hits: 0  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
                            Buffers: shared hit=2
-                           ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.18 rows=1 width=8) (actual time=0.004..0.004 rows=1.00 loops=1)
+                           ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.19 rows=1 width=8) (actual time=0.002..0.002 rows=1.00 loops=1)
                                  Index Cond: (id = pa_1.attribute_def_id)
                                  Filter: (code = 'size'::text)
                                  Index Searches: 1
                                  Buffers: shared hit=2
  Planning:
-   Buffers: shared hit=398
- Planning Time: 0.863 ms
- Execution Time: 2.852 ms
+   Buffers: shared hit=402
+ Planning Time: 0.718 ms
+ Execution Time: 2.401 ms
 (56 rows)
 
 -- 見積もりの行数（rows=）と実際の行数（actual rows=）を比べる。LIMIT を付けずに、条件に合う商品を全部取る
@@ -926,30 +929,30 @@ WHERE p.kind = 'apparel'
     WHERE pa.product_id = p.id AND ad.code = 'size' AND pa.value_text = 'M');
                                                                               QUERY PLAN                                                                              
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Nested Loop Semi Join  (cost=1572.87..2326.67 rows=3 width=8) (actual time=10.366..72.682 rows=7207.00 loops=1)
+ Nested Loop Semi Join  (cost=1535.10..2269.56 rows=3 width=8) (actual time=9.689..74.567 rows=7207.00 loops=1)
    Join Filter: (pa.product_id = pa_1.product_id)
    Buffers: shared hit=144000
-   ->  Nested Loop  (cost=1572.31..1936.39 rows=367 width=16) (actual time=10.317..33.734 rows=17989.00 loops=1)
+   ->  Nested Loop  (cost=1534.54..1891.95 rows=355 width=16) (actual time=9.623..32.884 rows=17989.00 loops=1)
          Buffers: shared hit=57315
-         ->  HashAggregate  (cost=1572.02..1578.08 rows=606 width=8) (actual time=10.310..12.402 rows=17989.00 loops=1)
+         ->  HashAggregate  (cost=1534.24..1540.10 rows=586 width=8) (actual time=9.608..11.781 rows=17989.00 loops=1)
                Group Key: pa.product_id
                Batches: 1  Memory Usage: 1049kB
                Buffers: shared hit=3348
-               ->  Nested Loop  (cost=10.63..1570.51 rows=606 width=8) (actual time=0.826..7.426 rows=17989.00 loops=1)
+               ->  Nested Loop  (cost=10.43..1532.78 rows=586 width=8) (actual time=0.766..6.912 rows=17989.00 loops=1)
                      Buffers: shared hit=3348
-                     ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.005..0.008 rows=1.00 loops=1)
+                     ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.006..0.009 rows=1.00 loops=1)
                            Filter: (code = 'color'::text)
                            Rows Removed by Filter: 29
                            Buffers: shared hit=1
-                     ->  Bitmap Heap Scan on product_attributes pa  (cost=10.63..1563.07 rows=606 width=16) (actual time=0.820..6.200 rows=17989.00 loops=1)
+                     ->  Bitmap Heap Scan on product_attributes pa  (cost=10.43..1525.54 rows=586 width=16) (actual time=0.758..5.763 rows=17989.00 loops=1)
                            Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                            Heap Blocks: exact=3329
                            Buffers: shared hit=3347
-                           ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.48 rows=606 width=0) (actual time=0.534..0.534 rows=17989.00 loops=1)
+                           ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..10.28 rows=586 width=0) (actual time=0.500..0.500 rows=17989.00 loops=1)
                                  Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'black'::text))
                                  Index Searches: 1
                                  Buffers: shared hit=18
-         ->  Index Scan using products_pkey on products p  (cost=0.29..0.59 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=17989)
+         ->  Index Scan using products_pkey on products p  (cost=0.29..0.60 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=17989)
                Index Cond: (id = pa.product_id)
                Filter: (kind = 'apparel'::text)
                Index Searches: 17989
@@ -968,9 +971,9 @@ WHERE p.kind = 'apparel'
                Index Searches: 7207
                Buffers: shared hit=14414
  Planning:
-   Buffers: shared hit=392
- Planning Time: 0.800 ms
- Execution Time: 73.053 ms
+   Buffers: shared hit=396
+ Planning Time: 0.740 ms
+ Execution Time: 74.903 ms
 (45 rows)
 
 EXPLAIN (ANALYZE)
@@ -987,30 +990,30 @@ WHERE p.kind = 'apparel'
     WHERE pa.product_id = p.id AND ad.code = 'size' AND pa.value_text = 'XL');
                                                                              QUERY PLAN                                                                             
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Nested Loop Semi Join  (cost=211.01..417.96 rows=1 width=8) (actual time=1.196..6.108 rows=158.00 loops=1)
+ Nested Loop Semi Join  (cost=190.18..384.56 rows=1 width=8) (actual time=1.211..5.677 rows=158.00 loops=1)
    Join Filter: (pa.product_id = pa_1.product_id)
    Buffers: shared hit=12015
-   ->  Nested Loop  (cost=210.45..381.71 rows=34 width=16) (actual time=1.114..3.049 rows=1490.00 loops=1)
+   ->  Nested Loop  (cost=189.62..352.57 rows=30 width=16) (actual time=1.133..2.834 rows=1490.00 loops=1)
          Buffers: shared hit=5696
-         ->  HashAggregate  (cost=210.15..210.71 rows=56 width=8) (actual time=1.109..1.228 rows=1490.00 loops=1)
+         ->  HashAggregate  (cost=189.33..189.83 rows=50 width=8) (actual time=1.123..1.223 rows=1490.00 loops=1)
                Group Key: pa.product_id
                Batches: 1  Memory Usage: 145kB
                Buffers: shared hit=1226
-               ->  Nested Loop  (cost=5.00..210.01 rows=56 width=8) (actual time=0.189..0.924 rows=1490.00 loops=1)
+               ->  Nested Loop  (cost=4.94..189.20 rows=50 width=8) (actual time=0.185..0.932 rows=1490.00 loops=1)
                      Buffers: shared hit=1226
                      ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.005..0.007 rows=1.00 loops=1)
                            Filter: (code = 'color'::text)
                            Rows Removed by Filter: 29
                            Buffers: shared hit=1
-                     ->  Bitmap Heap Scan on product_attributes pa  (cost=5.00..208.08 rows=56 width=16) (actual time=0.183..0.817 rows=1490.00 loops=1)
+                     ->  Bitmap Heap Scan on product_attributes pa  (cost=4.94..187.33 rows=50 width=16) (actual time=0.179..0.822 rows=1490.00 loops=1)
                            Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                            Heap Blocks: exact=1221
                            Buffers: shared hit=1225
-                           ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.98 rows=56 width=0) (actual time=0.085..0.085 rows=1490.00 loops=1)
+                           ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.92 rows=50 width=0) (actual time=0.077..0.077 rows=1490.00 loops=1)
                                  Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'yellow'::text))
                                  Index Searches: 1
                                  Buffers: shared hit=4
-         ->  Index Scan using products_pkey on products p  (cost=0.29..3.05 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=1490)
+         ->  Index Scan using products_pkey on products p  (cost=0.29..3.25 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=1490)
                Index Cond: (id = pa.product_id)
                Filter: (kind = 'apparel'::text)
                Index Searches: 1490
@@ -1030,8 +1033,8 @@ WHERE p.kind = 'apparel'
                Buffers: shared hit=316
  Planning:
    Buffers: shared hit=52
- Planning Time: 0.358 ms
- Execution Time: 6.139 ms
+ Planning Time: 0.345 ms
+ Execution Time: 5.706 ms
 (45 rows)
 
 EXPLAIN (ANALYZE)
@@ -1048,35 +1051,35 @@ WHERE p.kind = 'apparel'
     WHERE pa.product_id = p.id AND ad.code = 'size' AND pa.value_text = 'XXS');
                                                                             QUERY PLAN                                                                             
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Nested Loop Semi Join  (cost=26.27..64.52 rows=1 width=8) (actual time=0.446..1.087 rows=1.00 loops=1)
+ Nested Loop Semi Join  (cost=45.40..115.21 rows=1 width=8) (actual time=0.400..1.006 rows=1.00 loops=1)
    Join Filter: (pa.product_id = pa_1.product_id)
    Buffers: shared hit=2181
-   ->  Nested Loop  (cost=25.70..61.27 rows=3 width=16) (actual time=0.252..0.590 rows=272.00 loops=1)
+   ->  Nested Loop  (cost=44.83..108.66 rows=6 width=16) (actual time=0.224..0.523 rows=272.00 loops=1)
          Buffers: shared hit=1084
-         ->  HashAggregate  (cost=25.41..25.46 rows=5 width=8) (actual time=0.250..0.267 rows=272.00 loops=1)
+         ->  HashAggregate  (cost=44.53..44.63 rows=10 width=8) (actual time=0.222..0.240 rows=272.00 loops=1)
                Group Key: pa.product_id
                Batches: 1  Memory Usage: 56kB
                Buffers: shared hit=268
-               ->  Nested Loop  (cost=4.47..25.39 rows=5 width=8) (actual time=0.044..0.213 rows=272.00 loops=1)
+               ->  Nested Loop  (cost=4.53..44.51 rows=10 width=8) (actual time=0.037..0.185 rows=272.00 loops=1)
                      Buffers: shared hit=268
                      ->  Seq Scan on attribute_defs ad  (cost=0.00..1.38 rows=1 width=8) (actual time=0.003..0.004 rows=1.00 loops=1)
                            Filter: (code = 'color'::text)
                            Rows Removed by Filter: 29
                            Buffers: shared hit=1
-                     ->  Bitmap Heap Scan on product_attributes pa  (cost=4.47..23.97 rows=5 width=16) (actual time=0.040..0.190 rows=272.00 loops=1)
+                     ->  Bitmap Heap Scan on product_attributes pa  (cost=4.53..43.03 rows=10 width=16) (actual time=0.034..0.162 rows=272.00 loops=1)
                            Recheck Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                            Heap Blocks: exact=264
                            Buffers: shared hit=267
-                           ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.47 rows=5 width=0) (actual time=0.019..0.020 rows=272.00 loops=1)
+                           ->  Bitmap Index Scan on product_attributes_def_text  (cost=0.00..4.52 rows=10 width=0) (actual time=0.015..0.016 rows=272.00 loops=1)
                                  Index Cond: ((attribute_def_id = ad.id) AND (value_text = 'teal'::text))
                                  Index Searches: 1
                                  Buffers: shared hit=3
-         ->  Index Scan using products_pkey on products p  (cost=0.29..7.16 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=272)
+         ->  Index Scan using products_pkey on products p  (cost=0.29..6.40 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=272)
                Index Cond: (id = pa.product_id)
                Filter: (kind = 'apparel'::text)
                Index Searches: 272
                Buffers: shared hit=816
-   ->  Nested Loop  (cost=0.57..1.07 rows=1 width=8) (actual time=0.002..0.002 rows=0.00 loops=272)
+   ->  Nested Loop  (cost=0.57..1.08 rows=1 width=8) (actual time=0.002..0.002 rows=0.00 loops=272)
          Buffers: shared hit=1097
          ->  Index Scan using product_attributes_pkey on product_attributes pa_1  (cost=0.42..0.87 rows=1 width=16) (actual time=0.002..0.002 rows=0.00 loops=272)
                Index Cond: (product_id = p.id)
@@ -1084,19 +1087,19 @@ WHERE p.kind = 'apparel'
                Rows Removed by Filter: 5
                Index Searches: 272
                Buffers: shared hit=1095
-         ->  Memoize  (cost=0.15..0.19 rows=1 width=8) (actual time=0.002..0.003 rows=1.00 loops=1)
+         ->  Memoize  (cost=0.15..0.20 rows=1 width=8) (actual time=0.003..0.003 rows=1.00 loops=1)
                Cache Key: pa_1.attribute_def_id
                Cache Mode: logical
                Hits: 0  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
                Buffers: shared hit=2
-               ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.18 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=1)
+               ->  Index Scan using attribute_defs_pkey on attribute_defs ad_1  (cost=0.14..0.19 rows=1 width=8) (actual time=0.001..0.001 rows=1.00 loops=1)
                      Index Cond: (id = pa_1.attribute_def_id)
                      Filter: (code = 'size'::text)
                      Index Searches: 1
                      Buffers: shared hit=2
  Planning:
    Buffers: shared hit=52
- Planning Time: 0.294 ms
- Execution Time: 1.108 ms
+ Planning Time: 0.299 ms
+ Execution Time: 1.025 ms
 (50 rows)
 

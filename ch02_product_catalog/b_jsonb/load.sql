@@ -2,7 +2,7 @@
 -- 元データが空のまま写すと、空のテーブルで測ることになる。何も消す前に止める
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM ch02_r.src) THEN
-    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行する';
+    RAISE EXCEPTION '元データ ch02_r.src が空。先に r_source/schema_20_generate.sql を実行';
   END IF;
 END $$;
 
@@ -15,7 +15,8 @@ TRUNCATE ch02_b.products RESTART IDENTITY;
 INSERT INTO ch02_b.products (id, kind, name, price, created_at, attrs)
 OVERRIDING SYSTEM VALUE
 SELECT id, kind, name, price, created_at,
-       jsonb_strip_nulls(to_jsonb(s) - ARRAY['id', 'kind', 'name', 'price', 'created_at'])
+       jsonb_strip_nulls(
+         to_jsonb(s) - ARRAY['id', 'kind', 'name', 'price', 'created_at'])
 FROM ch02_r.src AS s ORDER BY id;
 SELECT setval(pg_get_serial_sequence('ch02_b.products', 'id'),
               (SELECT max(id) FROM ch02_b.products));

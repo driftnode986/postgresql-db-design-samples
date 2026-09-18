@@ -31,8 +31,9 @@ FROM (
 
 -- 衣料（6 割）。色とサイズに偏りを付ける。black は衣料の 30%、teal は 0.5%。
 -- M は 40%、XXS は 0.5%。season より後ろの 7 つは、3 割の商品だけが持つ
-INSERT INTO ch02_r.src (id, kind, name, price, created_at, color, size, material,
-  season, fit, sleeve_cm, length_cm, chest_cm, weight_g, pockets)
+INSERT INTO ch02_r.src (id, kind, name, price, created_at,
+  color, size, material, season, fit, sleeve_cm, length_cm, chest_cm,
+  weight_g, pockets)
 SELECT id, kind, kind || '-' || id, price, created_at,
        CASE WHEN c < 0.30 THEN 'black' WHEN c < 0.55 THEN 'white'
             WHEN c < 0.72 THEN 'navy'  WHEN c < 0.84 THEN 'gray'
@@ -41,9 +42,10 @@ SELECT id, kind, kind || '-' || id, price, created_at,
        CASE WHEN s < 0.40 THEN 'M' WHEN s < 0.70 THEN 'L' WHEN s < 0.90 THEN 'S'
             WHEN s < 0.995 THEN 'XL' ELSE 'XXS' END,
        (ARRAY['cotton', 'polyester', 'wool', 'linen'])[1 + floor(m * 4)::int],
-       CASE WHEN p1 < 0.3
-            THEN (ARRAY['spring', 'summer', 'autumn', 'winter'])[1 + v1 % 4] END,
-       CASE WHEN p2 < 0.3 THEN (ARRAY['slim', 'regular', 'loose'])[1 + v2 % 3] END,
+       CASE WHEN p1 < 0.3 THEN
+         (ARRAY['spring', 'summer', 'autumn', 'winter'])[1 + v1 % 4] END,
+       CASE WHEN p2 < 0.3 THEN
+         (ARRAY['slim', 'regular', 'loose'])[1 + v2 % 3] END,
        CASE WHEN p3 < 0.3 THEN 40 + v3 % 30 END,
        CASE WHEN p4 < 0.3 THEN 55 + v4 % 40 END,
        CASE WHEN p5 < 0.3 THEN 80 + v5 % 50 END,
@@ -69,8 +71,9 @@ SELECT id, kind, kind || '-' || id, price, created_at,
 FROM ch02_r.draw WHERE kind = 'appliance' ORDER BY id;
 
 -- 書籍（3 割）。著者にも偏りを付ける（番号の小さい著者に集中する）
-INSERT INTO ch02_r.src (id, kind, name, price, created_at, author, isbn, pages,
-  publisher, published_year, edition, series_no, thickness_mm, age_from, chapters)
+INSERT INTO ch02_r.src (id, kind, name, price, created_at,
+  author, isbn, pages, publisher, published_year, edition, series_no,
+  thickness_mm, age_from, chapters)
 SELECT id, kind, kind || '-' || id, price, created_at,
        'author-' || (1 + floor(power(c, 3) * 5000)::int),
        '978' || lpad(id::text, 10, '0'),

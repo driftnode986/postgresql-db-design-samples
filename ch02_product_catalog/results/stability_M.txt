@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 08:40:29 +0900
+# 採取日時: 2026-09-18 09:25:34 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -17,185 +17,205 @@
 -- 1 回目
 ANALYZE ch02_a.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=1123.43..15852.73 rows=43220 width=8)
+ Bitmap Heap Scan on products  (cost=1106.05..15827.47 rows=42695 width=8)
    Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1112.62 rows=43220 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1095.38 rows=42695 width=0)
          Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=25.76..2908.07 rows=911 width=8)
+ Bitmap Heap Scan on products  (cost=25.47..2829.53 rows=882 width=8)
    Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..25.54 rows=911 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..25.25 rows=882 width=0)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
-                                          QUERY PLAN                                          
-----------------------------------------------------------------------------------------------
- Index Scan using products_color_size_created on products  (cost=0.42..43.80 rows=10 width=8)
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Index Scan using products_color_size_created on products  (cost=0.42..35.91 rows=8 width=8)
    Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
 (2 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
                                                QUERY PLAN                                               
 --------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..76.94 rows=20 width=16)
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3485.80 rows=911 width=16)
+ Limit  (cost=0.42..76.97 rows=20 width=16)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3376.21 rows=882 width=16)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (3 rows)
 
 -- 2 回目
 ANALYZE ch02_a.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=1098.43..15814.56 rows=42342 width=8)
+ Bitmap Heap Scan on products  (cost=1145.09..15888.52 rows=44162 width=8)
    Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1087.85 rows=42342 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1134.05 rows=44162 width=0)
          Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=24.49..2564.32 rows=787 width=8)
+ Bitmap Heap Scan on products  (cost=24.97..2697.59 rows=834 width=8)
    Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..24.30 rows=787 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..24.77 rows=834 width=0)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
-                                          QUERY PLAN                                          
-----------------------------------------------------------------------------------------------
- Index Scan using products_color_size_created on products  (cost=0.42..47.62 rows=11 width=8)
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
+                                         QUERY PLAN                                          
+---------------------------------------------------------------------------------------------
+ Index Scan using products_color_size_created on products  (cost=0.42..39.78 rows=9 width=8)
    Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
 (2 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
                                                QUERY PLAN                                               
 --------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..77.11 rows=20 width=16)
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3018.07 rows=787 width=16)
+ Limit  (cost=0.42..77.01 rows=20 width=16)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3194.07 rows=834 width=16)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (3 rows)
 
 -- 3 回目
 ANALYZE ch02_a.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=1116.91..15842.52 rows=42974 width=8)
+ Bitmap Heap Scan on products  (cost=1143.82..15885.41 rows=44039 width=8)
    Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1106.16 rows=42974 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1132.82 rows=44039 width=0)
          Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=25.22..2762.27 rows=858 width=8)
+ Bitmap Heap Scan on products  (cost=25.15..2744.65 rows=851 width=8)
    Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..25.01 rows=858 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..24.94 rows=851 width=0)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Index Scan using products_color_size_created on products  (cost=0.42..39.91 rows=9 width=8)
+ Index Scan using products_color_size_created on products  (cost=0.42..35.93 rows=8 width=8)
    Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
 (2 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
                                                QUERY PLAN                                               
 --------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..77.19 rows=20 width=16)
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3293.48 rows=858 width=16)
+ Limit  (cost=0.42..77.14 rows=20 width=16)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3264.78 rows=851 width=16)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (3 rows)
 
 -- 4 回目
 ANALYZE ch02_a.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=1090.88..15801.82 rows=41996 width=8)
+ Bitmap Heap Scan on products  (cost=1131.10..15865.77 rows=43578 width=8)
    Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1080.38 rows=41996 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1120.20 rows=43578 width=0)
          Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=25.73..2899.38 rows=908 width=8)
+ Bitmap Heap Scan on products  (cost=24.57..2588.10 rows=795 width=8)
    Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..25.51 rows=908 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..24.38 rows=795 width=0)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Index Scan using products_color_size_created on products  (cost=0.42..39.75 rows=9 width=8)
+ Index Scan using products_color_size_created on products  (cost=0.42..35.98 rows=8 width=8)
    Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
 (2 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
                                                QUERY PLAN                                               
 --------------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..76.65 rows=20 width=16)
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3460.89 rows=908 width=16)
+ Limit  (cost=0.42..77.44 rows=20 width=16)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3061.61 rows=795 width=16)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (3 rows)
 
 -- 5 回目
 ANALYZE ch02_a.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE color = 'black' AND size = 'M';
+EXPLAIN SELECT id FROM products
+WHERE color = 'black' AND size = 'M';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=1105.59..15826.34 rows=42650 width=8)
+ Bitmap Heap Scan on products  (cost=1117.22..15843.28 rows=43004 width=8)
    Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1094.92 rows=42650 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..1106.46 rows=43004 width=0)
          Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL';
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=24.62..2600.00 rows=800 width=8)
+ Bitmap Heap Scan on products  (cost=25.39..2809.11 rows=875 width=8)
    Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..24.43 rows=800 width=0)
+   ->  Bitmap Index Scan on products_color_size_created  (cost=0.00..25.18 rows=875 width=0)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'teal' AND size = 'XXS';
+EXPLAIN SELECT id FROM products
+WHERE color = 'teal' AND size = 'XXS';
                                          QUERY PLAN                                          
 ---------------------------------------------------------------------------------------------
- Index Scan using products_color_size_created on products  (cost=0.42..35.97 rows=8 width=8)
+ Index Scan using products_color_size_created on products  (cost=0.42..36.05 rows=8 width=8)
    Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
 (2 rows)
 
-EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
+EXPLAIN SELECT id FROM products
+WHERE color = 'yellow' AND size = 'XL'
   ORDER BY created_at DESC LIMIT 20;
                                                QUERY PLAN                                               
 --------------------------------------------------------------------------------------------------------
  Limit  (cost=0.42..77.32 rows=20 width=16)
-   ->  Index Scan using products_color_size_created on products  (cost=0.42..3076.22 rows=800 width=16)
+   ->  Index Scan using products_color_size_created on products  (cost=0.42..3364.74 rows=875 width=16)
          Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (3 rows)
 
@@ -207,59 +227,61 @@ EXPLAIN SELECT id FROM products WHERE color = 'yellow' AND size = 'XL'
 -- 1 回目
 ANALYZE ch02_b.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
                                        QUERY PLAN                                       
 ----------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=537.38..25634.10 rows=75417 width=8)
+ Bitmap Heap Scan on products  (cost=347.34..25240.78 rows=47076 width=8)
    Recheck Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..518.53 rows=75417 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..335.58 rows=47076 width=0)
          Index Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
-                                     QUERY PLAN                                     
-------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=92.68..18381.79 rows=9569 width=8)
    Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.55 rows=95 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..90.29 rows=9569 width=0)
          Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
    Recheck Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.55 rows=95 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0)
          Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
-                                           QUERY PLAN                                           
-------------------------------------------------------------------------------------------------
- Limit  (cost=396.41..396.46 rows=20 width=16)
-   ->  Sort  (cost=396.41..396.65 rows=95 width=16)
-         Sort Key: created_at DESC
-         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=16)
-               Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
-               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.55 rows=95 width=0)
-                     Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
-(7 rows)
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..110.44 rows=20 width=16)
+   ->  Index Scan using products_created on products  (cost=0.42..52637.55 rows=9569 width=16)
+         Filter: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
+(3 rows)
 
 -- 2 回目
 ANALYZE ch02_b.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
-                                       QUERY PLAN                                        
------------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=734.34..26191.95 rows=104289 width=8)
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=549.71..25665.93 rows=76978 width=8)
    Recheck Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..708.27 rows=104289 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..530.46 rows=76978 width=0)
          Index Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
@@ -268,7 +290,8 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"
          Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
@@ -277,7 +300,8 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}
          Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
                                            QUERY PLAN                                           
 ------------------------------------------------------------------------------------------------
@@ -293,16 +317,18 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"
 -- 3 回目
 ANALYZE ch02_b.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
                                        QUERY PLAN                                       
 ----------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=605.04..25823.57 rows=85162 width=8)
+ Bitmap Heap Scan on products  (cost=411.03..25275.64 rows=56849 width=8)
    Recheck Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..583.75 rows=85162 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..396.82 rows=56849 width=0)
          Index Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
@@ -311,7 +337,8 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"
          Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
@@ -320,7 +347,8 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}
          Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
                                            QUERY PLAN                                           
 ------------------------------------------------------------------------------------------------
@@ -336,25 +364,28 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"
 -- 4 回目
 ANALYZE ch02_b.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
                                        QUERY PLAN                                       
 ----------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=337.82..25340.78 rows=46047 width=8)
+ Bitmap Heap Scan on products  (cost=408.91..25268.47 rows=56445 width=8)
    Recheck Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..326.31 rows=46047 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..394.79 rows=56445 width=0)
          Index Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
-                                      QUERY PLAN                                      
---------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=92.73..18391.83 rows=9578 width=8)
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
    Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..90.34 rows=9578 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0)
          Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
@@ -363,28 +394,35 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}
          Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
-                                          QUERY PLAN                                           
------------------------------------------------------------------------------------------------
- Limit  (cost=0.42..110.34 rows=20 width=16)
-   ->  Index Scan using products_created on products  (cost=0.42..52637.71 rows=9578 width=16)
-         Filter: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
-(3 rows)
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Limit  (cost=396.41..396.46 rows=20 width=16)
+   ->  Sort  (cost=396.41..396.65 rows=95 width=16)
+         Sort Key: created_at DESC
+         ->  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=16)
+               Recheck Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
+               ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..30.54 rows=95 width=0)
+                     Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
+(7 rows)
 
 -- 5 回目
 ANALYZE ch02_b.products;
 ANALYZE
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "black", "size": "M"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "black", "size": "M"}';
                                        QUERY PLAN                                       
 ----------------------------------------------------------------------------------------
- Bitmap Heap Scan on products  (cost=541.92..25649.43 rows=76281 width=8)
+ Bitmap Heap Scan on products  (cost=481.46..25474.47 rows=67121 width=8)
    Recheck Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
-   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..522.85 rows=76281 width=0)
+   ->  Bitmap Index Scan on products_attrs_path  (cost=0.00..464.68 rows=67121 width=0)
          Index Cond: (attrs @> '{"size": "M", "color": "black"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
@@ -393,7 +431,8 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"
          Index Cond: (attrs @> '{"size": "XL", "color": "yellow"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}';
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "teal", "size": "XXS"}';
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Bitmap Heap Scan on products  (cost=30.57..393.88 rows=95 width=8)
@@ -402,7 +441,8 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "teal", "size": "XXS"}
          Index Cond: (attrs @> '{"size": "XXS", "color": "teal"}'::jsonb)
 (4 rows)
 
-EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"}'
+EXPLAIN SELECT id FROM products
+WHERE attrs @> '{"color": "yellow", "size": "XL"}'
   ORDER BY created_at DESC LIMIT 20;
                                            QUERY PLAN                                           
 ------------------------------------------------------------------------------------------------
@@ -423,94 +463,42 @@ EXPLAIN SELECT id FROM products WHERE attrs @> '{"color": "yellow", "size": "XL"
 -- 1 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
 ANALYZE
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
                                                QUERY PLAN                                                
 ---------------------------------------------------------------------------------------------------------
- Gather  (cost=8165.77..29731.69 rows=72615 width=8)
+ Gather  (cost=8157.60..29704.32 rows=72423 width=8)
    Workers Planned: 2
-   ->  Parallel Hash Join  (cost=7165.77..21470.19 rows=30256 width=8)
+   ->  Parallel Hash Join  (cost=7157.60..21462.02 rows=30176 width=8)
          Hash Cond: (p.id = a.product_id)
          ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8)
-         ->  Parallel Hash  (cost=6787.57..6787.57 rows=30256 width=8)
-               ->  Parallel Bitmap Heap Scan on apparel a  (cost=996.73..6787.57 rows=30256 width=8)
+         ->  Parallel Hash  (cost=6780.40..6780.40 rows=30176 width=8)
+               ->  Parallel Bitmap Heap Scan on apparel a  (cost=990.76..6780.40 rows=30176 width=8)
                      Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..978.57 rows=72615 width=0)
+                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..972.65 rows=72423 width=0)
                            Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (10 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Gather  (cost=1022.68..7159.37 rows=1349 width=8)
+ Gather  (cost=1022.48..7092.79 rows=1330 width=8)
    Workers Planned: 1
-   ->  Nested Loop  (cost=22.68..6024.47 rows=794 width=8)
-         ->  Parallel Bitmap Heap Scan on apparel a  (cost=22.25..3123.38 rows=794 width=8)
+   ->  Nested Loop  (cost=22.48..5959.79 rows=782 width=8)
+         ->  Parallel Bitmap Heap Scan on apparel a  (cost=22.06..3094.90 rows=782 width=8)
                Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..21.92 rows=1349 width=0)
+               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..21.73 rows=1330 width=0)
                      Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.65 rows=1 width=8)
+         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.66 rows=1 width=8)
                Index Cond: (id = a.product_id)
 (9 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
-                                        QUERY PLAN                                         
--------------------------------------------------------------------------------------------
- Nested Loop  (cost=5.00..129.06 rows=15 width=8)
-   ->  Bitmap Heap Scan on apparel a  (cost=4.58..62.42 rows=15 width=8)
-         Recheck Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
-         ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..4.58 rows=15 width=0)
-               Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
-   ->  Index Only Scan using products_pkey on products p  (cost=0.42..4.44 rows=1 width=8)
-         Index Cond: (id = a.product_id)
-(7 rows)
-
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
-  ORDER BY p.created_at DESC LIMIT 20;
-                                                       QUERY PLAN                                                       
-------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4372.99 rows=20 width=16)
-   ->  Gather Merge  (cost=1000.87..228449.98 rows=1349 width=16)
-         Workers Planned: 2
-         ->  Nested Loop  (cost=0.85..227294.25 rows=562 width=16)
-               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=16)
-               ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8)
-                     Index Cond: (product_id = p.id)
-                     Filter: ((color = 'yellow'::text) AND (size = 'XL'::text))
-(8 rows)
-
--- 2 回目
-ANALYZE ch02_c.products, ch02_c.apparel;
-ANALYZE
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
- Gather  (cost=8163.99..29721.71 rows=72533 width=8)
-   Workers Planned: 2
-   ->  Parallel Hash Join  (cost=7163.99..21468.41 rows=30222 width=8)
-         Hash Cond: (p.id = a.product_id)
-         ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8)
-         ->  Parallel Hash  (cost=6786.22..6786.22 rows=30222 width=8)
-               ->  Parallel Bitmap Heap Scan on apparel a  (cost=995.89..6786.22 rows=30222 width=8)
-                     Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..977.75 rows=72533 width=0)
-                           Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
-(10 rows)
-
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
-                                           QUERY PLAN                                            
--------------------------------------------------------------------------------------------------
- Gather  (cost=1023.85..7536.91 rows=1463 width=8)
-   Workers Planned: 1
-   ->  Nested Loop  (cost=23.85..6390.61 rows=861 width=8)
-         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.42..3288.32 rows=861 width=8)
-               Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..23.05 rows=1463 width=0)
-                     Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.60 rows=1 width=8)
-               Index Cond: (id = a.product_id)
-(9 rows)
-
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
                                         QUERY PLAN                                         
 -------------------------------------------------------------------------------------------
  Nested Loop  (cost=5.01..137.28 rows=16 width=8)
@@ -522,53 +510,61 @@ EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id 
          Index Cond: (id = a.product_id)
 (7 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
                                                        QUERY PLAN                                                       
 ------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4110.41 rows=20 width=16)
-   ->  Gather Merge  (cost=1000.87..228463.14 rows=1463 width=16)
+ Limit  (cost=1000.87..4421.13 rows=20 width=16)
+   ->  Gather Merge  (cost=1000.87..228447.79 rows=1330 width=16)
          Workers Planned: 2
-         ->  Nested Loop  (cost=0.85..227294.25 rows=610 width=16)
+         ->  Nested Loop  (cost=0.85..227294.25 rows=554 width=16)
                ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=16)
                ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8)
                      Index Cond: (product_id = p.id)
                      Filter: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (8 rows)
 
--- 3 回目
+-- 2 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
 ANALYZE
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
                                                QUERY PLAN                                                
 ---------------------------------------------------------------------------------------------------------
- Gather  (cost=8139.85..29604.76 rows=71605 width=8)
+ Gather  (cost=8179.15..29806.67 rows=73231 width=8)
    Workers Planned: 2
-   ->  Parallel Hash Join  (cost=7139.85..21444.26 rows=29835 width=8)
+   ->  Parallel Hash Join  (cost=7179.15..21483.57 rows=30513 width=8)
          Hash Cond: (p.id = a.product_id)
          ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8)
-         ->  Parallel Hash  (cost=6766.91..6766.91 rows=29835 width=8)
-               ->  Parallel Bitmap Heap Scan on apparel a  (cost=982.38..6766.91 rows=29835 width=8)
+         ->  Parallel Hash  (cost=6797.74..6797.74 rows=30513 width=8)
+               ->  Parallel Bitmap Heap Scan on apparel a  (cost=1003.04..6797.74 rows=30513 width=8)
                      Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..964.48 rows=71605 width=0)
+                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..984.74 rows=73231 width=0)
                            Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (10 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Gather  (cost=1022.85..7217.76 rows=1366 width=8)
+ Gather  (cost=1024.16..7635.25 rows=1494 width=8)
    Workers Planned: 1
-   ->  Nested Loop  (cost=22.85..6081.16 rows=804 width=8)
-         ->  Parallel Bitmap Heap Scan on apparel a  (cost=22.43..3149.77 rows=804 width=8)
+   ->  Nested Loop  (cost=24.16..6485.85 rows=879 width=8)
+         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.74..3331.63 rows=879 width=8)
                Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..22.09 rows=1366 width=0)
+               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..23.37 rows=1494 width=0)
                      Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.65 rows=1 width=8)
+         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.59 rows=1 width=8)
                Index Cond: (id = a.product_id)
 (9 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
                                         QUERY PLAN                                         
 -------------------------------------------------------------------------------------------
  Nested Loop  (cost=4.99..120.82 rows=14 width=8)
@@ -580,111 +576,61 @@ EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id 
          Index Cond: (id = a.product_id)
 (7 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
                                                        QUERY PLAN                                                       
 ------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4331.05 rows=20 width=16)
-   ->  Gather Merge  (cost=1000.87..228451.94 rows=1366 width=16)
+ Limit  (cost=1000.87..4045.93 rows=20 width=16)
+   ->  Gather Merge  (cost=1000.87..228466.72 rows=1494 width=16)
          Workers Planned: 2
-         ->  Nested Loop  (cost=0.85..227294.25 rows=569 width=16)
+         ->  Nested Loop  (cost=0.85..227294.25 rows=622 width=16)
                ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=16)
                ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8)
                      Index Cond: (product_id = p.id)
                      Filter: ((color = 'yellow'::text) AND (size = 'XL'::text))
 (8 rows)
 
--- 4 回目
+-- 3 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
 ANALYZE
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
                                                QUERY PLAN                                                
 ---------------------------------------------------------------------------------------------------------
- Gather  (cost=8144.04..29628.26 rows=71798 width=8)
+ Gather  (cost=8151.09..29667.81 rows=72123 width=8)
    Workers Planned: 2
-   ->  Parallel Hash Join  (cost=7144.04..21448.46 rows=29916 width=8)
+   ->  Parallel Hash Join  (cost=7151.09..21455.51 rows=30051 width=8)
          Hash Cond: (p.id = a.product_id)
          ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8)
-         ->  Parallel Hash  (cost=6770.09..6770.09 rows=29916 width=8)
-               ->  Parallel Bitmap Heap Scan on apparel a  (cost=984.35..6770.09 rows=29916 width=8)
+         ->  Parallel Hash  (cost=6775.45..6775.45 rows=30051 width=8)
+               ->  Parallel Bitmap Heap Scan on apparel a  (cost=987.69..6775.45 rows=30051 width=8)
                      Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..966.40 rows=71798 width=0)
+                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..969.65 rows=72123 width=0)
                            Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
 (10 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
                                            QUERY PLAN                                            
 -------------------------------------------------------------------------------------------------
- Gather  (cost=1023.79..7520.58 rows=1458 width=8)
+ Gather  (cost=1023.22..7336.50 rows=1402 width=8)
    Workers Planned: 1
-   ->  Nested Loop  (cost=23.79..6374.78 rows=858 width=8)
-         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.37..3281.06 rows=858 width=8)
+   ->  Nested Loop  (cost=23.22..6196.30 rows=825 width=8)
+         ->  Parallel Bitmap Heap Scan on apparel a  (cost=22.80..3202.06 rows=825 width=8)
                Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..23.01 rows=1458 width=0)
+               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..22.45 rows=1402 width=0)
                      Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.61 rows=1 width=8)
+         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.63 rows=1 width=8)
                Index Cond: (id = a.product_id)
 (9 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
-                                        QUERY PLAN                                         
--------------------------------------------------------------------------------------------
- Nested Loop  (cost=5.02..145.50 rows=17 width=8)
-   ->  Bitmap Heap Scan on apparel a  (cost=4.60..69.98 rows=17 width=8)
-         Recheck Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
-         ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..4.59 rows=17 width=0)
-               Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
-   ->  Index Only Scan using products_pkey on products p  (cost=0.42..4.44 rows=1 width=8)
-         Index Cond: (id = a.product_id)
-(7 rows)
-
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
-  ORDER BY p.created_at DESC LIMIT 20;
-                                                       QUERY PLAN                                                       
-------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4121.06 rows=20 width=16)
-   ->  Gather Merge  (cost=1000.87..228462.56 rows=1458 width=16)
-         Workers Planned: 2
-         ->  Nested Loop  (cost=0.85..227294.25 rows=608 width=16)
-               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=16)
-               ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8)
-                     Index Cond: (product_id = p.id)
-                     Filter: ((color = 'yellow'::text) AND (size = 'XL'::text))
-(8 rows)
-
--- 5 回目
-ANALYZE ch02_c.products, ch02_c.apparel;
-ANALYZE
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
- Gather  (cost=8163.67..29719.89 rows=72518 width=8)
-   Workers Planned: 2
-   ->  Parallel Hash Join  (cost=7163.67..21468.09 rows=30216 width=8)
-         Hash Cond: (p.id = a.product_id)
-         ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8)
-         ->  Parallel Hash  (cost=6785.97..6785.97 rows=30216 width=8)
-               ->  Parallel Bitmap Heap Scan on apparel a  (cost=995.73..6785.97 rows=30216 width=8)
-                     Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
-                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..977.61 rows=72518 width=0)
-                           Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
-(10 rows)
-
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
-                                           QUERY PLAN                                            
--------------------------------------------------------------------------------------------------
- Gather  (cost=1023.77..7510.35 rows=1456 width=8)
-   Workers Planned: 1
-   ->  Nested Loop  (cost=23.77..6364.75 rows=856 width=8)
-         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.35..3279.22 rows=856 width=8)
-               Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..22.98 rows=1456 width=0)
-                     Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
-         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.60 rows=1 width=8)
-               Index Cond: (id = a.product_id)
-(9 rows)
-
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
                                         QUERY PLAN                                         
 -------------------------------------------------------------------------------------------
  Nested Loop  (cost=4.98..112.58 rows=13 width=8)
@@ -696,14 +642,148 @@ EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id 
          Index Cond: (id = a.product_id)
 (7 rows)
 
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
                                                        QUERY PLAN                                                       
 ------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1000.87..4125.34 rows=20 width=16)
-   ->  Gather Merge  (cost=1000.87..228462.33 rows=1456 width=16)
+ Limit  (cost=1000.87..4245.60 rows=20 width=16)
+   ->  Gather Merge  (cost=1000.87..228456.10 rows=1402 width=16)
          Workers Planned: 2
-         ->  Nested Loop  (cost=0.85..227294.25 rows=607 width=16)
+         ->  Nested Loop  (cost=0.85..227294.25 rows=584 width=16)
+               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=16)
+               ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8)
+                     Index Cond: (product_id = p.id)
+                     Filter: ((color = 'yellow'::text) AND (size = 'XL'::text))
+(8 rows)
+
+-- 4 回目
+ANALYZE ch02_c.products, ch02_c.apparel;
+ANALYZE
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Gather  (cost=8151.75..29671.47 rows=72153 width=8)
+   Workers Planned: 2
+   ->  Parallel Hash Join  (cost=7151.75..21456.17 rows=30064 width=8)
+         Hash Cond: (p.id = a.product_id)
+         ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8)
+         ->  Parallel Hash  (cost=6775.95..6775.95 rows=30064 width=8)
+               ->  Parallel Bitmap Heap Scan on apparel a  (cost=987.99..6775.95 rows=30064 width=8)
+                     Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
+                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..969.95 rows=72153 width=0)
+                           Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
+(10 rows)
+
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
+                                           QUERY PLAN                                            
+-------------------------------------------------------------------------------------------------
+ Gather  (cost=1023.68..7483.65 rows=1447 width=8)
+   Workers Planned: 1
+   ->  Nested Loop  (cost=23.68..6338.95 rows=851 width=8)
+         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.26..3266.47 rows=851 width=8)
+               Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
+               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..22.89 rows=1447 width=0)
+                     Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
+         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.61 rows=1 width=8)
+               Index Cond: (id = a.product_id)
+(9 rows)
+
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Nested Loop  (cost=5.01..137.28 rows=16 width=8)
+   ->  Bitmap Heap Scan on apparel a  (cost=4.59..66.20 rows=16 width=8)
+         Recheck Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
+         ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..4.58 rows=16 width=0)
+               Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
+   ->  Index Only Scan using products_pkey on products p  (cost=0.42..4.44 rows=1 width=8)
+         Index Cond: (id = a.product_id)
+(7 rows)
+
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
+  ORDER BY p.created_at DESC LIMIT 20;
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1000.87..4144.76 rows=20 width=16)
+   ->  Gather Merge  (cost=1000.87..228461.29 rows=1447 width=16)
+         Workers Planned: 2
+         ->  Nested Loop  (cost=0.85..227294.25 rows=603 width=16)
+               ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=16)
+               ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8)
+                     Index Cond: (product_id = p.id)
+                     Filter: ((color = 'yellow'::text) AND (size = 'XL'::text))
+(8 rows)
+
+-- 5 回目
+ANALYZE ch02_c.products, ch02_c.apparel;
+ANALYZE
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Gather  (cost=8144.61..29631.43 rows=71824 width=8)
+   Workers Planned: 2
+   ->  Parallel Hash Join  (cost=7144.61..21449.03 rows=29927 width=8)
+         Hash Cond: (p.id = a.product_id)
+         ->  Parallel Seq Scan on products p  (cost=0.00..13210.67 rows=416667 width=8)
+         ->  Parallel Hash  (cost=6770.52..6770.52 rows=29927 width=8)
+               ->  Parallel Bitmap Heap Scan on apparel a  (cost=984.62..6770.52 rows=29927 width=8)
+                     Recheck Cond: ((color = 'black'::text) AND (size = 'M'::text))
+                     ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..966.66 rows=71824 width=0)
+                           Index Cond: ((color = 'black'::text) AND (size = 'M'::text))
+(10 rows)
+
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
+                                           QUERY PLAN                                            
+-------------------------------------------------------------------------------------------------
+ Gather  (cost=1023.80..7520.63 rows=1459 width=8)
+   Workers Planned: 1
+   ->  Nested Loop  (cost=23.80..6374.73 rows=858 width=8)
+         ->  Parallel Bitmap Heap Scan on apparel a  (cost=23.38..3282.87 rows=858 width=8)
+               Recheck Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
+               ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..23.02 rows=1459 width=0)
+                     Index Cond: ((color = 'yellow'::text) AND (size = 'XL'::text))
+         ->  Index Only Scan using products_pkey on products p  (cost=0.42..3.60 rows=1 width=8)
+               Index Cond: (id = a.product_id)
+(9 rows)
+
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
+                                        QUERY PLAN                                         
+-------------------------------------------------------------------------------------------
+ Nested Loop  (cost=5.02..145.50 rows=17 width=8)
+   ->  Bitmap Heap Scan on apparel a  (cost=4.60..69.98 rows=17 width=8)
+         Recheck Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
+         ->  Bitmap Index Scan on apparel_color_size  (cost=0.00..4.59 rows=17 width=0)
+               Index Cond: ((color = 'teal'::text) AND (size = 'XXS'::text))
+   ->  Index Only Scan using products_pkey on products p  (cost=0.42..4.44 rows=1 width=8)
+         Index Cond: (id = a.product_id)
+(7 rows)
+
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
+  ORDER BY p.created_at DESC LIMIT 20;
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1000.87..4118.92 rows=20 width=16)
+   ->  Gather Merge  (cost=1000.87..228462.68 rows=1459 width=16)
+         Workers Planned: 2
+         ->  Nested Loop  (cost=0.85..227294.25 rows=608 width=16)
                ->  Parallel Index Scan using products_created on products p  (cost=0.42..29194.09 rows=416667 width=16)
                ->  Index Scan using apparel_pkey on apparel a  (cost=0.42..0.48 rows=1 width=8)
                      Index Cond: (product_id = p.id)

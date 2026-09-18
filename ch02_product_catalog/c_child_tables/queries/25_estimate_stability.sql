@@ -5,40 +5,80 @@
 
 -- 1 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
 
 -- 2 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
 
 -- 3 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
 
 -- 4 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
 
 -- 5 回目
 ANALYZE ch02_c.products, ch02_c.apparel;
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'black' AND a.size = 'M';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'teal' AND a.size = 'XXS';
-EXPLAIN SELECT p.id FROM apparel AS a JOIN products AS p ON p.id = a.product_id WHERE a.color = 'yellow' AND a.size = 'XL'
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'black' AND a.size = 'M';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'teal' AND a.size = 'XXS';
+EXPLAIN SELECT p.id FROM apparel AS a
+JOIN products AS p ON p.id = a.product_id
+WHERE a.color = 'yellow' AND a.size = 'XL'
   ORDER BY p.created_at DESC LIMIT 20;
