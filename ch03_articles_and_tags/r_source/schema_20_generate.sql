@@ -51,14 +51,18 @@ FROM (
 ) AS s;
 
 -- 記事ごとに n_tags 個の乱数を縦に並べ、それぞれを累積確率でタグに直す。
--- 同じ記事に同じタグが 2 回出ることがあるので DISTINCT で落とす
+-- 同じ記事に同じタグが 2 回出ることがあるので、記事ごとに重複を落とす。
+-- 🔴 全体に DISTINCT を掛けると 1,000 万記事では巨大なソートになる（L で 5 分を超えた）。
+-- 記事ごとの配列にまとめてから重複を落とすと、記事の単位で処理が閉じる
 INSERT INTO ch03_r.article_tags_src (article_id, tag_id)
-SELECT DISTINCT d.id, c.id
+SELECT d.id, t.tag_id
 FROM ch03_r.draw d
-CROSS JOIN LATERAL (VALUES (1, d.r1), (2, d.r2), (3, d.r3), (4, d.r4), (5, d.r5))
-  AS v(k, r)
-JOIN ch03_r.cum c ON v.r >= c.lower_bound AND v.r < c.upper_bound
-WHERE v.k <= d.n_tags;
+CROSS JOIN LATERAL unnest((
+  SELECT array_agg(DISTINCT c.id)
+  FROM (VALUES (1, d.r1), (2, d.r2), (3, d.r3), (4, d.r4), (5, d.r5)) AS v(k, r)
+  JOIN ch03_r.cum c ON v.r >= c.lower_bound AND v.r < c.upper_bound
+  WHERE v.k <= d.n_tags
+)) AS t(tag_id);
 
 DROP TABLE ch03_r.draw;
 
