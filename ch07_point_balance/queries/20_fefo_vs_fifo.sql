@@ -52,6 +52,21 @@ FROM fifo AS f JOIN fefo AS e USING (id)
 ORDER BY e.fefo_rank
 LIMIT 5;
 
+-- 🔴 本文が「いちばん上のロットの期限は最も遠い」と書くので、その根拠を出す。
+--    生きたロットの総数と、FIFO の先頭のロットが期限順で何番目かを測る。
+--    これを出さずに別のロットの順位を引くと、本文が別の量を指す（独立レビューで検出）
+WITH live AS (
+  SELECT id,
+         row_number() OVER (ORDER BY expires_at, id) AS fefo_rank,
+         row_number() OVER (ORDER BY granted_at, id) AS fifo_rank
+  FROM ch07_a.point_lots
+  WHERE user_id = :demo_user AND remaining > 0 AND expires_at > now()
+)
+SELECT count(*)                                            AS live_lots,
+       max(fefo_rank) FILTER (WHERE fifo_rank = 1)         AS fefo_rank_of_fifo_top,
+       max(fifo_rank) FILTER (WHERE fefo_rank = 1)         AS fifo_rank_of_fefo_top
+FROM live;
+
 -- 食い違いのある会員が全体で何人いるか
 SELECT count(*) AS users_where_order_differs
 FROM (

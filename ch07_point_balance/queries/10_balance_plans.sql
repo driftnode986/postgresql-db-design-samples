@@ -33,8 +33,22 @@ SELECT coalesce(sum(CASE WHEN kind = 'grant' THEN amount ELSE -amount END), 0)
 FROM ch07_c.point_txns WHERE user_id = :heavy_user;
 
 \echo '=== 案D: 締め残高 + それ以降の取引（取引の多い会員） ==='
+-- 🔴 ほかの 3 案と同じく、関数を呼ばずに素の SQL で測る。
+--    関数呼び出しにすると中身が Result ノードに畳まれ、Buffers に計画の作成や
+--    カタログの参照が混ざる。しかもセッションの状態で値が変わるので、案どうしを
+--    比べられない（独立レビューで検出。関数呼び出しでは 99、素の SQL では 27）
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF)
-SELECT ch07_d.balance_of(:heavy_user);
+WITH s AS (
+  SELECT as_of_txn_id, balance FROM ch07_d.point_snapshots
+  WHERE user_id = :heavy_user ORDER BY as_of_txn_id DESC LIMIT 1
+)
+SELECT coalesce((SELECT balance FROM s), 0)
+     + coalesce((
+         SELECT sum(CASE WHEN t.kind = 'grant' THEN t.amount ELSE -t.amount END)
+         FROM ch07_d.point_txns AS t
+         WHERE t.user_id = :heavy_user
+           AND t.id > coalesce((SELECT as_of_txn_id FROM s), 0)
+       ), 0);
 
 \echo '=== 案C: 取引を全件合計する（取引の少ない会員） ==='
 EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF)
