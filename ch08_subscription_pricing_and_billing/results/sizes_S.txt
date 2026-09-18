@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:26:40 +0900
+# 採取日時: 2026-09-19 07:36:18 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -28,26 +28,36 @@ JOIN pg_class c ON c.relnamespace = n.oid AND c.relkind = 'r'
 GROUP BY t ORDER BY t;
  plan_kind |  heap   | indexes |  total  
 -----------+---------+---------+---------
- A         | 1432 kB | 1416 kB | 2912 kB
- B         | 1712 kB | 1448 kB | 3240 kB
+ A         | 1432 kB | 1424 kB | 2928 kB
+ B         | 1712 kB | 1456 kB | 3256 kB
  C         | 1440 kB | 1432 kB | 2944 kB
- D         | 1744 kB | 1440 kB | 3264 kB
+ D         | 1744 kB | 1432 kB | 3256 kB
 (4 rows)
 
-\echo '--- 明細 1 行あたりのサイズ（案B と案C の差が、写した列のぶん）---'
---- 明細 1 行あたりのサイズ（案B と案C の差が、写した列のぶん）---
-SELECT 'B' AS plan_kind,
-       pg_relation_size('ch08_b.invoice_lines') AS bytes,
-       (SELECT count(*) FROM ch08_b.invoice_lines) AS lines
+\echo '--- 請求明細のテーブルだけのサイズ（写した列のぶんが差になる）---'
+--- 請求明細のテーブルだけのサイズ（写した列のぶんが差になる）---
+-- 🔴 4 案すべてを出す。案D の値を案B から流用しない
+--    （案D は案B の列に priced_on を足しているので、同じ値にはならない）。
+SELECT 'A' AS plan_kind,
+       pg_relation_size('ch08_a.invoice_lines') AS bytes,
+       (SELECT count(*) FROM ch08_a.invoice_lines) AS lines
+UNION ALL
+SELECT 'B', pg_relation_size('ch08_b.invoice_lines'),
+       (SELECT count(*) FROM ch08_b.invoice_lines)
 UNION ALL
 SELECT 'C', pg_relation_size('ch08_c.invoice_lines'),
        (SELECT count(*) FROM ch08_c.invoice_lines)
+UNION ALL
+SELECT 'D', pg_relation_size('ch08_d.invoice_lines'),
+       (SELECT count(*) FROM ch08_d.invoice_lines)
 ORDER BY 1;
- plan_kind | bytes  | lines 
------------+--------+-------
- B         | 983040 | 10239
- C         | 704512 | 10239
-(2 rows)
+ plan_kind |  bytes  | lines 
+-----------+---------+-------
+ A         |  704512 | 10239
+ B         |  983040 | 10239
+ C         |  704512 | 10239
+ D         | 1015808 | 10239
+(4 rows)
 
 \echo '--- 月次請求の計算の実行計画（案B。契約の期間 × 料金の版の結合）---'
 --- 月次請求の計算の実行計画（案B。契約の期間 × 料金の版の結合）---
@@ -63,16 +73,16 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && daterange('2024-04-01','2024-05-01');
                                                             QUERY PLAN                                                             
 -----------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.030..16.318 rows=10239.00 loops=1)
+ Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.029..16.622 rows=10239.00 loops=1)
    Join Filter: (p.id = s.plan_id)
    Rows Removed by Join Filter: 20187
    Buffers: shared hit=94
-   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.025..11.131 rows=10239.00 loops=1)
+   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.023..11.329 rows=10239.00 loops=1)
          Hash Cond: (s.plan_id = pr.plan_id)
          Join Filter: (pr.valid @> lower((s.period * '[2024-04-01,2024-05-01)'::daterange)))
          Rows Removed by Join Filter: 51195
          Buffers: shared hit=93
-         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.007..1.135 rows=10239.00 loops=1)
+         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.005..1.184 rows=10239.00 loops=1)
                Filter: (period && '[2024-04-01,2024-05-01)'::daterange)
                Rows Removed by Filter: 685
                Buffers: shared hit=92
@@ -88,8 +98,8 @@ WHERE s.period && daterange('2024-04-01','2024-05-01');
                Buffers: shared hit=1
  Planning:
    Buffers: shared hit=306
- Planning Time: 0.475 ms
- Execution Time: 16.618 ms
+ Planning Time: 0.308 ms
+ Execution Time: 16.925 ms
 (27 rows)
 
 ## 40_sizes_and_plan.sql run 2
@@ -109,26 +119,36 @@ JOIN pg_class c ON c.relnamespace = n.oid AND c.relkind = 'r'
 GROUP BY t ORDER BY t;
  plan_kind |  heap   | indexes |  total  
 -----------+---------+---------+---------
- A         | 1432 kB | 1416 kB | 2912 kB
- B         | 1712 kB | 1448 kB | 3240 kB
+ A         | 1432 kB | 1424 kB | 2928 kB
+ B         | 1712 kB | 1456 kB | 3256 kB
  C         | 1440 kB | 1432 kB | 2944 kB
- D         | 1744 kB | 1440 kB | 3264 kB
+ D         | 1744 kB | 1432 kB | 3256 kB
 (4 rows)
 
-\echo '--- 明細 1 行あたりのサイズ（案B と案C の差が、写した列のぶん）---'
---- 明細 1 行あたりのサイズ（案B と案C の差が、写した列のぶん）---
-SELECT 'B' AS plan_kind,
-       pg_relation_size('ch08_b.invoice_lines') AS bytes,
-       (SELECT count(*) FROM ch08_b.invoice_lines) AS lines
+\echo '--- 請求明細のテーブルだけのサイズ（写した列のぶんが差になる）---'
+--- 請求明細のテーブルだけのサイズ（写した列のぶんが差になる）---
+-- 🔴 4 案すべてを出す。案D の値を案B から流用しない
+--    （案D は案B の列に priced_on を足しているので、同じ値にはならない）。
+SELECT 'A' AS plan_kind,
+       pg_relation_size('ch08_a.invoice_lines') AS bytes,
+       (SELECT count(*) FROM ch08_a.invoice_lines) AS lines
+UNION ALL
+SELECT 'B', pg_relation_size('ch08_b.invoice_lines'),
+       (SELECT count(*) FROM ch08_b.invoice_lines)
 UNION ALL
 SELECT 'C', pg_relation_size('ch08_c.invoice_lines'),
        (SELECT count(*) FROM ch08_c.invoice_lines)
+UNION ALL
+SELECT 'D', pg_relation_size('ch08_d.invoice_lines'),
+       (SELECT count(*) FROM ch08_d.invoice_lines)
 ORDER BY 1;
- plan_kind | bytes  | lines 
------------+--------+-------
- B         | 983040 | 10239
- C         | 704512 | 10239
-(2 rows)
+ plan_kind |  bytes  | lines 
+-----------+---------+-------
+ A         |  704512 | 10239
+ B         |  983040 | 10239
+ C         |  704512 | 10239
+ D         | 1015808 | 10239
+(4 rows)
 
 \echo '--- 月次請求の計算の実行計画（案B。契約の期間 × 料金の版の結合）---'
 --- 月次請求の計算の実行計画（案B。契約の期間 × 料金の版の結合）---
@@ -144,33 +164,33 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && daterange('2024-04-01','2024-05-01');
                                                             QUERY PLAN                                                             
 -----------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.040..16.557 rows=10239.00 loops=1)
+ Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.038..17.041 rows=10239.00 loops=1)
    Join Filter: (p.id = s.plan_id)
    Rows Removed by Join Filter: 20187
    Buffers: shared hit=94
-   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.035..11.332 rows=10239.00 loops=1)
+   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.032..11.685 rows=10239.00 loops=1)
          Hash Cond: (s.plan_id = pr.plan_id)
          Join Filter: (pr.valid @> lower((s.period * '[2024-04-01,2024-05-01)'::daterange)))
          Rows Removed by Join Filter: 51195
          Buffers: shared hit=93
-         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.006..1.216 rows=10239.00 loops=1)
+         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.007..1.254 rows=10239.00 loops=1)
                Filter: (period && '[2024-04-01,2024-05-01)'::daterange)
                Rows Removed by Filter: 685
                Buffers: shared hit=92
-         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.011..0.011 rows=30.00 loops=1)
+         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.010..0.010 rows=30.00 loops=1)
                Buckets: 1024  Batches: 1  Memory Usage: 10kB
                Buffers: shared hit=1
-               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.004..0.006 rows=30.00 loops=1)
+               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.003..0.005 rows=30.00 loops=1)
                      Buffers: shared hit=1
    ->  Materialize  (cost=0.00..1.07 rows=5 width=22) (actual time=0.000..0.000 rows=2.97 loops=10239)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=1
-         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.001..0.002 rows=5.00 loops=1)
+         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.002..0.002 rows=5.00 loops=1)
                Buffers: shared hit=1
  Planning:
    Buffers: shared hit=306
- Planning Time: 0.391 ms
- Execution Time: 16.860 ms
+ Planning Time: 0.451 ms
+ Execution Time: 17.360 ms
 (27 rows)
 
 ## 40_sizes_and_plan.sql run 3
@@ -190,26 +210,36 @@ JOIN pg_class c ON c.relnamespace = n.oid AND c.relkind = 'r'
 GROUP BY t ORDER BY t;
  plan_kind |  heap   | indexes |  total  
 -----------+---------+---------+---------
- A         | 1432 kB | 1416 kB | 2912 kB
- B         | 1712 kB | 1448 kB | 3240 kB
+ A         | 1432 kB | 1424 kB | 2928 kB
+ B         | 1712 kB | 1456 kB | 3256 kB
  C         | 1440 kB | 1432 kB | 2944 kB
- D         | 1744 kB | 1440 kB | 3264 kB
+ D         | 1744 kB | 1432 kB | 3256 kB
 (4 rows)
 
-\echo '--- 明細 1 行あたりのサイズ（案B と案C の差が、写した列のぶん）---'
---- 明細 1 行あたりのサイズ（案B と案C の差が、写した列のぶん）---
-SELECT 'B' AS plan_kind,
-       pg_relation_size('ch08_b.invoice_lines') AS bytes,
-       (SELECT count(*) FROM ch08_b.invoice_lines) AS lines
+\echo '--- 請求明細のテーブルだけのサイズ（写した列のぶんが差になる）---'
+--- 請求明細のテーブルだけのサイズ（写した列のぶんが差になる）---
+-- 🔴 4 案すべてを出す。案D の値を案B から流用しない
+--    （案D は案B の列に priced_on を足しているので、同じ値にはならない）。
+SELECT 'A' AS plan_kind,
+       pg_relation_size('ch08_a.invoice_lines') AS bytes,
+       (SELECT count(*) FROM ch08_a.invoice_lines) AS lines
+UNION ALL
+SELECT 'B', pg_relation_size('ch08_b.invoice_lines'),
+       (SELECT count(*) FROM ch08_b.invoice_lines)
 UNION ALL
 SELECT 'C', pg_relation_size('ch08_c.invoice_lines'),
        (SELECT count(*) FROM ch08_c.invoice_lines)
+UNION ALL
+SELECT 'D', pg_relation_size('ch08_d.invoice_lines'),
+       (SELECT count(*) FROM ch08_d.invoice_lines)
 ORDER BY 1;
- plan_kind | bytes  | lines 
------------+--------+-------
- B         | 983040 | 10239
- C         | 704512 | 10239
-(2 rows)
+ plan_kind |  bytes  | lines 
+-----------+---------+-------
+ A         |  704512 | 10239
+ B         |  983040 | 10239
+ C         |  704512 | 10239
+ D         | 1015808 | 10239
+(4 rows)
 
 \echo '--- 月次請求の計算の実行計画（案B。契約の期間 × 料金の版の結合）---'
 --- 月次請求の計算の実行計画（案B。契約の期間 × 料金の版の結合）---
@@ -225,32 +255,32 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && daterange('2024-04-01','2024-05-01');
                                                             QUERY PLAN                                                             
 -----------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.025..16.746 rows=10239.00 loops=1)
+ Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.036..17.351 rows=10239.00 loops=1)
    Join Filter: (p.id = s.plan_id)
    Rows Removed by Join Filter: 20187
    Buffers: shared hit=94
-   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.021..11.453 rows=10239.00 loops=1)
+   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.026..11.838 rows=10239.00 loops=1)
          Hash Cond: (s.plan_id = pr.plan_id)
          Join Filter: (pr.valid @> lower((s.period * '[2024-04-01,2024-05-01)'::daterange)))
          Rows Removed by Join Filter: 51195
          Buffers: shared hit=93
-         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.005..1.247 rows=10239.00 loops=1)
+         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.005..1.265 rows=10239.00 loops=1)
                Filter: (period && '[2024-04-01,2024-05-01)'::daterange)
                Rows Removed by Filter: 685
                Buffers: shared hit=92
-         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.008..0.008 rows=30.00 loops=1)
+         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.010..0.010 rows=30.00 loops=1)
                Buckets: 1024  Batches: 1  Memory Usage: 10kB
                Buffers: shared hit=1
-               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.002..0.004 rows=30.00 loops=1)
+               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.004..0.006 rows=30.00 loops=1)
                      Buffers: shared hit=1
    ->  Materialize  (cost=0.00..1.07 rows=5 width=22) (actual time=0.000..0.000 rows=2.97 loops=10239)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=1
-         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.001..0.001 rows=5.00 loops=1)
+         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.002..0.002 rows=5.00 loops=1)
                Buffers: shared hit=1
  Planning:
    Buffers: shared hit=306
- Planning Time: 0.319 ms
- Execution Time: 17.049 ms
+ Planning Time: 0.380 ms
+ Execution Time: 17.669 ms
 (27 rows)
 

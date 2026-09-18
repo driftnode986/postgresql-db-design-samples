@@ -48,13 +48,17 @@ FROM ch08_c.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
 
--- 案D: 写しと、どの版から引いたかの日付の両方を記録する
+-- 案D: 写しと、どの版から引いたかの両方を記録する
+--
+-- 🔴 priced_on には、引いた版そのものの開始日（lower(pr.valid)）を入れる。
+--    「料金表を引いた基準日」を入れると、月初から続く契約が全部同じ日付になり、
+--    どの版を使ったかを特定できない（初稿はそうなっていた）。
 INSERT INTO ch08_d.invoice_lines
   (subscription_id, billed_month, plan_id, plan_name, unit_yen, priced_on,
    charged_days, days_in_month)
 SELECT s.id, DATE :'m', s.plan_id, p.name,
        COALESCE(s.grandfathered_yen, pr.price_yen),
-       lower(s.period * :mr),
+       lower(pr.valid),
        upper(s.period * :mr) - lower(s.period * :mr),
        30
 FROM ch08_d.subscriptions s

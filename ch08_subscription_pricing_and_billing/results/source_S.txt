@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:26:33 +0900
+# 採取日時: 2026-09-19 07:36:10 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -67,7 +67,7 @@ CREATE TABLE ch08_r.src_sub_period (
   grandfathered_yen int
 );
 CREATE TABLE
-# 採取日時: 2026-09-19 07:26:34 +0900
+# 採取日時: 2026-09-19 07:36:11 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -108,22 +108,22 @@ SELECT setseed(0.42);
  
 (1 row)
 
-Time: 0.274 ms
+Time: 0.318 ms
 TRUNCATE ch08_r.src_sub_period;
 TRUNCATE TABLE
-Time: 1.786 ms
+Time: 2.545 ms
 TRUNCATE ch08_r.src_subscription CASCADE;
 psql:/tmp/run-sql.sql:26: NOTICE:  truncate cascades to table "src_sub_period"
 TRUNCATE TABLE
-Time: 1.019 ms
+Time: 1.119 ms
 TRUNCATE ch08_r.src_price;
 TRUNCATE TABLE
-Time: 0.687 ms
+Time: 0.851 ms
 TRUNCATE ch08_r.src_plan CASCADE;
 psql:/tmp/run-sql.sql:28: NOTICE:  truncate cascades to table "src_price"
 psql:/tmp/run-sql.sql:28: NOTICE:  truncate cascades to table "src_sub_period"
 TRUNCATE TABLE
-Time: 1.624 ms
+Time: 1.697 ms
 \echo '生成する契約数:' :n_subs '  1 プランあたりの料金の版:' :n_versions
 生成する契約数: 10000   1 プランあたりの料金の版: 5
 -- プランは 5 つ。料金の桁を変えて、日割りの端数が出やすい額にしている
@@ -135,7 +135,7 @@ VALUES (1, 'lite',     'ライト'),
        (4, 'business', 'ビジネス'),
        (5, 'entpr',    'エンタープライズ');
 INSERT 0 5
-Time: 0.525 ms
+Time: 0.594 ms
 -- 料金の版。2022-01-01 から、プランごとに n_versions 回に分けて改定する。
 -- 期間は半開区間で切れ目なく続き、最後の行は上端なし（無限）にする。
 --
@@ -167,14 +167,14 @@ SELECT row_number() OVER (ORDER BY plan_id, seq),
         * pow(1.08, seq - 1))::int
 FROM w;
 INSERT 0 25
-Time: 1.997 ms
+Time: 1.835 ms
 INSERT INTO ch08_r.src_subscription (id, customer_id, started_on)
 SELECT g, g,
        -- 契約の開始日は 2022-01-01 から 2024-06-30 の間に散らす
        (DATE '2022-01-01' + (floor(random() * 911))::int * INTERVAL '1 day')::date
 FROM generate_series(1, :n_subs) AS g;
 INSERT 0 10000
-Time: 16.239 ms
+Time: 15.237 ms
 -- 契約 × プランの期間。
 -- 10% の契約は、対象月（2024-04）の途中でプランを変える。残りは 1 行のまま。
 --
@@ -220,19 +220,19 @@ SELECT row_number() OVER (ORDER BY subscription_id, ord),
        ) END
 FROM rows;
 INSERT 0 10924
-Time: 128.965 ms
+Time: 129.075 ms
 ANALYZE ch08_r.src_plan;
 ANALYZE
-Time: 0.633 ms
+Time: 0.748 ms
 ANALYZE ch08_r.src_price;
 ANALYZE
-Time: 0.370 ms
+Time: 0.376 ms
 ANALYZE ch08_r.src_subscription;
 ANALYZE
-Time: 2.279 ms
+Time: 2.489 ms
 ANALYZE ch08_r.src_sub_period;
 ANALYZE
-Time: 5.171 ms
+Time: 4.780 ms
 \echo '--- 生成した行数 ---'
 --- 生成した行数 ---
 SELECT (SELECT count(*) FROM ch08_r.src_plan)         AS plans,
@@ -249,4 +249,4 @@ SELECT (SELECT count(*) FROM ch08_r.src_plan)         AS plans,
      5 |     25 |         10000 |       10924 |          2085 |             2152
 (1 row)
 
-Time: 2.316 ms
+Time: 2.295 ms

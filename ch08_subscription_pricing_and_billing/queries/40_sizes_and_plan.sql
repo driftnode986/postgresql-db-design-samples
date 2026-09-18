@@ -12,13 +12,21 @@ JOIN pg_namespace n ON n.nspname = v.sch
 JOIN pg_class c ON c.relnamespace = n.oid AND c.relkind = 'r'
 GROUP BY t ORDER BY t;
 
-\echo '--- 明細 1 行あたりのサイズ（案B と案C の差が、写した列のぶん）---'
-SELECT 'B' AS plan_kind,
-       pg_relation_size('ch08_b.invoice_lines') AS bytes,
-       (SELECT count(*) FROM ch08_b.invoice_lines) AS lines
+\echo '--- 請求明細のテーブルだけのサイズ（写した列のぶんが差になる）---'
+-- 🔴 4 案すべてを出す。案D の値を案B から流用しない
+--    （案D は案B の列に priced_on を足しているので、同じ値にはならない）。
+SELECT 'A' AS plan_kind,
+       pg_relation_size('ch08_a.invoice_lines') AS bytes,
+       (SELECT count(*) FROM ch08_a.invoice_lines) AS lines
+UNION ALL
+SELECT 'B', pg_relation_size('ch08_b.invoice_lines'),
+       (SELECT count(*) FROM ch08_b.invoice_lines)
 UNION ALL
 SELECT 'C', pg_relation_size('ch08_c.invoice_lines'),
        (SELECT count(*) FROM ch08_c.invoice_lines)
+UNION ALL
+SELECT 'D', pg_relation_size('ch08_d.invoice_lines'),
+       (SELECT count(*) FROM ch08_d.invoice_lines)
 ORDER BY 1;
 
 \echo '--- 月次請求の計算の実行計画（案B。契約の期間 × 料金の版の結合）---'

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:26:39 +0900
+# 採取日時: 2026-09-19 07:36:17 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -34,7 +34,7 @@ FROM ch08_a.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 79.294 ms
+Time: 81.381 ms
 -- 案B: 料金の版から、その期間の開始時点の額を引いて写す。
 -- 据え置きの契約は grandfathered_yen を使い、料金表を引かない
 INSERT INTO ch08_b.invoice_lines
@@ -52,7 +52,7 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 96.126 ms
+Time: 94.482 ms
 -- 案C: 金額を写さず、plan_id と日数だけを記録する
 INSERT INTO ch08_c.invoice_lines
   (subscription_id, billed_month, plan_id, charged_days, days_in_month)
@@ -63,14 +63,18 @@ FROM ch08_c.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 56.713 ms
--- 案D: 写しと、どの版から引いたかの日付の両方を記録する
+Time: 55.231 ms
+-- 案D: 写しと、どの版から引いたかの両方を記録する
+--
+-- 🔴 priced_on には、引いた版そのものの開始日（lower(pr.valid)）を入れる。
+--    「料金表を引いた基準日」を入れると、月初から続く契約が全部同じ日付になり、
+--    どの版を使ったかを特定できない（初稿はそうなっていた）。
 INSERT INTO ch08_d.invoice_lines
   (subscription_id, billed_month, plan_id, plan_name, unit_yen, priced_on,
    charged_days, days_in_month)
 SELECT s.id, DATE :'m', s.plan_id, p.name,
        COALESCE(s.grandfathered_yen, pr.price_yen),
-       lower(s.period * :mr),
+       lower(pr.valid),
        upper(s.period * :mr) - lower(s.period * :mr),
        30
 FROM ch08_d.subscriptions s
@@ -81,7 +85,7 @@ JOIN ch08_d.plan_prices pr
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 69.399 ms
+Time: 75.282 ms
 \echo '--- 発行した明細の件数 ---'
 --- 発行した明細の件数 ---
 SELECT (SELECT count(*) FROM ch08_a.invoice_lines) AS a,
@@ -93,4 +97,4 @@ SELECT (SELECT count(*) FROM ch08_a.invoice_lines) AS a,
  10239 | 10239 | 10239 | 10239
 (1 row)
 
-Time: 1.927 ms
+Time: 1.846 ms
