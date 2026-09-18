@@ -1,0 +1,205 @@
+# 採取日時: 2026-09-18 13:13:43 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 第3章の元データ。3 案がここから同じ中身を写す（案ごとに作り直さない）。
+CREATE SCHEMA IF NOT EXISTS ch03_r;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch03_r.article_tags_src;
+psql:/tmp/run-sql-34919.sql:4: NOTICE:  table "article_tags_src" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch03_r.articles_src;
+psql:/tmp/run-sql-34919.sql:5: NOTICE:  table "articles_src" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch03_r.tags_src;
+psql:/tmp/run-sql-34919.sql:6: NOTICE:  table "tags_src" does not exist, skipping
+DROP TABLE
+-- タグの一覧。165 種類で、順位が下がるほど出現率が下がる（幾何級数）
+CREATE TABLE ch03_r.tags_src (
+  id    smallint PRIMARY KEY,
+  name  text NOT NULL UNIQUE
+);
+CREATE TABLE
+CREATE TABLE ch03_r.articles_src (
+  id            bigint PRIMARY KEY,
+  title         text NOT NULL,
+  body          text NOT NULL,
+  published_at  timestamptz NOT NULL
+);
+CREATE TABLE
+-- 記事とタグの対応。1 記事あたり 1〜5 個
+CREATE TABLE ch03_r.article_tags_src (
+  article_id  bigint   NOT NULL,
+  tag_id      smallint NOT NULL
+);
+CREATE TABLE
+-- 元データを作る。各案の load.sql より先に実行する。
+-- SIZE=S は 10 万記事、M は 100 万記事、L は 1,000 万記事
+SELECT CASE :'size' WHEN 'S' THEN 100000 WHEN 'M' THEN 1000000
+                    WHEN 'L' THEN 10000000 END AS n \gset
+SELECT :n AS rows_to_load;   -- S・M・L 以外なら、ここで構文エラーになって止まる
+ rows_to_load 
+--------------
+     10000000
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch03_r.article_tags_src;
+TRUNCATE TABLE
+Time: 0.807 ms
+TRUNCATE ch03_r.articles_src;
+TRUNCATE TABLE
+Time: 1.231 ms
+TRUNCATE ch03_r.tags_src;
+TRUNCATE TABLE
+Time: 0.888 ms
+SELECT setseed(0.42);
+ setseed 
+---------
+ 
+(1 row)
+
+Time: 0.200 ms
+-- タグ 165 種類。出現率は順位ごとに 0.95 倍（tag001 が最も多く、tag165 が最も少ない）
+INSERT INTO ch03_r.tags_src (id, name)
+SELECT g, 'tag' || lpad(g::text, 3, '0') FROM generate_series(1, 165) AS g;
+INSERT 0 165
+Time: 0.757 ms
+-- 各タグの累積確率。乱数 1 つからタグ 1 つを決めるために使う
+DROP TABLE IF EXISTS ch03_r.cum;
+psql:/tmp/run-sql-34962.sql:18: NOTICE:  table "cum" does not exist, skipping
+DROP TABLE
+Time: 0.097 ms
+CREATE TABLE ch03_r.cum AS
+SELECT id,
+       sum(w) OVER (ORDER BY id) / sum(w) OVER () AS upper_bound,
+       coalesce(sum(w) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING
+                             AND 1 PRECEDING), 0) / sum(w) OVER ()
+         AS lower_bound
+FROM (SELECT id, power(0.95, id - 1) AS w FROM ch03_r.tags_src) AS t;
+SELECT 165
+Time: 1.575 ms
+CREATE INDEX cum_bounds_idx ON ch03_r.cum (lower_bound, upper_bound);
+CREATE INDEX
+Time: 0.458 ms
+INSERT INTO ch03_r.articles_src (id, title, body, published_at)
+SELECT g,
+       'article-' || g,
+       repeat('x', 200),
+       -- 公開日時は id の順とわざとずらす（id 順 = 新しい順、を前提にできないようにする）
+       '2024-01-01 00:00+09'::timestamptz
+         + (g + (hashint8(g) % 1000)) * (interval '900 days' / :n)
+FROM generate_series(1, :n) AS g;
+INSERT 0 10000000
+Time: 17839.109 ms (00:17.839)
+-- 🔴 乱数は先に列として引いておく。LATERAL の中で random() を書くと、
+-- 1 度だけ評価されて全記事が同じ値になる（実測で全記事が同じタグ 1 個になった）
+DROP TABLE IF EXISTS ch03_r.draw;
+psql:/tmp/run-sql-34962.sql:39: NOTICE:  table "draw" does not exist, skipping
+DROP TABLE
+Time: 0.266 ms
+CREATE TABLE ch03_r.draw AS
+SELECT g AS id,
+       -- タグの個数。1 個が 65%、5 個が 1%
+       CASE WHEN k < 0.65 THEN 1 WHEN k < 0.80 THEN 2 WHEN k < 0.92 THEN 3
+            WHEN k < 0.99 THEN 4 ELSE 5 END AS n_tags,
+       r1, r2, r3, r4, r5
+FROM (
+  SELECT g, random() AS k, random() AS r1, random() AS r2, random() AS r3,
+         random() AS r4, random() AS r5
+  FROM generate_series(1, :n) AS g
+  ORDER BY g
+) AS s;
+SELECT 10000000
+Time: 6665.419 ms (00:06.665)
+-- 記事ごとに n_tags 個の乱数を縦に並べ、それぞれを累積確率でタグに直す。
+-- 同じ記事に同じタグが 2 回出ることがあるので、記事ごとに重複を落とす。
+-- 🔴 全体に DISTINCT を掛けると 1,000 万記事では巨大なソートになる（L で 5 分を超えた）。
+-- 記事ごとの配列にまとめてから重複を落とすと、記事の単位で処理が閉じる
+INSERT INTO ch03_r.article_tags_src (article_id, tag_id)
+SELECT d.id, t.tag_id
+FROM ch03_r.draw d
+CROSS JOIN LATERAL unnest((
+  SELECT array_agg(DISTINCT c.id)
+  FROM (VALUES (1, d.r1), (2, d.r2), (3, d.r3), (4, d.r4), (5, d.r5)) AS v(k, r)
+  JOIN ch03_r.cum c ON v.r >= c.lower_bound AND v.r < c.upper_bound
+  WHERE v.k <= d.n_tags
+)) AS t(tag_id);
+INSERT 0 16141915
+Time: 594736.356 ms (09:54.736)
+DROP TABLE ch03_r.draw;
+DROP TABLE
+Time: 33.069 ms
+-- 🔴 ANALYZE を忘れると、次に読む側（案B の load）が古い統計で計画を立て、
+-- 10 倍のデータより遅くなることがある（第3章の確認記録 §0）
+ANALYZE ch03_r.tags_src;
+ANALYZE
+Time: 0.693 ms
+ANALYZE ch03_r.articles_src;
+ANALYZE
+Time: 166.357 ms
+ANALYZE ch03_r.article_tags_src;
+ANALYZE
+Time: 472.789 ms
+-- 元データの中身を確かめる（偏りが入っているか）
+SELECT count(*) AS articles FROM ch03_r.articles_src;
+ articles 
+----------
+ 10000000
+(1 row)
+
+SELECT count(*) AS assignments,
+       round(count(*)::numeric / (SELECT count(*) FROM ch03_r.articles_src), 3)
+         AS tags_per_article
+FROM ch03_r.article_tags_src;
+ assignments | tags_per_article 
+-------------+------------------
+    16141915 |            1.614
+(1 row)
+
+-- タグごとの記事数（多い順・少ない順）
+SELECT t.name, count(*) AS n
+FROM ch03_r.article_tags_src at JOIN ch03_r.tags_src t ON t.id = at.tag_id
+GROUP BY t.name ORDER BY n DESC LIMIT 5;
+  name  |   n    
+--------+--------
+ tag001 | 796524
+ tag002 | 756518
+ tag003 | 719275
+ tag004 | 684522
+ tag005 | 651912
+(5 rows)
+
+SELECT t.name, count(*) AS n
+FROM ch03_r.article_tags_src at JOIN ch03_r.tags_src t ON t.id = at.tag_id
+GROUP BY t.name ORDER BY n ASC LIMIT 5;
+  name  |  n  
+--------+-----
+ tag163 | 177
+ tag165 | 180
+ tag164 | 192
+ tag162 | 221
+ tag159 | 241
+(5 rows)
+
+-- 1 記事あたりのタグ数の分布
+SELECT k AS tags, count(*) AS articles FROM (
+  SELECT article_id, count(*) AS k FROM ch03_r.article_tags_src GROUP BY article_id
+) AS s GROUP BY k ORDER BY k;
+ tags | articles 
+------+----------
+    1 |  6539677
+    2 |  1552652
+    3 |  1210634
+    4 |   620153
+    5 |    76884
+(5 rows)
+

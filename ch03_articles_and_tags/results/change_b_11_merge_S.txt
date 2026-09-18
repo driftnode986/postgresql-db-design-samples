@@ -1,0 +1,26 @@
+# 採取日時: 2026-09-18 12:27:53 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案B の統合。置き換えたあと、同じタグが 2 つ並ぶ記事を整理する
+\timing on
+Timing is on.
+BEGIN;
+BEGIN
+Time: 0.080 ms
+UPDATE ch03_b.articles
+   SET tags = (SELECT array_agg(DISTINCT x ORDER BY x)
+               FROM unnest(array_replace(tags, 'tag002', 'tag001')) AS x)
+ WHERE tags @> ARRAY['tag002'];
+UPDATE 7579
+Time: 80.946 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.111 ms

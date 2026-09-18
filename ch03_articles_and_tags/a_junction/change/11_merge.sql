@@ -7,7 +7,8 @@ DELETE FROM ch03_a.article_tags d
 WHERE d.tag_id = (SELECT id FROM ch03_a.tags WHERE name = 'tag002')
   AND EXISTS (SELECT 1 FROM ch03_a.article_tags k
               WHERE k.article_id = d.article_id
-                AND k.tag_id = (SELECT id FROM ch03_a.tags WHERE name = 'tag001'));
+                AND k.tag_id = (SELECT id FROM ch03_a.tags
+                                WHERE name = 'tag001'));
 UPDATE ch03_a.article_tags
    SET tag_id = (SELECT id FROM ch03_a.tags WHERE name = 'tag001')
  WHERE tag_id = (SELECT id FROM ch03_a.tags WHERE name = 'tag002');

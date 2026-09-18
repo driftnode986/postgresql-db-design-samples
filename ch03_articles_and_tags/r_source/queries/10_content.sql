@@ -15,5 +15,6 @@ GROUP BY t.name ORDER BY n ASC LIMIT 5;
 
 -- 1 記事あたりのタグ数の分布
 SELECT k AS tags, count(*) AS articles FROM (
-  SELECT article_id, count(*) AS k FROM ch03_r.article_tags_src GROUP BY article_id
+  SELECT article_id, count(*) AS k FROM ch03_r.article_tags_src
+  GROUP BY article_id
 ) AS s GROUP BY k ORDER BY k;

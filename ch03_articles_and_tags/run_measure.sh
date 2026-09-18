@@ -14,7 +14,7 @@ T="_$SIZE"
 run()  { bash scripts/run-sql.sh "$@"; }
 save() { local out="$1"; shift; { bash scripts/collect-env.sh; "$@"; } > "$R/$out" 2>&1; echo "saved $out"; }
 dir_of() { case "$1" in a) echo a_junction ;; b) echo b_array ;; c) echo c_jsonb ;;
-                        f) echo first_idea ;; r) echo r_source ;; esac; }
+                        f) echo f_first_idea ;; r) echo r_source ;; esac; }
 
 bash scripts/reset-chapter.sh 03
 
@@ -48,10 +48,10 @@ save "stability$T.txt" all_stability
 
 # 「最初に思いつく案」の検算。案A とは別のスキーマ（ch03_f）で作る
 first_idea() {
-  run book_owner ch03_f $D/first_idea/schema.sql
-  run book_owner ch03_f $D/first_idea/load.sql
+  run book_owner ch03_f $D/f_first_idea/schema.sql
+  run book_owner ch03_f $D/f_first_idea/load.sql
   local f
-  for f in "$D"/first_idea/queries/*.sql; do
+  for f in "$D"/f_first_idea/queries/*.sql; do
     for i in 1 2 3; do echo "## $(basename "$f") run $i"; run book_app ch03_f "$f"; done
   done
 }

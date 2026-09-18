@@ -1,0 +1,531 @@
+# 採取日時: 2026-09-18 13:30:00 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 「最初に思いつく案」の検算用。採取した案（haiku）のとおりに作る。
+-- 主キーは (article_id, tag_id)、タグからの逆引きは tag_id の単独インデックス
+CREATE SCHEMA ch03_f;
+CREATE SCHEMA
+CREATE TABLE ch03_f.articles (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  title         text NOT NULL,
+  body          text NOT NULL,
+  published_at  timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch03_f.tags (
+  id    smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name  text NOT NULL UNIQUE
+);
+CREATE TABLE
+CREATE TABLE ch03_f.article_tags (
+  article_id  bigint   NOT NULL REFERENCES ch03_f.articles(id) ON DELETE CASCADE,
+  tag_id      smallint NOT NULL REFERENCES ch03_f.tags(id),
+  PRIMARY KEY (article_id, tag_id)
+);
+CREATE TABLE
+SELECT count(*) AS src_rows FROM ch03_r.articles_src \gset
+SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch03_f.article_tags, ch03_f.articles, ch03_f.tags RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 3.907 ms
+DROP INDEX IF EXISTS ch03_f.articles_published_at_idx;
+psql:/tmp/run-sql-46433.sql:6: NOTICE:  index "articles_published_at_idx" does not exist, skipping
+DROP INDEX
+Time: 0.126 ms
+DROP INDEX IF EXISTS ch03_f.article_tags_tag_id_idx;
+psql:/tmp/run-sql-46433.sql:7: NOTICE:  index "article_tags_tag_id_idx" does not exist, skipping
+DROP INDEX
+Time: 0.123 ms
+INSERT INTO ch03_f.tags (name) OVERRIDING SYSTEM VALUE
+SELECT name FROM ch03_r.tags_src ORDER BY id;
+INSERT 0 165
+Time: 1.450 ms
+INSERT INTO ch03_f.articles (title, body, published_at) OVERRIDING SYSTEM VALUE
+SELECT title, body, published_at FROM ch03_r.articles_src ORDER BY id;
+INSERT 0 10000000
+Time: 17588.657 ms (00:17.589)
+INSERT INTO ch03_f.article_tags (article_id, tag_id)
+SELECT article_id, tag_id FROM ch03_r.article_tags_src ORDER BY article_id, tag_id;
+INSERT 0 16141915
+Time: 108056.083 ms (01:48.056)
+-- 採取した案のインデックス（tag_id は単独。published_at は親側）
+CREATE INDEX articles_published_at_idx ON ch03_f.articles (published_at DESC);
+CREATE INDEX
+Time: 8358.229 ms (00:08.358)
+CREATE INDEX article_tags_tag_id_idx   ON ch03_f.article_tags (tag_id);
+CREATE INDEX
+Time: 5225.158 ms (00:05.225)
+ANALYZE ch03_f.tags;
+ANALYZE
+Time: 1.614 ms
+ANALYZE ch03_f.articles;
+ANALYZE
+Time: 614.821 ms
+ANALYZE ch03_f.article_tags;
+ANALYZE
+Time: 144.516 ms
+## 10_popular.sql run 1
+-- 採取した案の問い合わせ 1。人気タグ（tag001）なら速い
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at ON a.id = at.article_id
+WHERE at.tag_id = 1
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                            QUERY PLAN                                                                             
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.87..143.36 rows=20 width=31) (actual time=0.386..1.144 rows=20.00 loops=1)
+   Buffers: shared hit=895 read=35
+   ->  Nested Loop  (cost=0.87..5727007.77 rows=803871 width=31) (actual time=0.385..1.140 rows=20.00 loops=1)
+         Buffers: shared hit=895 read=35
+         ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..579568.40 rows=9999990 width=31) (actual time=0.025..0.242 rows=229.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=191 read=29
+         ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.43..0.51 rows=1 width=8) (actual time=0.004..0.004 rows=0.09 loops=229)
+               Index Cond: ((article_id = a.id) AND (tag_id = 1))
+               Heap Fetches: 20
+               Index Searches: 229
+               Buffers: shared hit=704 read=6
+ Planning:
+   Buffers: shared hit=258 read=20
+ Planning Time: 2.886 ms
+ Execution Time: 1.170 ms
+(16 rows)
+
+## 10_popular.sql run 2
+-- 採取した案の問い合わせ 1。人気タグ（tag001）なら速い
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at ON a.id = at.article_id
+WHERE at.tag_id = 1
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                            QUERY PLAN                                                                             
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.87..143.36 rows=20 width=31) (actual time=0.056..0.370 rows=20.00 loops=1)
+   Buffers: shared hit=930
+   ->  Nested Loop  (cost=0.87..5727007.77 rows=803871 width=31) (actual time=0.055..0.366 rows=20.00 loops=1)
+         Buffers: shared hit=930
+         ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..579568.40 rows=9999990 width=31) (actual time=0.011..0.121 rows=229.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=220
+         ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.43..0.51 rows=1 width=8) (actual time=0.001..0.001 rows=0.09 loops=229)
+               Index Cond: ((article_id = a.id) AND (tag_id = 1))
+               Heap Fetches: 20
+               Index Searches: 229
+               Buffers: shared hit=710
+ Planning:
+   Buffers: shared hit=278
+ Planning Time: 0.447 ms
+ Execution Time: 0.389 ms
+(16 rows)
+
+## 10_popular.sql run 3
+-- 採取した案の問い合わせ 1。人気タグ（tag001）なら速い
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at ON a.id = at.article_id
+WHERE at.tag_id = 1
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                            QUERY PLAN                                                                             
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.87..143.36 rows=20 width=31) (actual time=0.058..0.352 rows=20.00 loops=1)
+   Buffers: shared hit=930
+   ->  Nested Loop  (cost=0.87..5727007.77 rows=803871 width=31) (actual time=0.054..0.345 rows=20.00 loops=1)
+         Buffers: shared hit=930
+         ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..579568.40 rows=9999990 width=31) (actual time=0.012..0.124 rows=229.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=220
+         ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.43..0.51 rows=1 width=8) (actual time=0.001..0.001 rows=0.09 loops=229)
+               Index Cond: ((article_id = a.id) AND (tag_id = 1))
+               Heap Fetches: 20
+               Index Searches: 229
+               Buffers: shared hit=710
+ Planning:
+   Buffers: shared hit=278
+ Planning Time: 0.502 ms
+ Execution Time: 0.374 ms
+(16 rows)
+
+## 12_rare.sql run 1
+-- 同じ問い合わせを珍しいタグ（tag150）で。ここで計画が変わる
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at ON a.id = at.article_id
+WHERE at.tag_id = 150
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                           QUERY PLAN                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=18962.13..18964.41 rows=20 width=31) (actual time=78.333..79.721 rows=20.00 loops=1)
+   Buffers: shared hit=819 read=1242 written=494
+   ->  Gather Merge  (cost=18962.13..19205.23 rows=2133 width=31) (actual time=78.328..79.715 rows=20.00 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=819 read=1242 written=494
+         ->  Sort  (cost=17962.12..17965.26 rows=1255 width=31) (actual time=73.626..73.628 rows=20.00 loops=2)
+               Sort Key: a.published_at DESC
+               Sort Method: top-N heapsort  Memory: 27kB
+               Buffers: shared hit=819 read=1242 written=494
+               Worker 0:  Sort Method: top-N heapsort  Memory: 27kB
+               ->  Nested Loop  (cost=25.40..17897.53 rows=1255 width=31) (actual time=0.680..73.528 rows=202.50 loops=2)
+                     Buffers: shared hit=810 read=1242 written=494
+                     ->  Parallel Bitmap Heap Scan on article_tags at  (cost=24.97..7489.69 rows=1255 width=8) (actual time=0.201..1.702 rows=202.50 loops=2)
+                           Recheck Cond: (tag_id = 150)
+                           Heap Blocks: exact=199
+                           Buffers: shared hit=91 read=340 written=84
+                           Worker 0:  Heap Blocks: exact=206
+                           ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.197..0.197 rows=405.00 loops=1)
+                                 Index Cond: (tag_id = 150)
+                                 Index Searches: 1
+                                 Buffers: shared hit=3 read=3
+                     ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.29 rows=1 width=31) (actual time=0.354..0.354 rows=1.00 loops=405)
+                           Index Cond: (id = at.article_id)
+                           Index Searches: 405
+                           Buffers: shared hit=719 read=902 written=410
+ Planning:
+   Buffers: shared hit=278
+ Planning Time: 0.476 ms
+ Execution Time: 79.753 ms
+(30 rows)
+
+## 12_rare.sql run 2
+-- 同じ問い合わせを珍しいタグ（tag150）で。ここで計画が変わる
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at ON a.id = at.article_id
+WHERE at.tag_id = 150
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                           QUERY PLAN                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=18962.13..18964.41 rows=20 width=31) (actual time=2.851..3.952 rows=20.00 loops=1)
+   Buffers: shared hit=2061
+   ->  Gather Merge  (cost=18962.13..19205.23 rows=2133 width=31) (actual time=2.850..3.950 rows=20.00 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=2061
+         ->  Sort  (cost=17962.12..17965.26 rows=1255 width=31) (actual time=1.801..1.802 rows=15.00 loops=2)
+               Sort Key: a.published_at DESC
+               Sort Method: top-N heapsort  Memory: 27kB
+               Buffers: shared hit=2061
+               Worker 0:  Sort Method: top-N heapsort  Memory: 27kB
+               ->  Nested Loop  (cost=25.40..17897.53 rows=1255 width=31) (actual time=0.199..1.748 rows=202.50 loops=2)
+                     Buffers: shared hit=2052
+                     ->  Parallel Bitmap Heap Scan on article_tags at  (cost=24.97..7489.69 rows=1255 width=8) (actual time=0.184..0.577 rows=202.50 loops=2)
+                           Recheck Cond: (tag_id = 150)
+                           Heap Blocks: exact=297
+                           Buffers: shared hit=431
+                           Worker 0:  Heap Blocks: exact=108
+                           ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.136..0.137 rows=405.00 loops=1)
+                                 Index Cond: (tag_id = 150)
+                                 Index Searches: 1
+                                 Buffers: shared hit=6
+                     ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.29 rows=1 width=31) (actual time=0.006..0.006 rows=1.00 loops=405)
+                           Index Cond: (id = at.article_id)
+                           Index Searches: 405
+                           Buffers: shared hit=1621
+ Planning:
+   Buffers: shared hit=278
+ Planning Time: 0.444 ms
+ Execution Time: 3.986 ms
+(30 rows)
+
+## 12_rare.sql run 3
+-- 同じ問い合わせを珍しいタグ（tag150）で。ここで計画が変わる
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at ON a.id = at.article_id
+WHERE at.tag_id = 150
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                           QUERY PLAN                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=18962.13..18964.41 rows=20 width=31) (actual time=2.614..3.560 rows=20.00 loops=1)
+   Buffers: shared hit=2061
+   ->  Gather Merge  (cost=18962.13..19205.23 rows=2133 width=31) (actual time=2.613..3.558 rows=20.00 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=2061
+         ->  Sort  (cost=17962.12..17965.26 rows=1255 width=31) (actual time=1.668..1.669 rows=15.00 loops=2)
+               Sort Key: a.published_at DESC
+               Sort Method: top-N heapsort  Memory: 27kB
+               Buffers: shared hit=2061
+               Worker 0:  Sort Method: top-N heapsort  Memory: 27kB
+               ->  Nested Loop  (cost=25.40..17897.53 rows=1255 width=31) (actual time=0.130..1.604 rows=202.50 loops=2)
+                     Buffers: shared hit=2052
+                     ->  Parallel Bitmap Heap Scan on article_tags at  (cost=24.97..7489.69 rows=1255 width=8) (actual time=0.112..0.473 rows=202.50 loops=2)
+                           Recheck Cond: (tag_id = 150)
+                           Heap Blocks: exact=304
+                           Buffers: shared hit=431
+                           Worker 0:  Heap Blocks: exact=101
+                           ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.146..0.146 rows=405.00 loops=1)
+                                 Index Cond: (tag_id = 150)
+                                 Index Searches: 1
+                                 Buffers: shared hit=6
+                     ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.29 rows=1 width=31) (actual time=0.005..0.005 rows=1.00 loops=405)
+                           Index Cond: (id = at.article_id)
+                           Index Searches: 405
+                           Buffers: shared hit=1621
+ Planning:
+   Buffers: shared hit=278
+ Planning Time: 0.458 ms
+ Execution Time: 3.588 ms
+(30 rows)
+
+## 14_and.sql run 1
+-- 採取した案の問い合わせ 2。珍しいタグ 2 つの AND 検索
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at1 ON a.id = at1.article_id
+INNER JOIN ch03_f.article_tags at2 ON a.id = at2.article_id
+WHERE at1.tag_id = 100 AND at2.tag_id = 101
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=15041.91..15041.91 rows=1 width=31) (actual time=67.140..67.152 rows=2.00 loops=1)
+   Buffers: shared hit=1145 read=8610 written=7561
+   ->  Sort  (cost=15041.91..15041.91 rows=1 width=31) (actual time=67.139..67.142 rows=2.00 loops=1)
+         Sort Key: a.published_at DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=1145 read=8610 written=7561
+         ->  Nested Loop  (cost=7552.73..15041.90 rows=1 width=31) (actual time=46.169..67.127 rows=2.00 loops=1)
+               Buffers: shared hit=1142 read=8610 written=7561
+               ->  Hash Join  (cost=7552.30..15033.60 rows=1 width=16) (actual time=45.689..66.300 rows=2.00 loops=1)
+                     Hash Cond: (at1.article_id = at2.article_id)
+                     Buffers: shared hit=1138 read=8606 written=7557
+                     ->  Bitmap Heap Scan on article_tags at1  (cost=24.97..7500.67 rows=2133 width=8) (actual time=1.094..31.393 rows=5161.00 loops=1)
+                           Recheck Cond: (tag_id = 100)
+                           Heap Blocks: exact=5014
+                           Buffers: shared hit=565 read=4459 written=4168
+                           ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.549..0.550 rows=5161.00 loops=1)
+                                 Index Cond: (tag_id = 100)
+                                 Index Searches: 1
+                                 Buffers: shared hit=5 read=5
+                     ->  Hash  (cost=7500.67..7500.67 rows=2133 width=8) (actual time=34.220..34.221 rows=4833.00 loops=1)
+                           Buckets: 8192 (originally 4096)  Batches: 1 (originally 1)  Memory Usage: 253kB
+                           Buffers: shared hit=573 read=4147 written=3389
+                           ->  Bitmap Heap Scan on article_tags at2  (cost=24.97..7500.67 rows=2133 width=8) (actual time=0.938..33.452 rows=4833.00 loops=1)
+                                 Recheck Cond: (tag_id = 101)
+                                 Heap Blocks: exact=4713
+                                 Buffers: shared hit=573 read=4147 written=3389
+                                 ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.462..0.462 rows=4833.00 loops=1)
+                                       Index Cond: (tag_id = 101)
+                                       Index Searches: 1
+                                       Buffers: shared hit=3 read=4
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.29 rows=1 width=31) (actual time=0.409..0.409 rows=1.00 loops=2)
+                     Index Cond: (id = at1.article_id)
+                     Index Searches: 2
+                     Buffers: shared hit=4 read=4 written=4
+ Planning:
+   Buffers: shared hit=310
+ Planning Time: 0.651 ms
+ Execution Time: 67.242 ms
+(38 rows)
+
+## 14_and.sql run 2
+-- 採取した案の問い合わせ 2。珍しいタグ 2 つの AND 検索
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at1 ON a.id = at1.article_id
+INNER JOIN ch03_f.article_tags at2 ON a.id = at2.article_id
+WHERE at1.tag_id = 100 AND at2.tag_id = 101
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=15041.91..15041.91 rows=1 width=31) (actual time=16.563..16.572 rows=2.00 loops=1)
+   Buffers: shared hit=9715 read=40
+   ->  Sort  (cost=15041.91..15041.91 rows=1 width=31) (actual time=16.561..16.566 rows=2.00 loops=1)
+         Sort Key: a.published_at DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9715 read=40
+         ->  Nested Loop  (cost=7552.73..15041.90 rows=1 width=31) (actual time=12.250..16.550 rows=2.00 loops=1)
+               Buffers: shared hit=9712 read=40
+               ->  Hash Join  (cost=7552.30..15033.60 rows=1 width=16) (actual time=12.236..16.530 rows=2.00 loops=1)
+                     Hash Cond: (at1.article_id = at2.article_id)
+                     Buffers: shared hit=9704 read=40
+                     ->  Bitmap Heap Scan on article_tags at1  (cost=24.97..7500.67 rows=2133 width=8) (actual time=0.940..6.907 rows=5161.00 loops=1)
+                           Recheck Cond: (tag_id = 100)
+                           Heap Blocks: exact=5014
+                           Buffers: shared hit=4984 read=40
+                           ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.468..0.469 rows=5161.00 loops=1)
+                                 Index Cond: (tag_id = 100)
+                                 Index Searches: 1
+                                 Buffers: shared hit=10
+                     ->  Hash  (cost=7500.67..7500.67 rows=2133 width=8) (actual time=9.236..9.238 rows=4833.00 loops=1)
+                           Buckets: 8192 (originally 4096)  Batches: 1 (originally 1)  Memory Usage: 253kB
+                           Buffers: shared hit=4720
+                           ->  Bitmap Heap Scan on article_tags at2  (cost=24.97..7500.67 rows=2133 width=8) (actual time=0.826..8.705 rows=4833.00 loops=1)
+                                 Recheck Cond: (tag_id = 101)
+                                 Heap Blocks: exact=4713
+                                 Buffers: shared hit=4720
+                                 ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.406..0.406 rows=4833.00 loops=1)
+                                       Index Cond: (tag_id = 101)
+                                       Index Searches: 1
+                                       Buffers: shared hit=7
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.29 rows=1 width=31) (actual time=0.008..0.008 rows=1.00 loops=2)
+                     Index Cond: (id = at1.article_id)
+                     Index Searches: 2
+                     Buffers: shared hit=8
+ Planning:
+   Buffers: shared hit=310
+ Planning Time: 0.677 ms
+ Execution Time: 16.655 ms
+(38 rows)
+
+## 14_and.sql run 3
+-- 採取した案の問い合わせ 2。珍しいタグ 2 つの AND 検索
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_f.articles a
+INNER JOIN ch03_f.article_tags at1 ON a.id = at1.article_id
+INNER JOIN ch03_f.article_tags at2 ON a.id = at2.article_id
+WHERE at1.tag_id = 100 AND at2.tag_id = 101
+ORDER BY a.published_at DESC
+LIMIT 20;
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=15041.91..15041.91 rows=1 width=31) (actual time=15.466..15.472 rows=2.00 loops=1)
+   Buffers: shared hit=9755
+   ->  Sort  (cost=15041.91..15041.91 rows=1 width=31) (actual time=15.465..15.468 rows=2.00 loops=1)
+         Sort Key: a.published_at DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=9755
+         ->  Nested Loop  (cost=7552.73..15041.90 rows=1 width=31) (actual time=12.121..15.454 rows=2.00 loops=1)
+               Buffers: shared hit=9752
+               ->  Hash Join  (cost=7552.30..15033.60 rows=1 width=16) (actual time=12.109..15.437 rows=2.00 loops=1)
+                     Hash Cond: (at1.article_id = at2.article_id)
+                     Buffers: shared hit=9744
+                     ->  Bitmap Heap Scan on article_tags at1  (cost=24.97..7500.67 rows=2133 width=8) (actual time=0.876..5.746 rows=5161.00 loops=1)
+                           Recheck Cond: (tag_id = 100)
+                           Heap Blocks: exact=5014
+                           Buffers: shared hit=5024
+                           ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.435..0.435 rows=5161.00 loops=1)
+                                 Index Cond: (tag_id = 100)
+                                 Index Searches: 1
+                                 Buffers: shared hit=10
+                     ->  Hash  (cost=7500.67..7500.67 rows=2133 width=8) (actual time=9.300..9.301 rows=4833.00 loops=1)
+                           Buckets: 8192 (originally 4096)  Batches: 1 (originally 1)  Memory Usage: 253kB
+                           Buffers: shared hit=4720
+                           ->  Bitmap Heap Scan on article_tags at2  (cost=24.97..7500.67 rows=2133 width=8) (actual time=0.827..8.784 rows=4833.00 loops=1)
+                                 Recheck Cond: (tag_id = 101)
+                                 Heap Blocks: exact=4713
+                                 Buffers: shared hit=4720
+                                 ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.409..0.409 rows=4833.00 loops=1)
+                                       Index Cond: (tag_id = 101)
+                                       Index Searches: 1
+                                       Buffers: shared hit=7
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.29 rows=1 width=31) (actual time=0.006..0.006 rows=1.00 loops=2)
+                     Index Cond: (id = at1.article_id)
+                     Index Searches: 2
+                     Buffers: shared hit=8
+ Planning:
+   Buffers: shared hit=310
+ Planning Time: 0.677 ms
+ Execution Time: 15.550 ms
+(38 rows)
+
+## 20_skip_scan.sql run 1
+-- 主キー (article_id, tag_id) だけでタグから引けるか。
+-- 先頭列の種類が多いので skip scan は選ばれない。Index Searches に注目する
+SET LOCAL enable_seqscan = off;
+psql:/tmp/run-sql-47480.sql:3: WARNING:  SET LOCAL can only be used in transaction blocks
+SET
+EXPLAIN (ANALYZE)
+SELECT count(*) FROM ch03_f.article_tags WHERE tag_id = 150;
+                                                                  QUERY PLAN                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=7506.00..7506.01 rows=1 width=8) (actual time=1.170..1.171 rows=1.00 loops=1)
+   Buffers: shared hit=411
+   ->  Bitmap Heap Scan on article_tags  (cost=24.97..7500.67 rows=2133 width=0) (actual time=0.081..1.152 rows=405.00 loops=1)
+         Recheck Cond: (tag_id = 150)
+         Heap Blocks: exact=405
+         Buffers: shared hit=411
+         ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.044..0.044 rows=405.00 loops=1)
+               Index Cond: (tag_id = 150)
+               Index Searches: 1
+               Buffers: shared hit=6
+ Planning:
+   Buffers: shared hit=96 read=1
+ Planning Time: 0.283 ms
+ Execution Time: 1.243 ms
+(14 rows)
+
+## 20_skip_scan.sql run 2
+-- 主キー (article_id, tag_id) だけでタグから引けるか。
+-- 先頭列の種類が多いので skip scan は選ばれない。Index Searches に注目する
+SET LOCAL enable_seqscan = off;
+psql:/tmp/run-sql-47487.sql:3: WARNING:  SET LOCAL can only be used in transaction blocks
+SET
+EXPLAIN (ANALYZE)
+SELECT count(*) FROM ch03_f.article_tags WHERE tag_id = 150;
+                                                                  QUERY PLAN                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=7506.00..7506.01 rows=1 width=8) (actual time=1.414..1.416 rows=1.00 loops=1)
+   Buffers: shared hit=411
+   ->  Bitmap Heap Scan on article_tags  (cost=24.97..7500.67 rows=2133 width=0) (actual time=0.074..1.395 rows=405.00 loops=1)
+         Recheck Cond: (tag_id = 150)
+         Heap Blocks: exact=405
+         Buffers: shared hit=411
+         ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.040..0.040 rows=405.00 loops=1)
+               Index Cond: (tag_id = 150)
+               Index Searches: 1
+               Buffers: shared hit=6
+ Planning:
+   Buffers: shared hit=97
+ Planning Time: 0.302 ms
+ Execution Time: 1.480 ms
+(14 rows)
+
+## 20_skip_scan.sql run 3
+-- 主キー (article_id, tag_id) だけでタグから引けるか。
+-- 先頭列の種類が多いので skip scan は選ばれない。Index Searches に注目する
+SET LOCAL enable_seqscan = off;
+psql:/tmp/run-sql-47494.sql:3: WARNING:  SET LOCAL can only be used in transaction blocks
+SET
+EXPLAIN (ANALYZE)
+SELECT count(*) FROM ch03_f.article_tags WHERE tag_id = 150;
+                                                                  QUERY PLAN                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=7506.00..7506.01 rows=1 width=8) (actual time=1.198..1.200 rows=1.00 loops=1)
+   Buffers: shared hit=411
+   ->  Bitmap Heap Scan on article_tags  (cost=24.97..7500.67 rows=2133 width=0) (actual time=0.066..1.181 rows=405.00 loops=1)
+         Recheck Cond: (tag_id = 150)
+         Heap Blocks: exact=405
+         Buffers: shared hit=411
+         ->  Bitmap Index Scan on article_tags_tag_id_idx  (cost=0.00..24.43 rows=2133 width=0) (actual time=0.036..0.036 rows=405.00 loops=1)
+               Index Cond: (tag_id = 150)
+               Index Searches: 1
+               Buffers: shared hit=6
+ Planning:
+   Buffers: shared hit=97
+ Planning Time: 0.236 ms
+ Execution Time: 1.242 ms
+(14 rows)
+

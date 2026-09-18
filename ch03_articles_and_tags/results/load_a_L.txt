@@ -1,0 +1,110 @@
+# 採取日時: 2026-09-18 13:24:14 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案A: タグを行として持ち、記事とタグを中間テーブルでつなぐ
+CREATE SCHEMA ch03_a;
+CREATE SCHEMA
+CREATE TABLE ch03_a.articles (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  title         text NOT NULL,
+  body          text NOT NULL,
+  published_at  timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch03_a.tags (
+  id    smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name  text NOT NULL UNIQUE
+);
+CREATE TABLE
+CREATE TABLE ch03_a.article_tags (
+  article_id  bigint   NOT NULL REFERENCES ch03_a.articles(id) ON DELETE CASCADE,
+  tag_id      smallint NOT NULL REFERENCES ch03_a.tags(id),
+  PRIMARY KEY (article_id, tag_id)
+);
+CREATE TABLE
+-- 元データを写す。インデックスはデータを入れてから作る（充填率を一定にするため）
+SELECT count(*) AS src_rows FROM ch03_r.articles_src \gset
+SELECT CASE WHEN :src_rows = 0
+            THEN 1/0 ELSE 1 END AS source_must_not_be_empty;  -- 空なら何も消さずに止まる
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch03_a.article_tags, ch03_a.articles, ch03_a.tags RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+Time: 3.063 ms
+DROP INDEX IF EXISTS ch03_a.articles_published_at_idx;
+psql:/tmp/run-sql-44271.sql:8: NOTICE:  index "articles_published_at_idx" does not exist, skipping
+DROP INDEX
+Time: 0.116 ms
+DROP INDEX IF EXISTS ch03_a.article_tags_tag_id_article_id_idx;
+psql:/tmp/run-sql-44271.sql:9: NOTICE:  index "article_tags_tag_id_article_id_idx" does not exist, skipping
+DROP INDEX
+Time: 0.145 ms
+INSERT INTO ch03_a.tags (name)
+OVERRIDING SYSTEM VALUE
+SELECT name FROM ch03_r.tags_src ORDER BY id;
+INSERT 0 165
+Time: 1.105 ms
+INSERT INTO ch03_a.articles (title, body, published_at)
+OVERRIDING SYSTEM VALUE
+SELECT title, body, published_at FROM ch03_r.articles_src ORDER BY id;
+INSERT 0 10000000
+Time: 17150.505 ms (00:17.151)
+INSERT INTO ch03_a.article_tags (article_id, tag_id)
+SELECT article_id, tag_id FROM ch03_r.article_tags_src ORDER BY article_id, tag_id;
+INSERT 0 16141915
+Time: 105106.978 ms (01:45.107)
+CREATE INDEX articles_published_at_idx
+  ON ch03_a.articles (published_at DESC, id);
+CREATE INDEX
+Time: 11084.055 ms (00:11.084)
+-- 逆引き（タグから記事へ）。主キーは (article_id, tag_id) なのでタグからは引けない
+CREATE INDEX article_tags_tag_id_article_id_idx
+  ON ch03_a.article_tags (tag_id, article_id);
+CREATE INDEX
+Time: 6918.178 ms (00:06.918)
+ANALYZE ch03_a.tags;
+ANALYZE
+Time: 26.128 ms
+ANALYZE ch03_a.articles;
+ANALYZE
+Time: 708.951 ms
+ANALYZE ch03_a.article_tags;
+ANALYZE
+Time: 134.547 ms
+-- 元データと同じ中身が入っているか（全行の先頭列が 0 になること）
+SELECT count(*) AS articles_diff FROM (
+  SELECT id, title, published_at FROM ch03_a.articles
+  EXCEPT SELECT id, title, published_at FROM ch03_r.articles_src) AS d;
+ articles_diff 
+---------------
+             0
+(1 row)
+
+SELECT count(*) AS assignments_diff FROM (
+  SELECT article_id, tag_id FROM ch03_a.article_tags
+  EXCEPT SELECT article_id, tag_id FROM ch03_r.article_tags_src) AS d;
+ assignments_diff 
+------------------
+                0
+(1 row)
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_was_empty
+  FROM ch03_r.articles_src;
+ source_was_empty 
+------------------
+                0
+(1 row)
+

@@ -1,0 +1,55 @@
+# 採取日時: 2026-09-18 12:27:51 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+#### ch03_b
+-- GIN の作成時間。並列作成の効果を見る
+\timing on
+Timing is on.
+DROP INDEX IF EXISTS articles_tags_gin;
+DROP INDEX
+Time: 1.182 ms
+SET max_parallel_maintenance_workers = 0;
+SET
+Time: 0.078 ms
+CREATE INDEX articles_tags_gin_serial ON articles USING gin (tags);
+CREATE INDEX
+Time: 80.280 ms
+DROP INDEX articles_tags_gin_serial;
+DROP INDEX
+Time: 0.444 ms
+RESET max_parallel_maintenance_workers;
+RESET
+Time: 0.065 ms
+CREATE INDEX articles_tags_gin ON articles USING gin (tags);
+CREATE INDEX
+Time: 41.692 ms
+#### ch03_c
+-- GIN の作成時間。並列作成の効果を見る
+\timing on
+Timing is on.
+DROP INDEX IF EXISTS articles_tags_gin;
+DROP INDEX
+Time: 2.637 ms
+SET max_parallel_maintenance_workers = 0;
+SET
+Time: 0.063 ms
+CREATE INDEX articles_tags_gin_serial ON articles USING gin (tags);
+CREATE INDEX
+Time: 36.676 ms
+DROP INDEX articles_tags_gin_serial;
+DROP INDEX
+Time: 0.419 ms
+RESET max_parallel_maintenance_workers;
+RESET
+Time: 0.064 ms
+CREATE INDEX articles_tags_gin ON articles USING gin (tags);
+CREATE INDEX
+Time: 23.266 ms

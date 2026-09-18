@@ -1,0 +1,39 @@
+# 採取日時: 2026-09-18 13:33:49 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- あとで変えるのが大変な点: 案B から案A の形へ移す。
+-- 配列を行に展開して中間テーブルへ入れる 1 文で書ける
+\timing on
+Timing is on.
+BEGIN;
+BEGIN
+Time: 0.075 ms
+CREATE TABLE ch03_b.article_tags_migrated (
+  article_id  bigint   NOT NULL,
+  tag_name    text     NOT NULL,
+  PRIMARY KEY (article_id, tag_name)
+);
+CREATE TABLE
+Time: 7.137 ms
+INSERT INTO ch03_b.article_tags_migrated (article_id, tag_name)
+SELECT id, unnest(tags) FROM ch03_b.articles;
+INSERT 0 16141915
+Time: 24542.393 ms (00:24.542)
+SELECT count(*) AS migrated_rows FROM ch03_b.article_tags_migrated;
+ migrated_rows 
+---------------
+      16141915
+(1 row)
+
+Time: 397.493 ms
+ROLLBACK;
+ROLLBACK
+Time: 44.740 ms

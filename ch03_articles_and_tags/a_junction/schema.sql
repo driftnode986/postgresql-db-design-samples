@@ -14,7 +14,8 @@ CREATE TABLE ch03_a.tags (
 );
 
 CREATE TABLE ch03_a.article_tags (
-  article_id  bigint   NOT NULL REFERENCES ch03_a.articles(id) ON DELETE CASCADE,
+  article_id  bigint   NOT NULL
+                REFERENCES ch03_a.articles(id) ON DELETE CASCADE,
   tag_id      smallint NOT NULL REFERENCES ch03_a.tags(id),
   PRIMARY KEY (article_id, tag_id)
 );

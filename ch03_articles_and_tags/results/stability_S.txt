@@ -1,0 +1,331 @@
+# 採取日時: 2026-09-18 12:27:42 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+#### ch03_b
+-- ANALYZE のたびに見積もりが変わるかを 5 回見る（問い合わせは実行しない）
+\timing off
+Timing is off.
+ANALYZE ch03_b.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag001'];
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=57.88..4082.21 rows=7827 width=8)
+   Recheck Cond: (tags @> '{tag001}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..55.93 rows=7827 width=0)
+         Index Cond: (tags @> '{tag001}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag050'];
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=12.22..1812.11 rows=700 width=8)
+   Recheck Cond: (tags @> '{tag050}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..12.04 rows=700 width=0)
+         Index Cond: (tags @> '{tag050}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag150'];
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.58..35.78 rows=7 width=8)
+   Recheck Cond: (tags @> '{tag150}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.58 rows=7 width=0)
+         Index Cond: (tags @> '{tag150}'::text[])
+(4 rows)
+
+ANALYZE ch03_b.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag001'];
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=58.20..4080.79 rows=7887 width=8)
+   Recheck Cond: (tags @> '{tag001}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..56.23 rows=7887 width=0)
+         Index Cond: (tags @> '{tag001}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag050'];
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=12.08..1761.15 rows=673 width=8)
+   Recheck Cond: (tags @> '{tag050}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..11.91 rows=673 width=0)
+         Index Cond: (tags @> '{tag050}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag150'];
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.58..35.78 rows=7 width=8)
+   Recheck Cond: (tags @> '{tag150}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.58 rows=7 width=0)
+         Index Cond: (tags @> '{tag150}'::text[])
+(4 rows)
+
+ANALYZE ch03_b.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag001'];
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=57.43..4091.47 rows=7740 width=8)
+   Recheck Cond: (tags @> '{tag001}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..55.49 rows=7740 width=0)
+         Index Cond: (tags @> '{tag001}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag050'];
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=12.25..1825.27 rows=707 width=8)
+   Recheck Cond: (tags @> '{tag050}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..12.08 rows=707 width=0)
+         Index Cond: (tags @> '{tag050}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag150'];
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.58..35.78 rows=7 width=8)
+   Recheck Cond: (tags @> '{tag150}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.58 rows=7 width=0)
+         Index Cond: (tags @> '{tag150}'::text[])
+(4 rows)
+
+ANALYZE ch03_b.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag001'];
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=58.04..4080.25 rows=7857 width=8)
+   Recheck Cond: (tags @> '{tag001}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..56.08 rows=7857 width=0)
+         Index Cond: (tags @> '{tag001}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag050'];
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=12.20..1807.69 rows=697 width=8)
+   Recheck Cond: (tags @> '{tag050}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..12.03 rows=697 width=0)
+         Index Cond: (tags @> '{tag050}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag150'];
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.58..35.78 rows=7 width=8)
+   Recheck Cond: (tags @> '{tag150}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.58 rows=7 width=0)
+         Index Cond: (tags @> '{tag150}'::text[])
+(4 rows)
+
+ANALYZE ch03_b.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag001'];
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=57.69..4086.01 rows=7790 width=8)
+   Recheck Cond: (tags @> '{tag001}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..55.74 rows=7790 width=0)
+         Index Cond: (tags @> '{tag001}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag050'];
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=12.29..1836.22 rows=713 width=8)
+   Recheck Cond: (tags @> '{tag050}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..12.11 rows=713 width=0)
+         Index Cond: (tags @> '{tag050}'::text[])
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_b.articles WHERE tags @> ARRAY['tag150'];
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.58..35.78 rows=7 width=8)
+   Recheck Cond: (tags @> '{tag150}'::text[])
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.58 rows=7 width=0)
+         Index Cond: (tags @> '{tag150}'::text[])
+(4 rows)
+
+-- 要素ごとの統計があるか（案B は取る、案C は取らない）
+SELECT attname,
+       (most_common_elems IS NOT NULL) AS has_element_stats,
+       cardinality(most_common_elems)  AS n_elems
+FROM pg_stats WHERE schemaname = 'ch03_b' AND tablename = 'articles'
+  AND attname = 'tags';
+ attname | has_element_stats | n_elems 
+---------+-------------------+---------
+ tags    | t                 |     131
+(1 row)
+
+#### ch03_c
+-- ANALYZE のたびに見積もりが変わるかを 5 回見る（問い合わせは実行しない）
+\timing off
+Timing is off.
+ANALYZE ch03_c.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag001"]'::jsonb;
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=64.66..3797.79 rows=8331 width=8)
+   Recheck Cond: (tags @> '["tag001"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..62.57 rows=8331 width=0)
+         Index Cond: (tags @> '["tag001"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag050"]'::jsonb;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=13.59..2189.66 rows=961 width=8)
+   Recheck Cond: (tags @> '["tag050"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..13.35 rows=961 width=0)
+         Index Cond: (tags @> '["tag050"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag150"]'::jsonb;
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.56..20.34 rows=3 width=8)
+   Recheck Cond: (tags @> '["tag150"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.56 rows=3 width=0)
+         Index Cond: (tags @> '["tag150"]'::jsonb)
+(4 rows)
+
+ANALYZE ch03_c.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag001"]'::jsonb;
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=64.56..3797.46 rows=8312 width=8)
+   Recheck Cond: (tags @> '["tag001"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..62.48 rows=8312 width=0)
+         Index Cond: (tags @> '["tag001"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag050"]'::jsonb;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=11.90..1661.83 rows=639 width=8)
+   Recheck Cond: (tags @> '["tag050"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..11.74 rows=639 width=0)
+         Index Cond: (tags @> '["tag050"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag150"]'::jsonb;
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.56..20.34 rows=3 width=8)
+   Recheck Cond: (tags @> '["tag150"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.56 rows=3 width=0)
+         Index Cond: (tags @> '["tag150"]'::jsonb)
+(4 rows)
+
+ANALYZE ch03_c.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag001"]'::jsonb;
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=58.23..3785.91 rows=7894 width=8)
+   Recheck Cond: (tags @> '["tag001"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..56.26 rows=7894 width=0)
+         Index Cond: (tags @> '["tag001"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag050"]'::jsonb;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=11.93..1672.86 rows=645 width=8)
+   Recheck Cond: (tags @> '["tag050"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..11.77 rows=645 width=0)
+         Index Cond: (tags @> '["tag050"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag150"]'::jsonb;
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.56..20.34 rows=3 width=8)
+   Recheck Cond: (tags @> '["tag150"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.56 rows=3 width=0)
+         Index Cond: (tags @> '["tag150"]'::jsonb)
+(4 rows)
+
+ANALYZE ch03_c.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag001"]'::jsonb;
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=63.98..3795.50 rows=8202 width=8)
+   Recheck Cond: (tags @> '["tag001"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..61.93 rows=8202 width=0)
+         Index Cond: (tags @> '["tag001"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag050"]'::jsonb;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=12.07..1720.93 rows=671 width=8)
+   Recheck Cond: (tags @> '["tag050"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..11.90 rows=671 width=0)
+         Index Cond: (tags @> '["tag050"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag150"]'::jsonb;
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.56..20.34 rows=3 width=8)
+   Recheck Cond: (tags @> '["tag150"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.56 rows=3 width=0)
+         Index Cond: (tags @> '["tag150"]'::jsonb)
+(4 rows)
+
+ANALYZE ch03_c.articles;
+ANALYZE
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag001"]'::jsonb;
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=59.43..3789.96 rows=8122 width=8)
+   Recheck Cond: (tags @> '["tag001"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..57.40 rows=8122 width=0)
+         Index Cond: (tags @> '["tag001"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag050"]'::jsonb;
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=9.96..847.35 rows=270 width=8)
+   Recheck Cond: (tags @> '["tag050"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..9.89 rows=270 width=0)
+         Index Cond: (tags @> '["tag050"]'::jsonb)
+(4 rows)
+
+EXPLAIN SELECT id FROM ch03_c.articles WHERE tags @> '["tag150"]'::jsonb;
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on articles  (cost=8.56..20.34 rows=3 width=8)
+   Recheck Cond: (tags @> '["tag150"]'::jsonb)
+   ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..8.56 rows=3 width=0)
+         Index Cond: (tags @> '["tag150"]'::jsonb)
+(4 rows)
+
+-- 要素ごとの統計があるか（案B は取る、案C は取らない）
+SELECT attname,
+       (most_common_elems IS NOT NULL) AS has_element_stats,
+       cardinality(most_common_elems)  AS n_elems
+FROM pg_stats WHERE schemaname = 'ch03_c' AND tablename = 'articles'
+  AND attname = 'tags';
+ attname | has_element_stats | n_elems 
+---------+-------------------+---------
+ tags    | f                 |        
+(1 row)
+

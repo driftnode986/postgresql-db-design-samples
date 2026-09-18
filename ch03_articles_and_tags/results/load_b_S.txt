@@ -1,0 +1,92 @@
+# 採取日時: 2026-09-18 12:27:22 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+-- 案B: タグを記事の列に text の配列として持つ
+CREATE SCHEMA ch03_b;
+CREATE SCHEMA
+CREATE TABLE ch03_b.articles (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  title         text NOT NULL,
+  body          text NOT NULL,
+  published_at  timestamptz NOT NULL,
+  tags          text[] NOT NULL
+    -- 1 記事 5 個までは、案A では制約として書けない（CHECK に副問い合わせを書けない）
+    CONSTRAINT tags_max_5 CHECK (cardinality(tags) <= 5)
+);
+CREATE TABLE
+SELECT count(*) AS src_rows FROM ch03_r.articles_src \gset
+SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
+ source_must_not_be_empty 
+--------------------------
+                        1
+(1 row)
+
+\timing on
+Timing is on.
+TRUNCATE ch03_b.articles RESTART IDENTITY;
+TRUNCATE TABLE
+Time: 1.699 ms
+DROP INDEX IF EXISTS ch03_b.articles_published_at_idx;
+psql:/tmp/run-sql-13705.sql:6: NOTICE:  index "articles_published_at_idx" does not exist, skipping
+DROP INDEX
+Time: 0.121 ms
+DROP INDEX IF EXISTS ch03_b.articles_tags_gin;
+psql:/tmp/run-sql-13705.sql:7: NOTICE:  index "articles_tags_gin" does not exist, skipping
+DROP INDEX
+Time: 0.107 ms
+INSERT INTO ch03_b.articles (title, body, published_at, tags)
+OVERRIDING SYSTEM VALUE
+SELECT a.title, a.body, a.published_at,
+       array_agg(t.name ORDER BY t.name)
+FROM ch03_r.articles_src a
+JOIN ch03_r.article_tags_src at ON at.article_id = a.id
+JOIN ch03_r.tags_src t ON t.id = at.tag_id
+GROUP BY a.id, a.title, a.body, a.published_at
+ORDER BY a.id;
+INSERT 0 100000
+Time: 272.077 ms
+CREATE INDEX articles_published_at_idx
+  ON ch03_b.articles (published_at DESC, id);
+CREATE INDEX
+Time: 25.982 ms
+CREATE INDEX articles_tags_gin ON ch03_b.articles USING gin (tags);
+CREATE INDEX
+Time: 41.243 ms
+ANALYZE ch03_b.articles;
+ANALYZE
+Time: 112.446 ms
+-- 元データと同じ中身か（全行の先頭列が 0）
+SELECT count(*) AS articles_diff FROM (
+  SELECT id, title, published_at FROM ch03_b.articles
+  EXCEPT SELECT id, title, published_at FROM ch03_r.articles_src) AS d;
+ articles_diff 
+---------------
+             0
+(1 row)
+
+-- タグの対応も、案A と同じ集合になっているか
+SELECT count(*) AS assignments_diff FROM (
+  SELECT id, unnest(tags) FROM ch03_b.articles
+  EXCEPT
+  SELECT at.article_id, t.name
+  FROM ch03_r.article_tags_src at JOIN ch03_r.tags_src t ON t.id = at.tag_id) AS d;
+ assignments_diff 
+------------------
+                0
+(1 row)
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_was_empty
+  FROM ch03_r.articles_src;
+ source_was_empty 
+------------------
+                0
+(1 row)
+
