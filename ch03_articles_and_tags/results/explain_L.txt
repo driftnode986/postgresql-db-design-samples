@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 13:34:45 +0900
+# 採取日時: 2026-09-18 13:57:21 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -22,22 +22,22 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                 QUERY PLAN                                                                                 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.594..1.388 rows=20.00 loops=1)
-   Buffers: shared hit=1106 read=49 dirtied=14
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.593..1.382 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.090..0.596 rows=20.00 loops=1)
+   Buffers: shared hit=1135 read=3
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.088..0.590 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 364
-         Buffers: shared hit=1106 read=49 dirtied=14
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.462..1.284 rows=384.00 loops=1)
-               Buffers: shared hit=1105 read=49 dirtied=14
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.067..0.375 rows=229.00 loops=1)
+         Buffers: shared hit=1135 read=3
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.042..0.500 rows=384.00 loops=1)
+               Buffers: shared hit=1134 read=3
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.035..0.132 rows=229.00 loops=1)
                      Index Searches: 1
-                     Buffers: shared hit=186 read=34
-               ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.003..0.004 rows=1.68 loops=229)
+                     Buffers: shared hit=217 read=3
+               ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.68 loops=229)
                      Index Cond: (article_id = a.id)
-                     Heap Fetches: 401
+                     Heap Fetches: 384
                      Index Searches: 229
-                     Buffers: shared hit=919 read=15 dirtied=14
+                     Buffers: shared hit=917
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=384)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
@@ -46,9 +46,9 @@ LIMIT 20;
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
-   Buffers: shared hit=317 read=42 dirtied=4
- Planning Time: 2.297 ms
- Execution Time: 1.424 ms
+   Buffers: shared hit=327 read=32
+ Planning Time: 0.929 ms
+ Execution Time: 0.653 ms
 (27 rows)
 
 ## 10_popular_by_name.sql run 2
@@ -63,15 +63,15 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                 QUERY PLAN                                                                                 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.066..0.501 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.069..0.507 rows=20.00 loops=1)
    Buffers: shared hit=1138
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.065..0.497 rows=20.00 loops=1)
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.068..0.501 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 364
          Buffers: shared hit=1138
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.017..0.416 rows=384.00 loops=1)
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.025..0.417 rows=384.00 loops=1)
                Buffers: shared hit=1137
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.011..0.102 rows=229.00 loops=1)
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.017..0.099 rows=229.00 loops=1)
                      Index Searches: 1
                      Buffers: shared hit=220
                ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.68 loops=229)
@@ -82,14 +82,14 @@ LIMIT 20;
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=384)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
-               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.005..0.011 rows=1.00 loops=1)
+               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.007..0.013 rows=1.00 loops=1)
                      Filter: (name = 'tag001'::text)
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=359
- Planning Time: 0.595 ms
- Execution Time: 0.542 ms
+ Planning Time: 0.695 ms
+ Execution Time: 0.535 ms
 (27 rows)
 
 ## 10_popular_by_name.sql run 3
@@ -104,15 +104,15 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                 QUERY PLAN                                                                                 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.066..0.535 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.076..0.524 rows=20.00 loops=1)
    Buffers: shared hit=1138
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.065..0.530 rows=20.00 loops=1)
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.075..0.519 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 364
          Buffers: shared hit=1138
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.020..0.448 rows=384.00 loops=1)
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.030..0.436 rows=384.00 loops=1)
                Buffers: shared hit=1137
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.011..0.130 rows=229.00 loops=1)
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.021..0.120 rows=229.00 loops=1)
                      Index Searches: 1
                      Buffers: shared hit=220
                ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.68 loops=229)
@@ -123,14 +123,14 @@ LIMIT 20;
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=384)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
-               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.005..0.010 rows=1.00 loops=1)
+               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.006..0.011 rows=1.00 loops=1)
                      Filter: (name = 'tag001'::text)
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=359
- Planning Time: 0.589 ms
- Execution Time: 0.565 ms
+ Planning Time: 0.757 ms
+ Execution Time: 0.564 ms
 (27 rows)
 
 ## 11_middle_by_name.sql run 1
@@ -145,33 +145,33 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                  QUERY PLAN                                                                                 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.294..6.390 rows=20.00 loops=1)
-   Buffers: shared hit=13635 read=142 dirtied=41
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.291..6.382 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.278..5.216 rows=20.00 loops=1)
+   Buffers: shared hit=13603 read=12
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.277..5.210 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 4381
-         Buffers: shared hit=13635 read=142 dirtied=41
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.016..5.581 rows=4401.00 loops=1)
-               Buffers: shared hit=13634 read=142 dirtied=41
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.010..1.574 rows=2729.00 loops=1)
+         Buffers: shared hit=13603 read=12
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.021..4.377 rows=4401.00 loops=1)
+               Buffers: shared hit=13602 read=12
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.013..0.952 rows=2729.00 loops=1)
                      Index Searches: 1
-                     Buffers: shared hit=2592 read=100
+                     Buffers: shared hit=2682 read=10
                ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.61 loops=2729)
                      Index Cond: (article_id = a.id)
-                     Heap Fetches: 4563
+                     Heap Fetches: 4401
                      Index Searches: 2729
-                     Buffers: shared hit=11042 read=42 dirtied=41
+                     Buffers: shared hit=10920 read=2
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=4401)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
-               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.006..0.010 rows=1.00 loops=1)
+               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.007..0.012 rows=1.00 loops=1)
                      Filter: (name = 'tag050'::text)
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=359
- Planning Time: 0.600 ms
- Execution Time: 6.415 ms
+ Planning Time: 0.663 ms
+ Execution Time: 5.244 ms
 (27 rows)
 
 ## 11_middle_by_name.sql run 2
@@ -186,15 +186,15 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                  QUERY PLAN                                                                                 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.277..4.890 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.286..5.127 rows=20.00 loops=1)
    Buffers: shared hit=13615
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.277..4.885 rows=20.00 loops=1)
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.285..5.121 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 4381
          Buffers: shared hit=13615
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.020..4.128 rows=4401.00 loops=1)
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.026..4.313 rows=4401.00 loops=1)
                Buffers: shared hit=13614
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.014..0.923 rows=2729.00 loops=1)
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.017..0.872 rows=2729.00 loops=1)
                      Index Searches: 1
                      Buffers: shared hit=2692
                ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.61 loops=2729)
@@ -205,14 +205,14 @@ LIMIT 20;
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=4401)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
-               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.006..0.010 rows=1.00 loops=1)
+               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.008..0.012 rows=1.00 loops=1)
                      Filter: (name = 'tag050'::text)
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=359
- Planning Time: 0.600 ms
- Execution Time: 4.918 ms
+ Planning Time: 0.691 ms
+ Execution Time: 5.164 ms
 (27 rows)
 
 ## 11_middle_by_name.sql run 3
@@ -227,15 +227,15 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                  QUERY PLAN                                                                                 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.289..4.875 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=0.260..5.041 rows=20.00 loops=1)
    Buffers: shared hit=13615
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.288..4.867 rows=20.00 loops=1)
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=0.260..5.036 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 4381
          Buffers: shared hit=13615
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.021..4.094 rows=4401.00 loops=1)
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.018..4.202 rows=4401.00 loops=1)
                Buffers: shared hit=13614
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.014..0.850 rows=2729.00 loops=1)
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.012..0.773 rows=2729.00 loops=1)
                      Index Searches: 1
                      Buffers: shared hit=2692
                ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.61 loops=2729)
@@ -246,14 +246,14 @@ LIMIT 20;
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=4401)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
-               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.017..0.021 rows=1.00 loops=1)
+               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.007..0.011 rows=1.00 loops=1)
                      Filter: (name = 'tag050'::text)
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=359
- Planning Time: 0.568 ms
- Execution Time: 4.903 ms
+ Planning Time: 0.647 ms
+ Execution Time: 5.068 ms
 (27 rows)
 
 ## 12_rare_by_name.sql run 1
@@ -268,33 +268,33 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                    QUERY PLAN                                                                                   
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=19.319..1307.892 rows=20.00 loops=1)
-   Buffers: shared hit=2090489 read=21763 dirtied=6341 written=11339
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=19.318..1307.867 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=19.916..764.415 rows=20.00 loops=1)
+   Buffers: shared hit=2061409 read=21463
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=19.914..764.401 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 673653
-         Buffers: shared hit=2090489 read=21763 dirtied=6341 written=11339
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.022..1193.912 rows=673673.00 loops=1)
-               Buffers: shared hit=2090488 read=21763 dirtied=6341 written=11339
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.016..257.008 rows=417308.00 loops=1)
+         Buffers: shared hit=2061409 read=21463
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.028..657.762 rows=673673.00 loops=1)
+               Buffers: shared hit=2061408 read=21463
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.017..176.009 rows=417308.00 loops=1)
                      Index Searches: 1
-                     Buffers: shared hit=396972 read=15414 written=8054
-               ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.002..0.002 rows=1.61 loops=417308)
+                     Buffers: shared hit=397077 read=15309
+               ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.61 loops=417308)
                      Index Cond: (article_id = a.id)
-                     Heap Fetches: 702868
+                     Heap Fetches: 673488
                      Index Searches: 417308
-                     Buffers: shared hit=1693516 read=6349 dirtied=6341 written=3285
+                     Buffers: shared hit=1664331 read=6154
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=673673)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
-               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.022..0.023 rows=1.00 loops=1)
+               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.011..0.012 rows=1.00 loops=1)
                      Filter: (name = 'tag150'::text)
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=359
- Planning Time: 0.627 ms
- Execution Time: 1307.937 ms
+ Planning Time: 0.695 ms
+ Execution Time: 764.452 ms
 (27 rows)
 
 ## 12_rare_by_name.sql run 2
@@ -309,33 +309,33 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                    QUERY PLAN                                                                                   
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=18.830..817.297 rows=20.00 loops=1)
-   Buffers: shared hit=2061083 read=21789 written=4960
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=18.829..817.273 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=19.053..729.474 rows=20.00 loops=1)
+   Buffers: shared hit=2061083 read=21789
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=19.052..729.460 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 673653
-         Buffers: shared hit=2061083 read=21789 written=4960
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.038..705.764 rows=673673.00 loops=1)
-               Buffers: shared hit=2061082 read=21789 written=4960
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.031..187.830 rows=417308.00 loops=1)
+         Buffers: shared hit=2061083 read=21789
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.043..622.943 rows=673673.00 loops=1)
+               Buffers: shared hit=2061082 read=21789
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.036..144.813 rows=417308.00 loops=1)
                      Index Searches: 1
-                     Buffers: shared hit=396842 read=15544 written=3529
+                     Buffers: shared hit=396842 read=15544
                ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.61 loops=417308)
                      Index Cond: (article_id = a.id)
                      Heap Fetches: 673488
                      Index Searches: 417308
-                     Buffers: shared hit=1664240 read=6245 written=1431
+                     Buffers: shared hit=1664240 read=6245
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=673673)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
-               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.008..0.009 rows=1.00 loops=1)
+               ->  Seq Scan on tags t  (cost=0.00..3.06 rows=1 width=2) (actual time=0.010..0.011 rows=1.00 loops=1)
                      Filter: (name = 'tag150'::text)
                      Rows Removed by Filter: 164
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=313 read=46
- Planning Time: 0.832 ms
- Execution Time: 817.340 ms
+ Planning Time: 0.988 ms
+ Execution Time: 729.539 ms
 (27 rows)
 
 ## 12_rare_by_name.sql run 3
@@ -350,22 +350,22 @@ ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                    QUERY PLAN                                                                                   
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=19.259..789.371 rows=20.00 loops=1)
-   Buffers: shared hit=2061080 read=21792 written=964
-   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=19.257..789.351 rows=20.00 loops=1)
+ Limit  (cost=0.87..1438.39 rows=20 width=31) (actual time=19.525..741.678 rows=20.00 loops=1)
+   Buffers: shared hit=2061083 read=21789
+   ->  Nested Loop  (cost=0.87..7341336.39 rows=102139 width=31) (actual time=19.524..741.659 rows=20.00 loops=1)
          Join Filter: (at.tag_id = t.id)
          Rows Removed by Join Filter: 673653
-         Buffers: shared hit=2061080 read=21792 written=964
-         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.041..677.839 rows=673673.00 loops=1)
-               Buffers: shared hit=2061079 read=21792 written=964
-               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.034..169.735 rows=417308.00 loops=1)
+         Buffers: shared hit=2061083 read=21789
+         ->  Nested Loop  (cost=0.87..7088540.32 rows=16852867 width=33) (actual time=0.051..634.244 rows=673673.00 loops=1)
+               Buffers: shared hit=2061082 read=21789
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1074723.10 rows=10000023 width=31) (actual time=0.039..155.486 rows=417308.00 loops=1)
                      Index Searches: 1
-                     Buffers: shared hit=396839 read=15547 written=692
+                     Buffers: shared hit=396842 read=15544
                ->  Index Only Scan using article_tags_pkey on article_tags at  (cost=0.44..0.55 rows=5 width=10) (actual time=0.001..0.001 rows=1.61 loops=417308)
                      Index Cond: (article_id = a.id)
                      Heap Fetches: 673488
                      Index Searches: 417308
-                     Buffers: shared hit=1664240 read=6245 written=272
+                     Buffers: shared hit=1664240 read=6245
          ->  Materialize  (cost=0.00..3.07 rows=1 width=2) (actual time=0.000..0.000 rows=1.00 loops=673673)
                Storage: Memory  Maximum Storage: 17kB
                Buffers: shared hit=1
@@ -375,70 +375,68 @@ LIMIT 20;
                      Buffers: shared hit=1
  Planning:
    Buffers: shared hit=313 read=46
- Planning Time: 1.028 ms
- Execution Time: 789.416 ms
+ Planning Time: 1.089 ms
+ Execution Time: 741.723 ms
 (27 rows)
 
 ## 13_rare_by_id.sql run 1
 -- 珍しいタグ（tag150）を、タグの id を先に引いてから記事を引く形で書く。
 -- アプリケーションは 2 回に分けて問い合わせ、2 文目には id を定数として渡す。
 -- 12 と同じ結果を返すが、tag_id の統計が効くので計画が変わる
-SELECT id AS tag_id FROM ch03_a.tags WHERE name = 'tag150' \gset
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at
 JOIN ch03_a.articles a ON a.id = at.article_id
-WHERE at.tag_id = :tag_id
+WHERE at.tag_id = 150          -- SELECT id FROM tags WHERE name = 'tag150' の結果
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                      QUERY PLAN                                                                                      
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=19221.73..19221.78 rows=20 width=31) (actual time=119.676..119.678 rows=20.00 loops=1)
-   Buffers: shared hit=757 read=1286 dirtied=385
-   ->  Sort  (cost=19221.73..19227.37 rows=2258 width=31) (actual time=119.674..119.676 rows=20.00 loops=1)
+ Limit  (cost=19221.73..19221.78 rows=20 width=31) (actual time=45.955..45.963 rows=20.00 loops=1)
+   Buffers: shared hit=757 read=1286
+   ->  Sort  (cost=19221.73..19227.37 rows=2258 width=31) (actual time=45.954..45.955 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
          Sort Method: top-N heapsort  Memory: 27kB
-         Buffers: shared hit=757 read=1286 dirtied=385
-         ->  Nested Loop  (cost=1.00..19161.64 rows=2258 width=31) (actual time=0.835..119.517 rows=405.00 loops=1)
-               Buffers: shared hit=751 read=1286 dirtied=385
-               ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.322..6.979 rows=405.00 loops=1)
+         Buffers: shared hit=757 read=1286
+         ->  Nested Loop  (cost=1.00..19161.64 rows=2258 width=31) (actual time=0.596..45.836 rows=405.00 loops=1)
+               Buffers: shared hit=751 read=1286
+               ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.327..3.193 rows=405.00 loops=1)
                      Index Cond: (tag_id = 150)
                      Heap Fetches: 405
                      Index Searches: 1
-                     Buffers: shared hit=19 read=398 dirtied=385
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.277..0.277 rows=1.00 loops=405)
+                     Buffers: shared hit=19 read=398
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.105..0.105 rows=1.00 loops=405)
                      Index Cond: (id = at.article_id)
                      Index Searches: 405
                      Buffers: shared hit=732 read=888
  Planning:
-   Buffers: shared hit=144 read=28
- Planning Time: 0.516 ms
- Execution Time: 119.695 ms
+   Buffers: shared hit=176 read=33
+ Planning Time: 0.537 ms
+ Execution Time: 45.983 ms
 (21 rows)
 
 ## 13_rare_by_id.sql run 2
 -- 珍しいタグ（tag150）を、タグの id を先に引いてから記事を引く形で書く。
 -- アプリケーションは 2 回に分けて問い合わせ、2 文目には id を定数として渡す。
 -- 12 と同じ結果を返すが、tag_id の統計が効くので計画が変わる
-SELECT id AS tag_id FROM ch03_a.tags WHERE name = 'tag150' \gset
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at
 JOIN ch03_a.articles a ON a.id = at.article_id
-WHERE at.tag_id = :tag_id
+WHERE at.tag_id = 150          -- SELECT id FROM tags WHERE name = 'tag150' の結果
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                      QUERY PLAN                                                                                      
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=19221.73..19221.78 rows=20 width=31) (actual time=3.234..3.236 rows=20.00 loops=1)
+ Limit  (cost=19221.73..19221.78 rows=20 width=31) (actual time=3.214..3.219 rows=20.00 loops=1)
    Buffers: shared hit=2043
-   ->  Sort  (cost=19221.73..19227.37 rows=2258 width=31) (actual time=3.232..3.233 rows=20.00 loops=1)
+   ->  Sort  (cost=19221.73..19227.37 rows=2258 width=31) (actual time=3.213..3.214 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=2043
-         ->  Nested Loop  (cost=1.00..19161.64 rows=2258 width=31) (actual time=0.051..3.132 rows=405.00 loops=1)
+         ->  Nested Loop  (cost=1.00..19161.64 rows=2258 width=31) (actual time=0.024..3.133 rows=405.00 loops=1)
                Buffers: shared hit=2037
-               ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.039..0.881 rows=405.00 loops=1)
+               ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.017..0.859 rows=405.00 loops=1)
                      Index Cond: (tag_id = 150)
                      Heap Fetches: 405
                      Index Searches: 1
@@ -448,50 +446,49 @@ LIMIT 20;
                      Index Searches: 405
                      Buffers: shared hit=1620
  Planning:
-   Buffers: shared hit=172
- Planning Time: 0.491 ms
- Execution Time: 3.280 ms
+   Buffers: shared hit=209
+ Planning Time: 0.496 ms
+ Execution Time: 3.241 ms
 (21 rows)
 
 ## 13_rare_by_id.sql run 3
 -- 珍しいタグ（tag150）を、タグの id を先に引いてから記事を引く形で書く。
 -- アプリケーションは 2 回に分けて問い合わせ、2 文目には id を定数として渡す。
 -- 12 と同じ結果を返すが、tag_id の統計が効くので計画が変わる
-SELECT id AS tag_id FROM ch03_a.tags WHERE name = 'tag150' \gset
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at
 JOIN ch03_a.articles a ON a.id = at.article_id
-WHERE at.tag_id = :tag_id
+WHERE at.tag_id = 150          -- SELECT id FROM tags WHERE name = 'tag150' の結果
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                      QUERY PLAN                                                                                      
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=19221.73..19221.78 rows=20 width=31) (actual time=2.977..2.979 rows=20.00 loops=1)
+ Limit  (cost=19221.73..19221.78 rows=20 width=31) (actual time=3.352..3.360 rows=20.00 loops=1)
    Buffers: shared hit=2043
-   ->  Sort  (cost=19221.73..19227.37 rows=2258 width=31) (actual time=2.975..2.977 rows=20.00 loops=1)
+   ->  Sort  (cost=19221.73..19227.37 rows=2258 width=31) (actual time=3.351..3.352 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=2043
-         ->  Nested Loop  (cost=1.00..19161.64 rows=2258 width=31) (actual time=0.037..2.899 rows=405.00 loops=1)
+         ->  Nested Loop  (cost=1.00..19161.64 rows=2258 width=31) (actual time=0.024..3.261 rows=405.00 loops=1)
                Buffers: shared hit=2037
-               ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.027..0.810 rows=405.00 loops=1)
+               ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.018..0.893 rows=405.00 loops=1)
                      Index Cond: (tag_id = 150)
                      Heap Fetches: 405
                      Index Searches: 1
                      Buffers: shared hit=417
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.005..0.005 rows=1.00 loops=405)
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.006..0.006 rows=1.00 loops=405)
                      Index Cond: (id = at.article_id)
                      Index Searches: 405
                      Buffers: shared hit=1620
  Planning:
-   Buffers: shared hit=172
- Planning Time: 0.322 ms
- Execution Time: 2.995 ms
+   Buffers: shared hit=209
+ Planning Time: 0.444 ms
+ Execution Time: 3.381 ms
 (21 rows)
 
 ## 14_and_by_name.sql run 1
--- 珍しいタグ 2 つの AND 検索。タグ名で結合する書き方
+-- よく使われるタグ 2 つの AND 検索。タグ名で結合する書き方
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.articles a
@@ -499,59 +496,59 @@ JOIN ch03_a.article_tags at1 ON at1.article_id = a.id
 JOIN ch03_a.tags t1 ON t1.id = at1.tag_id
 JOIN ch03_a.article_tags at2 ON at2.article_id = a.id
 JOIN ch03_a.tags t2 ON t2.id = at2.tag_id
-WHERE t1.name = 'tag100' AND t2.name = 'tag101'
+WHERE t1.name = 'tag001' AND t2.name = 'tag002'
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
-                                                                                                  QUERY PLAN                                                                                                   
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=38036.65..38036.70 rows=20 width=31) (actual time=205.059..205.067 rows=2.00 loops=1)
-   Buffers: shared hit=456 read=9340 dirtied=9068 written=943
-   ->  Sort  (cost=38036.65..38039.25 rows=1043 width=31) (actual time=205.058..205.061 rows=2.00 loops=1)
+                                                                                                    QUERY PLAN                                                                                                    
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=38036.65..38036.70 rows=20 width=31) (actual time=1551.457..1551.469 rows=20.00 loops=1)
+   Buffers: shared hit=102493 read=265280, temp read=5593 written=5593
+   ->  Sort  (cost=38036.65..38039.25 rows=1043 width=31) (actual time=1551.455..1551.459 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=456 read=9340 dirtied=9068 written=943
-         ->  Nested Loop  (cost=18230.02..38008.89 rows=1043 width=31) (actual time=140.352..205.035 rows=2.00 loops=1)
-               Buffers: shared hit=450 read=9340 dirtied=9068 written=943
-               ->  Hash Join  (cost=18229.58..35594.34 rows=3001 width=16) (actual time=140.297..204.556 rows=2.00 loops=1)
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=102493 read=265280, temp read=5593 written=5593
+         ->  Nested Loop  (cost=18230.02..38008.89 rows=1043 width=31) (actual time=580.206..1545.567 rows=45504.00 loops=1)
+               Buffers: shared hit=102487 read=265280, temp read=5593 written=5593
+               ->  Hash Join  (cost=18229.58..35594.34 rows=3001 width=16) (actual time=580.180..1229.695 rows=45504.00 loops=1)
                      Hash Cond: (at1.article_id = at2.article_id)
-                     Buffers: shared hit=446 read=9336 dirtied=9068 written=943
-                     ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.489..101.838 rows=5161.00 loops=1)
-                           Buffers: shared hit=335 read=4707 dirtied=4567 written=943
-                           ->  Seq Scan on tags t1  (cost=0.00..3.06 rows=1 width=2) (actual time=0.009..0.014 rows=1.00 loops=1)
-                                 Filter: (name = 'tag100'::text)
+                     Buffers: shared hit=33 read=185718, temp read=5593 written=5593
+                     ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.014..450.748 rows=796524.00 loops=1)
+                           Buffers: shared hit=8 read=95592
+                           ->  Seq Scan on tags t1  (cost=0.00..3.06 rows=1 width=2) (actual time=0.006..0.014 rows=1.00 loops=1)
+                                 Filter: (name = 'tag001'::text)
                                  Rows Removed by Filter: 164
                                  Buffers: shared hit=1
-                           ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.479..101.237 rows=5161.00 loops=1)
+                           ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.007..407.191 rows=796524.00 loops=1)
                                  Index Cond: (tag_id = t1.id)
-                                 Heap Fetches: 5161
+                                 Heap Fetches: 796430
                                  Index Searches: 1
-                                 Buffers: shared hit=334 read=4707 dirtied=4567 written=943
-                     ->  Hash  (cost=16952.28..16952.28 rows=102139 width=8) (actual time=101.105..101.106 rows=4833.00 loops=1)
-                           Buckets: 131072  Batches: 1  Memory Usage: 1213kB
-                           Buffers: shared hit=111 read=4629 dirtied=4501
-                           ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.253..99.518 rows=4833.00 loops=1)
-                                 Buffers: shared hit=111 read=4629 dirtied=4501
-                                 ->  Seq Scan on tags t2  (cost=0.00..3.06 rows=1 width=2) (actual time=0.007..0.012 rows=1.00 loops=1)
-                                       Filter: (name = 'tag101'::text)
+                                 Buffers: shared hit=7 read=95592
+                     ->  Hash  (cost=16952.28..16952.28 rows=102139 width=8) (actual time=579.888..579.890 rows=756518.00 loops=1)
+                           Buckets: 262144 (originally 131072)  Batches: 8 (originally 1)  Memory Usage: 6145kB
+                           Buffers: shared hit=25 read=90126, temp written=2257
+                           ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.036..474.984 rows=756518.00 loops=1)
+                                 Buffers: shared hit=25 read=90126
+                                 ->  Seq Scan on tags t2  (cost=0.00..3.06 rows=1 width=2) (actual time=0.004..0.013 rows=1.00 loops=1)
+                                       Filter: (name = 'tag002'::text)
                                        Rows Removed by Filter: 164
                                        Buffers: shared hit=1
-                                 ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.245..98.986 rows=4833.00 loops=1)
+                                 ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.031..426.775 rows=756518.00 loops=1)
                                        Index Cond: (tag_id = t2.id)
-                                       Heap Fetches: 4833
+                                       Heap Fetches: 756518
                                        Index Searches: 1
-                                       Buffers: shared hit=110 read=4629 dirtied=4501
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..0.80 rows=1 width=31) (actual time=0.236..0.236 rows=1.00 loops=2)
+                                       Buffers: shared hit=24 read=90126
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..0.80 rows=1 width=31) (actual time=0.007..0.007 rows=1.00 loops=45504)
                      Index Cond: (id = at1.article_id)
-                     Index Searches: 2
-                     Buffers: shared hit=4 read=4
+                     Index Searches: 45504
+                     Buffers: shared hit=102454 read=79562
  Planning:
-   Buffers: shared hit=407 read=6
- Planning Time: 1.533 ms
- Execution Time: 205.147 ms
+   Buffers: shared hit=404 read=9
+ Planning Time: 1.557 ms
+ Execution Time: 1551.545 ms
 (44 rows)
 
 ## 14_and_by_name.sql run 2
--- 珍しいタグ 2 つの AND 検索。タグ名で結合する書き方
+-- よく使われるタグ 2 つの AND 検索。タグ名で結合する書き方
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.articles a
@@ -559,59 +556,59 @@ JOIN ch03_a.article_tags at1 ON at1.article_id = a.id
 JOIN ch03_a.tags t1 ON t1.id = at1.tag_id
 JOIN ch03_a.article_tags at2 ON at2.article_id = a.id
 JOIN ch03_a.tags t2 ON t2.id = at2.tag_id
-WHERE t1.name = 'tag100' AND t2.name = 'tag101'
+WHERE t1.name = 'tag001' AND t2.name = 'tag002'
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
-                                                                                                  QUERY PLAN                                                                                                   
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=38036.65..38036.70 rows=20 width=31) (actual time=30.748..30.754 rows=2.00 loops=1)
-   Buffers: shared hit=7443 read=2353 written=1190
-   ->  Sort  (cost=38036.65..38039.25 rows=1043 width=31) (actual time=30.747..30.748 rows=2.00 loops=1)
+                                                                                                    QUERY PLAN                                                                                                    
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=38036.65..38036.70 rows=20 width=31) (actual time=1498.600..1498.612 rows=20.00 loops=1)
+   Buffers: shared hit=102471 read=265302, temp read=5593 written=5593
+   ->  Sort  (cost=38036.65..38039.25 rows=1043 width=31) (actual time=1498.599..1498.602 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=7443 read=2353 written=1190
-         ->  Nested Loop  (cost=18230.02..38008.89 rows=1043 width=31) (actual time=26.689..30.730 rows=2.00 loops=1)
-               Buffers: shared hit=7437 read=2353 written=1190
-               ->  Hash Join  (cost=18229.58..35594.34 rows=3001 width=16) (actual time=26.666..30.697 rows=2.00 loops=1)
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=102471 read=265302, temp read=5593 written=5593
+         ->  Nested Loop  (cost=18230.02..38008.89 rows=1043 width=31) (actual time=545.289..1493.582 rows=45504.00 loops=1)
+               Buffers: shared hit=102465 read=265302, temp read=5593 written=5593
+               ->  Hash Join  (cost=18229.58..35594.34 rows=3001 width=16) (actual time=545.264..1191.776 rows=45504.00 loops=1)
                      Hash Cond: (at1.article_id = at2.article_id)
-                     Buffers: shared hit=7429 read=2353 written=1190
-                     ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.062..6.029 rows=5161.00 loops=1)
-                           Buffers: shared hit=4744 read=298
-                           ->  Seq Scan on tags t1  (cost=0.00..3.06 rows=1 width=2) (actual time=0.009..0.013 rows=1.00 loops=1)
-                                 Filter: (name = 'tag100'::text)
+                     Buffers: shared hit=13 read=185738, temp read=5593 written=5593
+                     ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.015..456.558 rows=796524.00 loops=1)
+                           Buffers: shared hit=8 read=95592
+                           ->  Seq Scan on tags t1  (cost=0.00..3.06 rows=1 width=2) (actual time=0.006..0.014 rows=1.00 loops=1)
+                                 Filter: (name = 'tag001'::text)
                                  Rows Removed by Filter: 164
                                  Buffers: shared hit=1
-                           ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.051..5.685 rows=5161.00 loops=1)
+                           ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.007..413.068 rows=796524.00 loops=1)
                                  Index Cond: (tag_id = t1.id)
-                                 Heap Fetches: 5161
+                                 Heap Fetches: 796430
                                  Index Searches: 1
-                                 Buffers: shared hit=4743 read=298
-                     ->  Hash  (cost=16952.28..16952.28 rows=102139 width=8) (actual time=23.810..23.811 rows=4833.00 loops=1)
-                           Buckets: 131072  Batches: 1  Memory Usage: 1213kB
-                           Buffers: shared hit=2685 read=2055 written=1190
-                           ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.026..22.633 rows=4833.00 loops=1)
-                                 Buffers: shared hit=2685 read=2055 written=1190
-                                 ->  Seq Scan on tags t2  (cost=0.00..3.06 rows=1 width=2) (actual time=0.007..0.012 rows=1.00 loops=1)
-                                       Filter: (name = 'tag101'::text)
+                                 Buffers: shared hit=7 read=95592
+                     ->  Hash  (cost=16952.28..16952.28 rows=102139 width=8) (actual time=545.035..545.036 rows=756518.00 loops=1)
+                           Buckets: 262144 (originally 131072)  Batches: 8 (originally 1)  Memory Usage: 6145kB
+                           Buffers: shared hit=5 read=90146, temp written=2257
+                           ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.031..448.089 rows=756518.00 loops=1)
+                                 Buffers: shared hit=5 read=90146
+                                 ->  Seq Scan on tags t2  (cost=0.00..3.06 rows=1 width=2) (actual time=0.003..0.011 rows=1.00 loops=1)
+                                       Filter: (name = 'tag002'::text)
                                        Rows Removed by Filter: 164
                                        Buffers: shared hit=1
-                                 ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.019..22.220 rows=4833.00 loops=1)
+                                 ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.028..400.628 rows=756518.00 loops=1)
                                        Index Cond: (tag_id = t2.id)
-                                       Heap Fetches: 4833
+                                       Heap Fetches: 756518
                                        Index Searches: 1
-                                       Buffers: shared hit=2684 read=2055 written=1190
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..0.80 rows=1 width=31) (actual time=0.011..0.011 rows=1.00 loops=2)
+                                       Buffers: shared hit=4 read=90146
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..0.80 rows=1 width=31) (actual time=0.006..0.006 rows=1.00 loops=45504)
                      Index Cond: (id = at1.article_id)
-                     Index Searches: 2
-                     Buffers: shared hit=8
+                     Index Searches: 45504
+                     Buffers: shared hit=102452 read=79564
  Planning:
-   Buffers: shared hit=413
- Planning Time: 1.416 ms
- Execution Time: 30.841 ms
+   Buffers: shared hit=369 read=44
+ Planning Time: 1.878 ms
+ Execution Time: 1498.674 ms
 (44 rows)
 
 ## 14_and_by_name.sql run 3
--- 珍しいタグ 2 つの AND 検索。タグ名で結合する書き方
+-- よく使われるタグ 2 つの AND 検索。タグ名で結合する書き方
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.articles a
@@ -619,334 +616,307 @@ JOIN ch03_a.article_tags at1 ON at1.article_id = a.id
 JOIN ch03_a.tags t1 ON t1.id = at1.tag_id
 JOIN ch03_a.article_tags at2 ON at2.article_id = a.id
 JOIN ch03_a.tags t2 ON t2.id = at2.tag_id
-WHERE t1.name = 'tag100' AND t2.name = 'tag101'
+WHERE t1.name = 'tag001' AND t2.name = 'tag002'
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
-                                                                                                  QUERY PLAN                                                                                                  
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=38036.65..38036.70 rows=20 width=31) (actual time=11.425..11.430 rows=2.00 loops=1)
-   Buffers: shared hit=9796
-   ->  Sort  (cost=38036.65..38039.25 rows=1043 width=31) (actual time=11.423..11.426 rows=2.00 loops=1)
+                                                                                                    QUERY PLAN                                                                                                    
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=38036.65..38036.70 rows=20 width=31) (actual time=1481.897..1481.908 rows=20.00 loops=1)
+   Buffers: shared hit=102471 read=265302, temp read=5593 written=5593
+   ->  Sort  (cost=38036.65..38039.25 rows=1043 width=31) (actual time=1481.895..1481.899 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=9796
-         ->  Nested Loop  (cost=18230.02..38008.89 rows=1043 width=31) (actual time=8.692..11.412 rows=2.00 loops=1)
-               Buffers: shared hit=9790
-               ->  Hash Join  (cost=18229.58..35594.34 rows=3001 width=16) (actual time=8.683..11.398 rows=2.00 loops=1)
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=102471 read=265302, temp read=5593 written=5593
+         ->  Nested Loop  (cost=18230.02..38008.89 rows=1043 width=31) (actual time=547.523..1476.823 rows=45504.00 loops=1)
+               Buffers: shared hit=102465 read=265302, temp read=5593 written=5593
+               ->  Hash Join  (cost=18229.58..35594.34 rows=3001 width=16) (actual time=547.497..1174.331 rows=45504.00 loops=1)
                      Hash Cond: (at1.article_id = at2.article_id)
-                     Buffers: shared hit=9782
-                     ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.021..4.095 rows=5161.00 loops=1)
-                           Buffers: shared hit=5042
-                           ->  Seq Scan on tags t1  (cost=0.00..3.06 rows=1 width=2) (actual time=0.008..0.011 rows=1.00 loops=1)
-                                 Filter: (name = 'tag100'::text)
+                     Buffers: shared hit=13 read=185738, temp read=5593 written=5593
+                     ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.014..444.808 rows=796524.00 loops=1)
+                           Buffers: shared hit=8 read=95592
+                           ->  Seq Scan on tags t1  (cost=0.00..3.06 rows=1 width=2) (actual time=0.006..0.015 rows=1.00 loops=1)
+                                 Filter: (name = 'tag001'::text)
                                  Rows Removed by Filter: 164
                                  Buffers: shared hit=1
-                           ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.012..3.762 rows=5161.00 loops=1)
+                           ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.007..401.692 rows=796524.00 loops=1)
                                  Index Cond: (tag_id = t1.id)
-                                 Heap Fetches: 5161
+                                 Heap Fetches: 796430
                                  Index Searches: 1
-                                 Buffers: shared hit=5041
-                     ->  Hash  (cost=16952.28..16952.28 rows=102139 width=8) (actual time=6.666..6.667 rows=4833.00 loops=1)
-                           Buckets: 131072  Batches: 1  Memory Usage: 1213kB
-                           Buffers: shared hit=4740
-                           ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.016..5.899 rows=4833.00 loops=1)
-                                 Buffers: shared hit=4740
-                                 ->  Seq Scan on tags t2  (cost=0.00..3.06 rows=1 width=2) (actual time=0.005..0.009 rows=1.00 loops=1)
-                                       Filter: (name = 'tag101'::text)
+                                 Buffers: shared hit=7 read=95592
+                     ->  Hash  (cost=16952.28..16952.28 rows=102139 width=8) (actual time=547.263..547.264 rows=756518.00 loops=1)
+                           Buckets: 262144 (originally 131072)  Batches: 8 (originally 1)  Memory Usage: 6145kB
+                           Buffers: shared hit=5 read=90146, temp written=2257
+                           ->  Nested Loop  (cost=0.56..16952.28 rows=102139 width=8) (actual time=0.028..446.866 rows=756518.00 loops=1)
+                                 Buffers: shared hit=5 read=90146
+                                 ->  Seq Scan on tags t2  (cost=0.00..3.06 rows=1 width=2) (actual time=0.003..0.012 rows=1.00 loops=1)
+                                       Filter: (name = 'tag002'::text)
                                        Rows Removed by Filter: 164
                                        Buffers: shared hit=1
-                                 ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.010..5.568 rows=4833.00 loops=1)
+                                 ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..15794.91 rows=115431 width=10) (actual time=0.025..399.300 rows=756518.00 loops=1)
                                        Index Cond: (tag_id = t2.id)
-                                       Heap Fetches: 4833
+                                       Heap Fetches: 756518
                                        Index Searches: 1
-                                       Buffers: shared hit=4739
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..0.80 rows=1 width=31) (actual time=0.005..0.005 rows=1.00 loops=2)
+                                       Buffers: shared hit=4 read=90146
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..0.80 rows=1 width=31) (actual time=0.006..0.006 rows=1.00 loops=45504)
                      Index Cond: (id = at1.article_id)
-                     Index Searches: 2
-                     Buffers: shared hit=8
+                     Index Searches: 45504
+                     Buffers: shared hit=102452 read=79564
  Planning:
-   Buffers: shared hit=413
- Planning Time: 1.468 ms
- Execution Time: 11.499 ms
+   Buffers: shared hit=369 read=44
+ Planning Time: 1.811 ms
+ Execution Time: 1481.973 ms
 (44 rows)
 
 ## 15_and_by_id.sql run 1
--- 同じ AND 検索を、タグの id を先に引いて定数として渡す形で書く
-SELECT id AS tag100 FROM ch03_a.tags WHERE name = 'tag100' \gset
-SELECT id AS tag101 FROM ch03_a.tags WHERE name = 'tag101' \gset
+-- 同じ AND 検索を、タグの id を定数として渡す形で書く
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at1
 JOIN ch03_a.article_tags at2
-  ON at2.article_id = at1.article_id AND at2.tag_id = :tag101
+  ON at2.article_id = at1.article_id AND at2.tag_id = 2
 JOIN ch03_a.articles a ON a.id = at1.article_id
-WHERE at1.tag_id = :tag100
+WHERE at1.tag_id = 1
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
-                                                                                         QUERY PLAN                                                                                          
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=939.39..939.39 rows=1 width=31) (actual time=9.523..9.524 rows=2.00 loops=1)
-   Buffers: shared hit=9794
-   ->  Sort  (cost=939.39..939.39 rows=1 width=31) (actual time=9.522..9.523 rows=2.00 loops=1)
-         Sort Key: a.published_at DESC, a.id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=9794
-         ->  Nested Loop  (cost=1.56..939.38 rows=1 width=31) (actual time=3.798..9.491 rows=2.00 loops=1)
-               Buffers: shared hit=9791
-               ->  Merge Join  (cost=1.12..931.10 rows=1 width=16) (actual time=3.786..9.470 rows=2.00 loops=1)
-                     Merge Cond: (at1.article_id = at2.article_id)
-                     Buffers: shared hit=9783
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.033..5.286 rows=5161.00 loops=1)
-                           Index Cond: (tag_id = 100)
-                           Heap Fetches: 5161
-                           Index Searches: 1
-                           Buffers: shared hit=5044
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.008..3.783 rows=4833.00 loops=1)
-                           Index Cond: (tag_id = 101)
-                           Heap Fetches: 4833
-                           Index Searches: 1
-                           Buffers: shared hit=4739
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.008..0.008 rows=1.00 loops=2)
-                     Index Cond: (id = at2.article_id)
-                     Index Searches: 2
-                     Buffers: shared hit=8
+                                                                                 QUERY PLAN                                                                                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1.31..1152.74 rows=20 width=31) (actual time=0.240..8.198 rows=20.00 loops=1)
+   Buffers: shared hit=24895 read=350
+   ->  Nested Loop  (cost=1.31..11262326.22 rows=195623 width=31) (actual time=0.239..8.193 rows=20.00 loops=1)
+         Join Filter: (at1.article_id = at2.article_id)
+         Buffers: shared hit=24895 read=350
+         ->  Nested Loop  (cost=0.87..10549223.83 rows=815117 width=39) (actual time=0.090..7.860 rows=423.00 loops=1)
+               Buffers: shared hit=23605 read=350
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1925737.73 rows=10000023 width=31) (actual time=0.032..2.676 rows=5900.00 loops=1)
+                     Index Searches: 1
+                     Buffers: shared hit=5579 read=249
+               ->  Index Only Scan using article_tags_pkey on article_tags at1  (cost=0.44..0.86 rows=1 width=8) (actual time=0.001..0.001 rows=0.07 loops=5900)
+                     Index Cond: ((article_id = a.id) AND (tag_id = 1))
+                     Heap Fetches: 423
+                     Index Searches: 5900
+                     Buffers: shared hit=18026 read=101
+         ->  Index Only Scan using article_tags_pkey on article_tags at2  (cost=0.44..0.86 rows=1 width=8) (actual time=0.001..0.001 rows=0.05 loops=423)
+               Index Cond: ((article_id = a.id) AND (tag_id = 2))
+               Heap Fetches: 20
+               Index Searches: 423
+               Buffers: shared hit=1290
  Planning:
-   Buffers: shared hit=210
- Planning Time: 0.566 ms
- Execution Time: 9.581 ms
-(29 rows)
+   Buffers: shared hit=216 read=31
+ Planning Time: 0.721 ms
+ Execution Time: 8.224 ms
+(24 rows)
 
 ## 15_and_by_id.sql run 2
--- 同じ AND 検索を、タグの id を先に引いて定数として渡す形で書く
-SELECT id AS tag100 FROM ch03_a.tags WHERE name = 'tag100' \gset
-SELECT id AS tag101 FROM ch03_a.tags WHERE name = 'tag101' \gset
+-- 同じ AND 検索を、タグの id を定数として渡す形で書く
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at1
 JOIN ch03_a.article_tags at2
-  ON at2.article_id = at1.article_id AND at2.tag_id = :tag101
+  ON at2.article_id = at1.article_id AND at2.tag_id = 2
 JOIN ch03_a.articles a ON a.id = at1.article_id
-WHERE at1.tag_id = :tag100
+WHERE at1.tag_id = 1
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
-                                                                                         QUERY PLAN                                                                                          
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=939.39..939.39 rows=1 width=31) (actual time=9.799..9.801 rows=2.00 loops=1)
-   Buffers: shared hit=9794
-   ->  Sort  (cost=939.39..939.39 rows=1 width=31) (actual time=9.798..9.798 rows=2.00 loops=1)
-         Sort Key: a.published_at DESC, a.id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=9794
-         ->  Nested Loop  (cost=1.56..939.38 rows=1 width=31) (actual time=3.952..9.779 rows=2.00 loops=1)
-               Buffers: shared hit=9791
-               ->  Merge Join  (cost=1.12..931.10 rows=1 width=16) (actual time=3.938..9.756 rows=2.00 loops=1)
-                     Merge Cond: (at1.article_id = at2.article_id)
-                     Buffers: shared hit=9783
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.030..5.374 rows=5161.00 loops=1)
-                           Index Cond: (tag_id = 100)
-                           Heap Fetches: 5161
-                           Index Searches: 1
-                           Buffers: shared hit=5044
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.009..3.976 rows=4833.00 loops=1)
-                           Index Cond: (tag_id = 101)
-                           Heap Fetches: 4833
-                           Index Searches: 1
-                           Buffers: shared hit=4739
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.009..0.009 rows=1.00 loops=2)
-                     Index Cond: (id = at2.article_id)
-                     Index Searches: 2
-                     Buffers: shared hit=8
+                                                                                 QUERY PLAN                                                                                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1.31..1152.74 rows=20 width=31) (actual time=0.128..7.702 rows=20.00 loops=1)
+   Buffers: shared hit=25245
+   ->  Nested Loop  (cost=1.31..11262326.22 rows=195623 width=31) (actual time=0.124..7.694 rows=20.00 loops=1)
+         Join Filter: (at1.article_id = at2.article_id)
+         Buffers: shared hit=25245
+         ->  Nested Loop  (cost=0.87..10549223.83 rows=815117 width=39) (actual time=0.045..7.354 rows=423.00 loops=1)
+               Buffers: shared hit=23955
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1925737.73 rows=10000023 width=31) (actual time=0.010..2.286 rows=5900.00 loops=1)
+                     Index Searches: 1
+                     Buffers: shared hit=5828
+               ->  Index Only Scan using article_tags_pkey on article_tags at1  (cost=0.44..0.86 rows=1 width=8) (actual time=0.001..0.001 rows=0.07 loops=5900)
+                     Index Cond: ((article_id = a.id) AND (tag_id = 1))
+                     Heap Fetches: 423
+                     Index Searches: 5900
+                     Buffers: shared hit=18127
+         ->  Index Only Scan using article_tags_pkey on article_tags at2  (cost=0.44..0.86 rows=1 width=8) (actual time=0.001..0.001 rows=0.05 loops=423)
+               Index Cond: ((article_id = a.id) AND (tag_id = 2))
+               Heap Fetches: 20
+               Index Searches: 423
+               Buffers: shared hit=1290
  Planning:
-   Buffers: shared hit=210
- Planning Time: 0.520 ms
- Execution Time: 9.834 ms
-(29 rows)
+   Buffers: shared hit=247
+ Planning Time: 0.705 ms
+ Execution Time: 7.738 ms
+(24 rows)
 
 ## 15_and_by_id.sql run 3
--- 同じ AND 検索を、タグの id を先に引いて定数として渡す形で書く
-SELECT id AS tag100 FROM ch03_a.tags WHERE name = 'tag100' \gset
-SELECT id AS tag101 FROM ch03_a.tags WHERE name = 'tag101' \gset
+-- 同じ AND 検索を、タグの id を定数として渡す形で書く
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at1
 JOIN ch03_a.article_tags at2
-  ON at2.article_id = at1.article_id AND at2.tag_id = :tag101
+  ON at2.article_id = at1.article_id AND at2.tag_id = 2
 JOIN ch03_a.articles a ON a.id = at1.article_id
-WHERE at1.tag_id = :tag100
+WHERE at1.tag_id = 1
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
-                                                                                         QUERY PLAN                                                                                          
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=939.39..939.39 rows=1 width=31) (actual time=9.377..9.378 rows=2.00 loops=1)
-   Buffers: shared hit=9794
-   ->  Sort  (cost=939.39..939.39 rows=1 width=31) (actual time=9.375..9.376 rows=2.00 loops=1)
-         Sort Key: a.published_at DESC, a.id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=9794
-         ->  Nested Loop  (cost=1.56..939.38 rows=1 width=31) (actual time=3.729..9.361 rows=2.00 loops=1)
-               Buffers: shared hit=9791
-               ->  Merge Join  (cost=1.12..931.10 rows=1 width=16) (actual time=3.716..9.339 rows=2.00 loops=1)
-                     Merge Cond: (at1.article_id = at2.article_id)
-                     Buffers: shared hit=9783
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at1  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.024..5.200 rows=5161.00 loops=1)
-                           Index Cond: (tag_id = 100)
-                           Heap Fetches: 5161
-                           Index Searches: 1
-                           Buffers: shared hit=5044
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at2  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.008..3.738 rows=4833.00 loops=1)
-                           Index Cond: (tag_id = 101)
-                           Heap Fetches: 4833
-                           Index Searches: 1
-                           Buffers: shared hit=4739
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.009..0.009 rows=1.00 loops=2)
-                     Index Cond: (id = at2.article_id)
-                     Index Searches: 2
-                     Buffers: shared hit=8
+                                                                                 QUERY PLAN                                                                                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1.31..1152.74 rows=20 width=31) (actual time=0.116..7.081 rows=20.00 loops=1)
+   Buffers: shared hit=25245
+   ->  Nested Loop  (cost=1.31..11262326.22 rows=195623 width=31) (actual time=0.115..7.076 rows=20.00 loops=1)
+         Join Filter: (at1.article_id = at2.article_id)
+         Buffers: shared hit=25245
+         ->  Nested Loop  (cost=0.87..10549223.83 rows=815117 width=39) (actual time=0.042..6.715 rows=423.00 loops=1)
+               Buffers: shared hit=23955
+               ->  Index Scan using articles_published_at_idx on articles a  (cost=0.43..1925737.73 rows=10000023 width=31) (actual time=0.010..1.750 rows=5900.00 loops=1)
+                     Index Searches: 1
+                     Buffers: shared hit=5828
+               ->  Index Only Scan using article_tags_pkey on article_tags at1  (cost=0.44..0.86 rows=1 width=8) (actual time=0.001..0.001 rows=0.07 loops=5900)
+                     Index Cond: ((article_id = a.id) AND (tag_id = 1))
+                     Heap Fetches: 423
+                     Index Searches: 5900
+                     Buffers: shared hit=18127
+         ->  Index Only Scan using article_tags_pkey on article_tags at2  (cost=0.44..0.86 rows=1 width=8) (actual time=0.001..0.001 rows=0.05 loops=423)
+               Index Cond: ((article_id = a.id) AND (tag_id = 2))
+               Heap Fetches: 20
+               Index Searches: 423
+               Buffers: shared hit=1290
  Planning:
-   Buffers: shared hit=210
- Planning Time: 0.450 ms
- Execution Time: 9.411 ms
-(29 rows)
+   Buffers: shared hit=247
+ Planning Time: 0.618 ms
+ Execution Time: 7.115 ms
+(24 rows)
 
 ## 16_not.sql run 1
 -- tag100 が付いていて tag101 が付いていない記事
-SELECT id AS tag100 FROM ch03_a.tags WHERE name = 'tag100' \gset
-SELECT id AS tag101 FROM ch03_a.tags WHERE name = 'tag101' \gset
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at
 JOIN ch03_a.articles a ON a.id = at.article_id
-WHERE at.tag_id = :tag100
+WHERE at.tag_id = 100
   AND NOT EXISTS (
     SELECT 1 FROM ch03_a.article_tags x
-    WHERE x.article_id = at.article_id AND x.tag_id = :tag101)
+    WHERE x.article_id = at.article_id AND x.tag_id = 101)
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
-                                                                                         QUERY PLAN                                                                                         
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=19684.62..19684.67 rows=20 width=31) (actual time=997.978..997.981 rows=20.00 loops=1)
-   Buffers: shared hit=20584 read=9838 written=256
-   ->  Sort  (cost=19684.62..19690.26 rows=2257 width=31) (actual time=997.977..997.978 rows=20.00 loops=1)
+                                                                                         QUERY PLAN                                                                                          
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=19684.62..19684.67 rows=20 width=31) (actual time=551.521..551.531 rows=20.00 loops=1)
+   Buffers: shared hit=11687 read=18735
+   ->  Sort  (cost=19684.62..19690.26 rows=2257 width=31) (actual time=551.517..551.518 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
          Sort Method: top-N heapsort  Memory: 27kB
-         Buffers: shared hit=20584 read=9838 written=256
-         ->  Nested Loop  (cost=1.56..19624.56 rows=2257 width=31) (actual time=0.606..996.386 rows=5159.00 loops=1)
-               Buffers: shared hit=20581 read=9838 written=256
-               ->  Merge Anti Join  (cost=1.12..931.10 rows=2257 width=8) (actual time=0.040..14.902 rows=5159.00 loops=1)
+         Buffers: shared hit=11687 read=18735
+         ->  Nested Loop  (cost=1.56..19624.56 rows=2257 width=31) (actual time=1.992..550.418 rows=5159.00 loops=1)
+               Buffers: shared hit=11684 read=18735
+               ->  Merge Anti Join  (cost=1.12..931.10 rows=2257 width=8) (actual time=1.758..53.176 rows=5159.00 loops=1)
                      Merge Cond: (at.article_id = x.article_id)
-                     Buffers: shared hit=9783
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.028..8.415 rows=5161.00 loops=1)
+                     Buffers: shared hit=273 read=9510
+                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=1.450..27.985 rows=5161.00 loops=1)
                            Index Cond: (tag_id = 100)
                            Heap Fetches: 5161
                            Index Searches: 1
-                           Buffers: shared hit=5044
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags x  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.008..5.345 rows=4833.00 loops=1)
+                           Buffers: shared hit=142 read=4902
+                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags x  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.298..24.228 rows=4833.00 loops=1)
                            Index Cond: (tag_id = 101)
                            Heap Fetches: 4833
                            Index Searches: 1
-                           Buffers: shared hit=4739
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.190..0.190 rows=1.00 loops=5159)
+                           Buffers: shared hit=131 read=4608
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.096..0.096 rows=1.00 loops=5159)
                      Index Cond: (id = at.article_id)
                      Index Searches: 5159
-                     Buffers: shared hit=10798 read=9838 written=256
+                     Buffers: shared hit=11411 read=9225
  Planning:
-   Buffers: shared hit=192
- Planning Time: 0.419 ms
- Execution Time: 998.015 ms
+   Buffers: shared hit=229
+ Planning Time: 0.626 ms
+ Execution Time: 551.596 ms
 (29 rows)
 
 ## 16_not.sql run 2
 -- tag100 が付いていて tag101 が付いていない記事
-SELECT id AS tag100 FROM ch03_a.tags WHERE name = 'tag100' \gset
-SELECT id AS tag101 FROM ch03_a.tags WHERE name = 'tag101' \gset
 EXPLAIN (ANALYZE)
 SELECT a.id, a.title, a.published_at
 FROM ch03_a.article_tags at
 JOIN ch03_a.articles a ON a.id = at.article_id
-WHERE at.tag_id = :tag100
+WHERE at.tag_id = 100
   AND NOT EXISTS (
     SELECT 1 FROM ch03_a.article_tags x
-    WHERE x.article_id = at.article_id AND x.tag_id = :tag101)
-ORDER BY a.published_at DESC, a.id
-LIMIT 20;
-                                                                                         QUERY PLAN                                                                                         
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=19684.62..19684.67 rows=20 width=31) (actual time=84.007..84.010 rows=20.00 loops=1)
-   Buffers: shared hit=19754 read=10668 written=1717
-   ->  Sort  (cost=19684.62..19690.26 rows=2257 width=31) (actual time=84.006..84.007 rows=20.00 loops=1)
-         Sort Key: a.published_at DESC, a.id
-         Sort Method: top-N heapsort  Memory: 27kB
-         Buffers: shared hit=19754 read=10668 written=1717
-         ->  Nested Loop  (cost=1.56..19624.56 rows=2257 width=31) (actual time=0.119..83.186 rows=5159.00 loops=1)
-               Buffers: shared hit=19751 read=10668 written=1717
-               ->  Merge Anti Join  (cost=1.12..931.10 rows=2257 width=8) (actual time=0.056..17.442 rows=5159.00 loops=1)
-                     Merge Cond: (at.article_id = x.article_id)
-                     Buffers: shared hit=8933 read=850 written=395
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.041..7.514 rows=5161.00 loops=1)
-                           Index Cond: (tag_id = 100)
-                           Heap Fetches: 5161
-                           Index Searches: 1
-                           Buffers: shared hit=4992 read=52 written=34
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags x  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.009..9.159 rows=4833.00 loops=1)
-                           Index Cond: (tag_id = 101)
-                           Heap Fetches: 4833
-                           Index Searches: 1
-                           Buffers: shared hit=3941 read=798 written=361
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.013..0.013 rows=1.00 loops=5159)
-                     Index Cond: (id = at.article_id)
-                     Index Searches: 5159
-                     Buffers: shared hit=10818 read=9818 written=1322
- Planning:
-   Buffers: shared hit=192
- Planning Time: 0.496 ms
- Execution Time: 84.052 ms
-(29 rows)
-
-## 16_not.sql run 3
--- tag100 が付いていて tag101 が付いていない記事
-SELECT id AS tag100 FROM ch03_a.tags WHERE name = 'tag100' \gset
-SELECT id AS tag101 FROM ch03_a.tags WHERE name = 'tag101' \gset
-EXPLAIN (ANALYZE)
-SELECT a.id, a.title, a.published_at
-FROM ch03_a.article_tags at
-JOIN ch03_a.articles a ON a.id = at.article_id
-WHERE at.tag_id = :tag100
-  AND NOT EXISTS (
-    SELECT 1 FROM ch03_a.article_tags x
-    WHERE x.article_id = at.article_id AND x.tag_id = :tag101)
+    WHERE x.article_id = at.article_id AND x.tag_id = 101)
 ORDER BY a.published_at DESC, a.id
 LIMIT 20;
                                                                                          QUERY PLAN                                                                                          
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=19684.62..19684.67 rows=20 width=31) (actual time=115.388..115.391 rows=20.00 loops=1)
-   Buffers: shared hit=14344 read=16078 written=5451
-   ->  Sort  (cost=19684.62..19690.26 rows=2257 width=31) (actual time=115.387..115.388 rows=20.00 loops=1)
+ Limit  (cost=19684.62..19684.67 rows=20 width=31) (actual time=99.144..99.152 rows=20.00 loops=1)
+   Buffers: shared hit=11515 read=18907
+   ->  Sort  (cost=19684.62..19690.26 rows=2257 width=31) (actual time=99.142..99.144 rows=20.00 loops=1)
          Sort Key: a.published_at DESC, a.id
          Sort Method: top-N heapsort  Memory: 27kB
-         Buffers: shared hit=14344 read=16078 written=5451
-         ->  Nested Loop  (cost=1.56..19624.56 rows=2257 width=31) (actual time=0.062..114.342 rows=5159.00 loops=1)
-               Buffers: shared hit=14341 read=16078 written=5451
-               ->  Merge Anti Join  (cost=1.12..931.10 rows=2257 width=8) (actual time=0.044..45.428 rows=5159.00 loops=1)
+         Buffers: shared hit=11515 read=18907
+         ->  Nested Loop  (cost=1.56..19624.56 rows=2257 width=31) (actual time=0.128..98.420 rows=5159.00 loops=1)
+               Buffers: shared hit=11512 read=18907
+               ->  Merge Anti Join  (cost=1.12..931.10 rows=2257 width=8) (actual time=0.100..47.536 rows=5159.00 loops=1)
                      Merge Cond: (at.article_id = x.article_id)
-                     Buffers: shared hit=3165 read=6618 written=1849
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.026..23.617 rows=5161.00 loops=1)
+                     Buffers: shared hit=278 read=9505
+                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.066..24.412 rows=5161.00 loops=1)
                            Index Cond: (tag_id = 100)
                            Heap Fetches: 5161
                            Index Searches: 1
-                           Buffers: shared hit=1567 read=3477 written=957
-                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags x  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.007..20.811 rows=4833.00 loops=1)
+                           Buffers: shared hit=146 read=4898
+                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags x  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.022..22.351 rows=4833.00 loops=1)
                            Index Cond: (tag_id = 101)
                            Heap Fetches: 4833
                            Index Searches: 1
-                           Buffers: shared hit=1598 read=3141 written=892
-               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.013..0.013 rows=1.00 loops=5159)
+                           Buffers: shared hit=132 read=4607
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.010..0.010 rows=1.00 loops=5159)
                      Index Cond: (id = at.article_id)
                      Index Searches: 5159
-                     Buffers: shared hit=11176 read=9460 written=3602
+                     Buffers: shared hit=11234 read=9402
  Planning:
-   Buffers: shared hit=192
- Planning Time: 0.364 ms
- Execution Time: 115.419 ms
+   Buffers: shared hit=229
+ Planning Time: 0.588 ms
+ Execution Time: 99.211 ms
+(29 rows)
+
+## 16_not.sql run 3
+-- tag100 が付いていて tag101 が付いていない記事
+EXPLAIN (ANALYZE)
+SELECT a.id, a.title, a.published_at
+FROM ch03_a.article_tags at
+JOIN ch03_a.articles a ON a.id = at.article_id
+WHERE at.tag_id = 100
+  AND NOT EXISTS (
+    SELECT 1 FROM ch03_a.article_tags x
+    WHERE x.article_id = at.article_id AND x.tag_id = 101)
+ORDER BY a.published_at DESC, a.id
+LIMIT 20;
+                                                                                         QUERY PLAN                                                                                          
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=19684.62..19684.67 rows=20 width=31) (actual time=101.350..101.357 rows=20.00 loops=1)
+   Buffers: shared hit=11512 read=18910
+   ->  Sort  (cost=19684.62..19690.26 rows=2257 width=31) (actual time=101.349..101.350 rows=20.00 loops=1)
+         Sort Key: a.published_at DESC, a.id
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=11512 read=18910
+         ->  Nested Loop  (cost=1.56..19624.56 rows=2257 width=31) (actual time=0.132..100.642 rows=5159.00 loops=1)
+               Buffers: shared hit=11509 read=18910
+               ->  Merge Anti Join  (cost=1.12..931.10 rows=2257 width=8) (actual time=0.106..48.642 rows=5159.00 loops=1)
+                     Merge Cond: (at.article_id = x.article_id)
+                     Buffers: shared hit=277 read=9506
+                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags at  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.076..24.878 rows=5161.00 loops=1)
+                           Index Cond: (tag_id = 100)
+                           Heap Fetches: 5161
+                           Index Searches: 1
+                           Buffers: shared hit=145 read=4899
+                     ->  Index Only Scan using article_tags_tag_id_article_id_idx on article_tags x  (cost=0.56..459.90 rows=2258 width=8) (actual time=0.021..22.996 rows=4833.00 loops=1)
+                           Index Cond: (tag_id = 101)
+                           Heap Fetches: 4833
+                           Index Searches: 1
+                           Buffers: shared hit=132 read=4607
+               ->  Index Scan using articles_pkey on articles a  (cost=0.43..8.28 rows=1 width=31) (actual time=0.010..0.010 rows=1.00 loops=5159)
+                     Index Cond: (id = at.article_id)
+                     Index Searches: 5159
+                     Buffers: shared hit=11232 read=9404
+ Planning:
+   Buffers: shared hit=229
+ Planning Time: 0.581 ms
+ Execution Time: 101.398 ms
 (29 rows)
 
 ## 17_counts.sql run 1
@@ -958,51 +928,51 @@ JOIN ch03_a.tags t ON t.id = at.tag_id
 GROUP BY t.name
 ORDER BY n DESC
 LIMIT 20;
-                                                                                    QUERY PLAN                                                                                     
------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=216400.31..216400.36 rows=20 width=15) (actual time=2813.952..2818.869 rows=20.00 loops=1)
-   Buffers: shared hit=25 read=91096 dirtied=77824 written=62526
-   ->  Sort  (cost=216400.31..216400.72 rows=165 width=15) (actual time=2808.484..2813.399 rows=20.00 loops=1)
+                                                                                    QUERY PLAN                                                                                    
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=216400.31..216400.36 rows=20 width=15) (actual time=1475.650..1478.313 rows=20.00 loops=1)
+   Buffers: shared hit=7778 read=83343
+   ->  Sort  (cost=216400.31..216400.72 rows=165 width=15) (actual time=1470.161..1472.823 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=25 read=91096 dirtied=77824 written=62526
-         ->  Finalize GroupAggregate  (cost=216346.16..216395.91 rows=165 width=15) (actual time=2808.302..2813.366 rows=165.00 loops=1)
+         Buffers: shared hit=7778 read=83343
+         ->  Finalize GroupAggregate  (cost=216346.16..216395.91 rows=165 width=15) (actual time=1469.990..1472.794 rows=165.00 loops=1)
                Group Key: t.name
-               Buffers: shared hit=22 read=91096 dirtied=77824 written=62526
-               ->  Gather Merge  (cost=216346.16..216392.28 rows=396 width=15) (actual time=2808.287..2813.286 rows=495.00 loops=1)
+               Buffers: shared hit=7775 read=83343
+               ->  Gather Merge  (cost=216346.16..216392.28 rows=396 width=15) (actual time=1469.978..1472.722 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=22 read=91096 dirtied=77824 written=62526
-                     ->  Sort  (cost=215346.14..215346.55 rows=165 width=15) (actual time=2798.618..2798.627 rows=165.00 loops=3)
+                     Buffers: shared hit=7775 read=83343
+                     ->  Sort  (cost=215346.14..215346.55 rows=165 width=15) (actual time=1460.640..1460.646 rows=165.00 loops=3)
                            Sort Key: t.name
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=22 read=91096 dirtied=77824 written=62526
+                           Buffers: shared hit=7775 read=83343
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=215338.41..215340.06 rows=165 width=15) (actual time=2798.475..2798.488 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=215338.41..215340.06 rows=165 width=15) (actual time=1460.498..1460.511 rows=165.00 loops=3)
                                  Group Key: t.name
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=4 read=91096 dirtied=77824 written=62526
+                                 Buffers: shared hit=7757 read=83343
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Hash Join  (cost=4.71..180228.27 rows=7022028 width=7) (actual time=2.831..2157.252 rows=5380638.33 loops=3)
+                                 ->  Hash Join  (cost=4.71..180228.27 rows=7022028 width=7) (actual time=3.101..838.820 rows=5380638.33 loops=3)
                                        Hash Cond: (at.tag_id = t.id)
-                                       Buffers: shared hit=4 read=91096 dirtied=77824 written=62526
-                                       ->  Parallel Seq Scan on article_tags at  (cost=0.00..161317.28 rows=7022028 width=2) (actual time=0.067..1565.886 rows=5380638.33 loops=3)
-                                             Buffers: shared hit=1 read=91096 dirtied=77824 written=62526
-                                       ->  Hash  (cost=2.65..2.65 rows=165 width=9) (actual time=2.754..2.755 rows=165.00 loops=3)
+                                       Buffers: shared hit=7757 read=83343
+                                       ->  Parallel Seq Scan on article_tags at  (cost=0.00..161317.28 rows=7022028 width=2) (actual time=0.061..267.716 rows=5380638.33 loops=3)
+                                             Buffers: shared hit=7754 read=83343
+                                       ->  Hash  (cost=2.65..2.65 rows=165 width=9) (actual time=3.031..3.031 rows=165.00 loops=3)
                                              Buckets: 1024  Batches: 1  Memory Usage: 15kB
                                              Buffers: shared hit=3
-                                             ->  Seq Scan on tags t  (cost=0.00..2.65 rows=165 width=9) (actual time=2.715..2.728 rows=165.00 loops=3)
+                                             ->  Seq Scan on tags t  (cost=0.00..2.65 rows=165 width=9) (actual time=2.996..3.006 rows=165.00 loops=3)
                                                    Buffers: shared hit=3
  Planning:
-   Buffers: shared hit=257 read=15
- Planning Time: 0.562 ms
+   Buffers: shared hit=253 read=19
+ Planning Time: 0.697 ms
  JIT:
    Functions: 55
    Options: Inlining false, Optimization false, Expressions true, Deforming true
-   Timing: Generation 1.348 ms (Deform 0.522 ms), Inlining 0.000 ms, Optimization 0.649 ms, Emission 13.000 ms, Total 14.997 ms
- Execution Time: 2831.181 ms
+   Timing: Generation 1.410 ms (Deform 0.484 ms), Inlining 0.000 ms, Optimization 0.675 ms, Emission 13.843 ms, Total 15.928 ms
+ Execution Time: 1489.187 ms
 (43 rows)
 
 ## 17_counts.sql run 2
@@ -1016,49 +986,49 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                    
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=216400.31..216400.36 rows=20 width=15) (actual time=1468.969..1471.474 rows=20.00 loops=1)
-   Buffers: shared hit=15205 read=75916 written=202
-   ->  Sort  (cost=216400.31..216400.72 rows=165 width=15) (actual time=1463.859..1466.363 rows=20.00 loops=1)
+ Limit  (cost=216400.31..216400.36 rows=20 width=15) (actual time=1485.306..1487.981 rows=20.00 loops=1)
+   Buffers: shared hit=8062 read=83059
+   ->  Sort  (cost=216400.31..216400.72 rows=165 width=15) (actual time=1479.919..1482.592 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=15205 read=75916 written=202
-         ->  Finalize GroupAggregate  (cost=216346.16..216395.91 rows=165 width=15) (actual time=1463.671..1466.320 rows=165.00 loops=1)
+         Buffers: shared hit=8062 read=83059
+         ->  Finalize GroupAggregate  (cost=216346.16..216395.91 rows=165 width=15) (actual time=1479.758..1482.562 rows=165.00 loops=1)
                Group Key: t.name
-               Buffers: shared hit=15202 read=75916 written=202
-               ->  Gather Merge  (cost=216346.16..216392.28 rows=396 width=15) (actual time=1463.642..1466.241 rows=495.00 loops=1)
+               Buffers: shared hit=8059 read=83059
+               ->  Gather Merge  (cost=216346.16..216392.28 rows=396 width=15) (actual time=1479.746..1482.499 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=15202 read=75916 written=202
-                     ->  Sort  (cost=215346.14..215346.55 rows=165 width=15) (actual time=1455.543..1455.551 rows=165.00 loops=3)
+                     Buffers: shared hit=8059 read=83059
+                     ->  Sort  (cost=215346.14..215346.55 rows=165 width=15) (actual time=1472.143..1472.151 rows=165.00 loops=3)
                            Sort Key: t.name
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=15202 read=75916 written=202
+                           Buffers: shared hit=8059 read=83059
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=215338.41..215340.06 rows=165 width=15) (actual time=1455.405..1455.417 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=215338.41..215340.06 rows=165 width=15) (actual time=1471.992..1472.005 rows=165.00 loops=3)
                                  Group Key: t.name
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=15184 read=75916 written=202
+                                 Buffers: shared hit=8041 read=83059
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Hash Join  (cost=4.71..180228.27 rows=7022028 width=7) (actual time=2.852..835.164 rows=5380638.33 loops=3)
+                                 ->  Hash Join  (cost=4.71..180228.27 rows=7022028 width=7) (actual time=3.299..843.756 rows=5380638.33 loops=3)
                                        Hash Cond: (at.tag_id = t.id)
-                                       Buffers: shared hit=15184 read=75916 written=202
-                                       ->  Parallel Seq Scan on article_tags at  (cost=0.00..161317.28 rows=7022028 width=2) (actual time=0.065..263.379 rows=5380638.33 loops=3)
-                                             Buffers: shared hit=15181 read=75916 written=202
-                                       ->  Hash  (cost=2.65..2.65 rows=165 width=9) (actual time=2.774..2.775 rows=165.00 loops=3)
+                                       Buffers: shared hit=8041 read=83059
+                                       ->  Parallel Seq Scan on article_tags at  (cost=0.00..161317.28 rows=7022028 width=2) (actual time=0.104..267.300 rows=5380638.33 loops=3)
+                                             Buffers: shared hit=8038 read=83059
+                                       ->  Hash  (cost=2.65..2.65 rows=165 width=9) (actual time=3.183..3.184 rows=165.00 loops=3)
                                              Buckets: 1024  Batches: 1  Memory Usage: 15kB
                                              Buffers: shared hit=3
-                                             ->  Seq Scan on tags t  (cost=0.00..2.65 rows=165 width=9) (actual time=2.738..2.748 rows=165.00 loops=3)
+                                             ->  Seq Scan on tags t  (cost=0.00..2.65 rows=165 width=9) (actual time=3.148..3.158 rows=165.00 loops=3)
                                                    Buffers: shared hit=3
  Planning:
-   Buffers: shared hit=241 read=31
- Planning Time: 0.614 ms
+   Buffers: shared hit=272
+ Planning Time: 0.535 ms
  JIT:
    Functions: 55
    Options: Inlining false, Optimization false, Expressions true, Deforming true
-   Timing: Generation 1.219 ms (Deform 0.463 ms), Inlining 0.000 ms, Optimization 0.642 ms, Emission 12.734 ms, Total 14.595 ms
- Execution Time: 1483.016 ms
+   Timing: Generation 1.177 ms (Deform 0.438 ms), Inlining 0.000 ms, Optimization 1.156 ms, Emission 13.713 ms, Total 16.045 ms
+ Execution Time: 1499.336 ms
 (43 rows)
 
 ## 17_counts.sql run 3
@@ -1072,49 +1042,49 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                    
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=216400.31..216400.36 rows=20 width=15) (actual time=1467.131..1469.725 rows=20.00 loops=1)
-   Buffers: shared hit=15204 read=75917 written=227
-   ->  Sort  (cost=216400.31..216400.72 rows=165 width=15) (actual time=1461.914..1464.506 rows=20.00 loops=1)
+ Limit  (cost=216400.31..216400.36 rows=20 width=15) (actual time=1474.723..1477.546 rows=20.00 loops=1)
+   Buffers: shared hit=8344 read=82777
+   ->  Sort  (cost=216400.31..216400.72 rows=165 width=15) (actual time=1470.013..1472.835 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=15204 read=75917 written=227
-         ->  Finalize GroupAggregate  (cost=216346.16..216395.91 rows=165 width=15) (actual time=1461.753..1464.464 rows=165.00 loops=1)
+         Buffers: shared hit=8344 read=82777
+         ->  Finalize GroupAggregate  (cost=216346.16..216395.91 rows=165 width=15) (actual time=1469.853..1472.807 rows=165.00 loops=1)
                Group Key: t.name
-               Buffers: shared hit=15201 read=75917 written=227
-               ->  Gather Merge  (cost=216346.16..216392.28 rows=396 width=15) (actual time=1461.739..1464.401 rows=495.00 loops=1)
+               Buffers: shared hit=8341 read=82777
+               ->  Gather Merge  (cost=216346.16..216392.28 rows=396 width=15) (actual time=1469.832..1472.739 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=15201 read=75917 written=227
-                     ->  Sort  (cost=215346.14..215346.55 rows=165 width=15) (actual time=1454.031..1454.038 rows=165.00 loops=3)
+                     Buffers: shared hit=8341 read=82777
+                     ->  Sort  (cost=215346.14..215346.55 rows=165 width=15) (actual time=1462.737..1462.743 rows=165.00 loops=3)
                            Sort Key: t.name
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=15201 read=75917 written=227
+                           Buffers: shared hit=8341 read=82777
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=215338.41..215340.06 rows=165 width=15) (actual time=1453.886..1453.898 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=215338.41..215340.06 rows=165 width=15) (actual time=1462.605..1462.616 rows=165.00 loops=3)
                                  Group Key: t.name
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=15183 read=75917 written=227
+                                 Buffers: shared hit=8323 read=82777
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Hash Join  (cost=4.71..180228.27 rows=7022028 width=7) (actual time=3.087..832.572 rows=5380638.33 loops=3)
+                                 ->  Hash Join  (cost=4.71..180228.27 rows=7022028 width=7) (actual time=2.887..837.662 rows=5380638.33 loops=3)
                                        Hash Cond: (at.tag_id = t.id)
-                                       Buffers: shared hit=15183 read=75917 written=227
-                                       ->  Parallel Seq Scan on article_tags at  (cost=0.00..161317.28 rows=7022028 width=2) (actual time=0.152..261.565 rows=5380638.33 loops=3)
-                                             Buffers: shared hit=15180 read=75917 written=227
-                                       ->  Hash  (cost=2.65..2.65 rows=165 width=9) (actual time=2.925..2.925 rows=165.00 loops=3)
+                                       Buffers: shared hit=8323 read=82777
+                                       ->  Parallel Seq Scan on article_tags at  (cost=0.00..161317.28 rows=7022028 width=2) (actual time=0.102..266.439 rows=5380638.33 loops=3)
+                                             Buffers: shared hit=8320 read=82777
+                                       ->  Hash  (cost=2.65..2.65 rows=165 width=9) (actual time=2.775..2.775 rows=165.00 loops=3)
                                              Buckets: 1024  Batches: 1  Memory Usage: 15kB
                                              Buffers: shared hit=3
-                                             ->  Seq Scan on tags t  (cost=0.00..2.65 rows=165 width=9) (actual time=2.890..2.899 rows=165.00 loops=3)
+                                             ->  Seq Scan on tags t  (cost=0.00..2.65 rows=165 width=9) (actual time=2.737..2.746 rows=165.00 loops=3)
                                                    Buffers: shared hit=3
  Planning:
    Buffers: shared hit=272
- Planning Time: 0.484 ms
+ Planning Time: 0.438 ms
  JIT:
    Functions: 55
    Options: Inlining false, Optimization false, Expressions true, Deforming true
-   Timing: Generation 1.352 ms (Deform 0.513 ms), Inlining 0.000 ms, Optimization 0.719 ms, Emission 13.214 ms, Total 15.284 ms
- Execution Time: 1480.586 ms
+   Timing: Generation 1.140 ms (Deform 0.459 ms), Inlining 0.000 ms, Optimization 0.619 ms, Emission 12.338 ms, Total 14.098 ms
+ Execution Time: 1487.330 ms
 (43 rows)
 
 #### ch03_b
@@ -1128,17 +1098,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..31.09 rows=20 width=31) (actual time=0.808..2.133 rows=20.00 loops=1)
-   Buffers: shared hit=206 read=43
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=918373 width=31) (actual time=0.807..2.127 rows=20.00 loops=1)
+ Limit  (cost=0.43..31.09 rows=20 width=31) (actual time=0.089..0.301 rows=20.00 loops=1)
+   Buffers: shared hit=188 read=39
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=918373 width=31) (actual time=0.089..0.297 rows=20.00 loops=1)
          Filter: (tags @> '{tag001}'::text[])
          Rows Removed by Filter: 209
          Index Searches: 1
-         Buffers: shared hit=206 read=43
+         Buffers: shared hit=188 read=39
  Planning:
-   Buffers: shared hit=203 read=17
- Planning Time: 2.720 ms
- Execution Time: 2.166 ms
+   Buffers: shared hit=206 read=14
+ Planning Time: 1.775 ms
+ Execution Time: 0.314 ms
 (11 rows)
 
 ## 10_popular.sql run 2
@@ -1151,17 +1121,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..31.09 rows=20 width=31) (actual time=0.037..0.136 rows=20.00 loops=1)
+ Limit  (cost=0.43..31.09 rows=20 width=31) (actual time=0.053..0.191 rows=20.00 loops=1)
    Buffers: shared hit=227
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=918373 width=31) (actual time=0.036..0.132 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=918373 width=31) (actual time=0.051..0.186 rows=20.00 loops=1)
          Filter: (tags @> '{tag001}'::text[])
          Rows Removed by Filter: 209
          Index Searches: 1
          Buffers: shared hit=227
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.394 ms
- Execution Time: 0.156 ms
+ Planning Time: 0.485 ms
+ Execution Time: 0.208 ms
 (11 rows)
 
 ## 10_popular.sql run 3
@@ -1174,17 +1144,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..31.09 rows=20 width=31) (actual time=0.089..0.206 rows=20.00 loops=1)
+ Limit  (cost=0.43..31.09 rows=20 width=31) (actual time=0.054..0.191 rows=20.00 loops=1)
    Buffers: shared hit=227
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=918373 width=31) (actual time=0.088..0.201 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=918373 width=31) (actual time=0.051..0.184 rows=20.00 loops=1)
          Filter: (tags @> '{tag001}'::text[])
          Rows Removed by Filter: 209
          Index Searches: 1
          Buffers: shared hit=227
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.369 ms
- Execution Time: 0.220 ms
+ Planning Time: 0.422 ms
+ Execution Time: 0.204 ms
 (11 rows)
 
 ## 11_middle.sql run 1
@@ -1197,17 +1167,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..376.69 rows=20 width=31) (actual time=0.087..5.625 rows=20.00 loops=1)
-   Buffers: shared hit=2862 read=134 dirtied=9
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=74828 width=31) (actual time=0.086..5.618 rows=20.00 loops=1)
+ Limit  (cost=0.43..376.69 rows=20 width=31) (actual time=0.110..2.368 rows=20.00 loops=1)
+   Buffers: shared hit=2768 read=137
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=74828 width=31) (actual time=0.109..2.359 rows=20.00 loops=1)
          Filter: (tags @> '{tag050}'::text[])
          Rows Removed by Filter: 2709
          Index Searches: 1
-         Buffers: shared hit=2862 read=134 dirtied=9
+         Buffers: shared hit=2768 read=137
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.384 ms
- Execution Time: 5.648 ms
+ Planning Time: 0.447 ms
+ Execution Time: 2.390 ms
 (11 rows)
 
 ## 11_middle.sql run 2
@@ -1220,17 +1190,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..376.69 rows=20 width=31) (actual time=0.094..1.253 rows=20.00 loops=1)
+ Limit  (cost=0.43..376.69 rows=20 width=31) (actual time=0.107..1.307 rows=20.00 loops=1)
    Buffers: shared hit=2905
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=74828 width=31) (actual time=0.092..1.248 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=74828 width=31) (actual time=0.105..1.302 rows=20.00 loops=1)
          Filter: (tags @> '{tag050}'::text[])
          Rows Removed by Filter: 2709
          Index Searches: 1
          Buffers: shared hit=2905
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.471 ms
- Execution Time: 1.275 ms
+ Planning Time: 0.389 ms
+ Execution Time: 1.326 ms
 (11 rows)
 
 ## 11_middle.sql run 3
@@ -1243,17 +1213,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..376.69 rows=20 width=31) (actual time=0.074..1.133 rows=20.00 loops=1)
+ Limit  (cost=0.43..376.69 rows=20 width=31) (actual time=0.124..1.413 rows=20.00 loops=1)
    Buffers: shared hit=2905
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=74828 width=31) (actual time=0.074..1.128 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=74828 width=31) (actual time=0.122..1.408 rows=20.00 loops=1)
          Filter: (tags @> '{tag050}'::text[])
          Rows Removed by Filter: 2709
          Index Searches: 1
          Buffers: shared hit=2905
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.358 ms
- Execution Time: 1.150 ms
+ Planning Time: 0.425 ms
+ Execution Time: 1.435 ms
 (11 rows)
 
 ## 12_rare.sql run 1
@@ -1264,26 +1234,26 @@ FROM ch03_b.articles
 WHERE tags @> ARRAY['tag150']
 ORDER BY published_at DESC, id
 LIMIT 20;
-                                                                   QUERY PLAN                                                                    
--------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=4014.79..4014.84 rows=20 width=31) (actual time=333.449..333.455 rows=20.00 loops=1)
+                                                                  QUERY PLAN                                                                   
+-----------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=4014.79..4014.84 rows=20 width=31) (actual time=47.523..47.529 rows=20.00 loops=1)
    Buffers: shared hit=7 read=668
-   ->  Sort  (cost=4014.79..4016.72 rows=771 width=31) (actual time=333.447..333.448 rows=20.00 loops=1)
+   ->  Sort  (cost=4014.79..4016.72 rows=771 width=31) (actual time=47.522..47.523 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=7 read=668
-         ->  Bitmap Heap Scan on articles  (cost=995.97..3994.28 rows=771 width=31) (actual time=60.315..333.244 rows=405.00 loops=1)
+         ->  Bitmap Heap Scan on articles  (cost=995.97..3994.28 rows=771 width=31) (actual time=8.683..47.359 rows=405.00 loops=1)
                Recheck Cond: (tags @> '{tag150}'::text[])
                Heap Blocks: exact=455
                Buffers: shared hit=1 read=668
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..995.77 rows=771 width=0) (actual time=57.219..57.219 rows=455.00 loops=1)
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..995.77 rows=771 width=0) (actual time=8.314..8.314 rows=455.00 loops=1)
                      Index Cond: (tags @> '{tag150}'::text[])
                      Index Searches: 1
                      Buffers: shared hit=1 read=213
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.354 ms
- Execution Time: 333.479 ms
+ Planning Time: 0.400 ms
+ Execution Time: 47.553 ms
 (18 rows)
 
 ## 12_rare.sql run 2
@@ -1296,24 +1266,24 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                   QUERY PLAN                                                                   
 -----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=4014.79..4014.84 rows=20 width=31) (actual time=6.005..6.010 rows=20.00 loops=1)
+ Limit  (cost=4014.79..4014.84 rows=20 width=31) (actual time=6.685..6.689 rows=20.00 loops=1)
    Buffers: shared hit=675
-   ->  Sort  (cost=4014.79..4016.72 rows=771 width=31) (actual time=6.004..6.005 rows=20.00 loops=1)
+   ->  Sort  (cost=4014.79..4016.72 rows=771 width=31) (actual time=6.681..6.682 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=675
-         ->  Bitmap Heap Scan on articles  (cost=995.97..3994.28 rows=771 width=31) (actual time=5.424..5.929 rows=405.00 loops=1)
+         ->  Bitmap Heap Scan on articles  (cost=995.97..3994.28 rows=771 width=31) (actual time=5.840..6.604 rows=405.00 loops=1)
                Recheck Cond: (tags @> '{tag150}'::text[])
                Heap Blocks: exact=455
                Buffers: shared hit=669
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..995.77 rows=771 width=0) (actual time=5.382..5.382 rows=455.00 loops=1)
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..995.77 rows=771 width=0) (actual time=5.798..5.798 rows=455.00 loops=1)
                      Index Cond: (tags @> '{tag150}'::text[])
                      Index Searches: 1
                      Buffers: shared hit=214
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.371 ms
- Execution Time: 6.029 ms
+ Planning Time: 0.351 ms
+ Execution Time: 6.709 ms
 (18 rows)
 
 ## 12_rare.sql run 3
@@ -1326,115 +1296,94 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                   QUERY PLAN                                                                   
 -----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=4014.79..4014.84 rows=20 width=31) (actual time=6.252..6.257 rows=20.00 loops=1)
+ Limit  (cost=4014.79..4014.84 rows=20 width=31) (actual time=6.916..6.921 rows=20.00 loops=1)
    Buffers: shared hit=675
-   ->  Sort  (cost=4014.79..4016.72 rows=771 width=31) (actual time=6.251..6.252 rows=20.00 loops=1)
+   ->  Sort  (cost=4014.79..4016.72 rows=771 width=31) (actual time=6.915..6.916 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=675
-         ->  Bitmap Heap Scan on articles  (cost=995.97..3994.28 rows=771 width=31) (actual time=5.615..6.178 rows=405.00 loops=1)
+         ->  Bitmap Heap Scan on articles  (cost=995.97..3994.28 rows=771 width=31) (actual time=5.951..6.843 rows=405.00 loops=1)
                Recheck Cond: (tags @> '{tag150}'::text[])
                Heap Blocks: exact=455
                Buffers: shared hit=669
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..995.77 rows=771 width=0) (actual time=5.578..5.578 rows=455.00 loops=1)
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..995.77 rows=771 width=0) (actual time=5.908..5.909 rows=455.00 loops=1)
                      Index Cond: (tags @> '{tag150}'::text[])
                      Index Searches: 1
                      Buffers: shared hit=214
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.357 ms
- Execution Time: 6.278 ms
+ Planning Time: 0.418 ms
+ Execution Time: 6.943 ms
 (18 rows)
 
 ## 14_and.sql run 1
--- 珍しいタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
+-- よく使われるタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
 EXPLAIN (ANALYZE)
 SELECT id, title, published_at
 FROM ch03_b.articles
-WHERE tags @> ARRAY['tag100','tag101']
+WHERE tags @> ARRAY['tag001','tag002']
 ORDER BY published_at DESC, id
 LIMIT 20;
-                                                                 QUERY PLAN                                                                 
---------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1099.14..1099.15 rows=3 width=31) (actual time=10.316..10.319 rows=2.00 loops=1)
-   Buffers: shared hit=223 read=10
-   ->  Sort  (cost=1099.14..1099.15 rows=3 width=31) (actual time=10.314..10.315 rows=2.00 loops=1)
-         Sort Key: published_at DESC, id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=223 read=10
-         ->  Bitmap Heap Scan on articles  (cost=1087.10..1099.12 rows=3 width=31) (actual time=10.096..10.294 rows=2.00 loops=1)
-               Recheck Cond: (tags @> '{tag100,tag101}'::text[])
-               Heap Blocks: exact=2
-               Buffers: shared hit=217 read=10
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..1087.10 rows=3 width=0) (actual time=9.826..9.826 rows=2.00 loops=1)
-                     Index Cond: (tags @> '{tag100,tag101}'::text[])
-                     Index Searches: 1
-                     Buffers: shared hit=217 read=8
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..427.61 rows=20 width=31) (actual time=0.087..3.907 rows=20.00 loops=1)
+   Buffers: shared hit=6190 read=156
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=65909 width=31) (actual time=0.086..3.902 rows=20.00 loops=1)
+         Filter: (tags @> '{tag001,tag002}'::text[])
+         Rows Removed by Filter: 5880
+         Index Searches: 1
+         Buffers: shared hit=6190 read=156
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.357 ms
- Execution Time: 10.346 ms
-(18 rows)
+ Planning Time: 0.424 ms
+ Execution Time: 3.929 ms
+(11 rows)
 
 ## 14_and.sql run 2
--- 珍しいタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
+-- よく使われるタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
 EXPLAIN (ANALYZE)
 SELECT id, title, published_at
 FROM ch03_b.articles
-WHERE tags @> ARRAY['tag100','tag101']
+WHERE tags @> ARRAY['tag001','tag002']
 ORDER BY published_at DESC, id
 LIMIT 20;
-                                                                 QUERY PLAN                                                                 
---------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1099.14..1099.15 rows=3 width=31) (actual time=9.755..9.758 rows=2.00 loops=1)
-   Buffers: shared hit=233
-   ->  Sort  (cost=1099.14..1099.15 rows=3 width=31) (actual time=9.754..9.755 rows=2.00 loops=1)
-         Sort Key: published_at DESC, id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=233
-         ->  Bitmap Heap Scan on articles  (cost=1087.10..1099.12 rows=3 width=31) (actual time=9.738..9.739 rows=2.00 loops=1)
-               Recheck Cond: (tags @> '{tag100,tag101}'::text[])
-               Heap Blocks: exact=2
-               Buffers: shared hit=227
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..1087.10 rows=3 width=0) (actual time=9.729..9.729 rows=2.00 loops=1)
-                     Index Cond: (tags @> '{tag100,tag101}'::text[])
-                     Index Searches: 1
-                     Buffers: shared hit=225
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..427.61 rows=20 width=31) (actual time=0.116..3.692 rows=20.00 loops=1)
+   Buffers: shared hit=6346
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=65909 width=31) (actual time=0.114..3.684 rows=20.00 loops=1)
+         Filter: (tags @> '{tag001,tag002}'::text[])
+         Rows Removed by Filter: 5880
+         Index Searches: 1
+         Buffers: shared hit=6346
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.356 ms
- Execution Time: 9.780 ms
-(18 rows)
+ Planning Time: 0.515 ms
+ Execution Time: 3.717 ms
+(11 rows)
 
 ## 14_and.sql run 3
--- 珍しいタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
+-- よく使われるタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
 EXPLAIN (ANALYZE)
 SELECT id, title, published_at
 FROM ch03_b.articles
-WHERE tags @> ARRAY['tag100','tag101']
+WHERE tags @> ARRAY['tag001','tag002']
 ORDER BY published_at DESC, id
 LIMIT 20;
-                                                                 QUERY PLAN                                                                 
---------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1099.14..1099.15 rows=3 width=31) (actual time=9.916..9.920 rows=2.00 loops=1)
-   Buffers: shared hit=233
-   ->  Sort  (cost=1099.14..1099.15 rows=3 width=31) (actual time=9.915..9.916 rows=2.00 loops=1)
-         Sort Key: published_at DESC, id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=233
-         ->  Bitmap Heap Scan on articles  (cost=1087.10..1099.12 rows=3 width=31) (actual time=9.896..9.897 rows=2.00 loops=1)
-               Recheck Cond: (tags @> '{tag100,tag101}'::text[])
-               Heap Blocks: exact=2
-               Buffers: shared hit=227
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..1087.10 rows=3 width=0) (actual time=9.887..9.887 rows=2.00 loops=1)
-                     Index Cond: (tags @> '{tag100,tag101}'::text[])
-                     Index Searches: 1
-                     Buffers: shared hit=225
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..427.61 rows=20 width=31) (actual time=0.093..3.062 rows=20.00 loops=1)
+   Buffers: shared hit=6346
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1407720.06 rows=65909 width=31) (actual time=0.092..3.052 rows=20.00 loops=1)
+         Filter: (tags @> '{tag001,tag002}'::text[])
+         Rows Removed by Filter: 5880
+         Index Searches: 1
+         Buffers: shared hit=6346
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.448 ms
- Execution Time: 9.943 ms
-(18 rows)
+ Planning Time: 0.411 ms
+ Execution Time: 3.084 ms
+(11 rows)
 
 ## 16_not.sql run 1
 -- tag100 が付いていて tag101 が付いていない記事
@@ -1447,17 +1396,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..4384.47 rows=20 width=31) (actual time=0.073..113.652 rows=20.00 loops=1)
-   Buffers: shared hit=61059 read=2651 dirtied=206 written=342
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1436648.24 rows=6554 width=31) (actual time=0.072..113.638 rows=20.00 loops=1)
+ Limit  (cost=0.43..4384.47 rows=20 width=31) (actual time=0.093..146.187 rows=20.00 loops=1)
+   Buffers: shared hit=59172 read=2495
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1436648.24 rows=6554 width=31) (actual time=0.092..146.177 rows=20.00 loops=1)
          Filter: ((tags @> '{tag100}'::text[]) AND (NOT (tags @> '{tag101}'::text[])))
          Rows Removed by Filter: 56759
          Index Searches: 1
-         Buffers: shared hit=61059 read=2651 dirtied=206 written=342
+         Buffers: shared hit=59172 read=2495
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.331 ms
- Execution Time: 113.680 ms
+ Planning Time: 0.416 ms
+ Execution Time: 146.213 ms
 (11 rows)
 
 ## 16_not.sql run 2
@@ -1471,17 +1420,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..4384.47 rows=20 width=31) (actual time=0.069..21.845 rows=20.00 loops=1)
+ Limit  (cost=0.43..4384.47 rows=20 width=31) (actual time=0.095..28.803 rows=20.00 loops=1)
    Buffers: shared hit=61667
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1436648.24 rows=6554 width=31) (actual time=0.068..21.837 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1436648.24 rows=6554 width=31) (actual time=0.094..28.794 rows=20.00 loops=1)
          Filter: ((tags @> '{tag100}'::text[]) AND (NOT (tags @> '{tag101}'::text[])))
          Rows Removed by Filter: 56759
          Index Searches: 1
          Buffers: shared hit=61667
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.492 ms
- Execution Time: 21.882 ms
+ Planning Time: 0.479 ms
+ Execution Time: 28.841 ms
 (11 rows)
 
 ## 16_not.sql run 3
@@ -1495,17 +1444,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..4384.47 rows=20 width=31) (actual time=0.061..20.960 rows=20.00 loops=1)
+ Limit  (cost=0.43..4384.47 rows=20 width=31) (actual time=0.104..27.037 rows=20.00 loops=1)
    Buffers: shared hit=61667
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1436648.24 rows=6554 width=31) (actual time=0.060..20.954 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1436648.24 rows=6554 width=31) (actual time=0.103..27.026 rows=20.00 loops=1)
          Filter: ((tags @> '{tag100}'::text[]) AND (NOT (tags @> '{tag101}'::text[])))
          Rows Removed by Filter: 56759
          Index Searches: 1
          Buffers: shared hit=61667
  Planning:
    Buffers: shared hit=220
- Planning Time: 0.318 ms
- Execution Time: 20.980 ms
+ Planning Time: 0.450 ms
+ Execution Time: 27.062 ms
 (11 rows)
 
 ## 17_counts.sql run 1
@@ -1518,50 +1467,50 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                  QUERY PLAN                                                                                 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3346.456..3349.350 rows=20.00 loops=1)
-   Buffers: shared hit=3085 read=450826
-   ->  Sort  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3269.173..3272.066 rows=20.00 loops=1)
+ Limit  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3504.218..3508.423 rows=20.00 loops=1)
+   Buffers: shared hit=3082 read=450829
+   ->  Sort  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3434.637..3438.840 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=3085 read=450826
-         ->  Finalize GroupAggregate  (cost=732305.48..732306.11 rows=2 width=40) (actual time=3268.999..3272.007 rows=165.00 loops=1)
+         Buffers: shared hit=3082 read=450829
+         ->  Finalize GroupAggregate  (cost=732305.48..732306.11 rows=2 width=40) (actual time=3434.468..3438.787 rows=165.00 loops=1)
                Group Key: tag.tag
-               Buffers: shared hit=3082 read=450826
-               ->  Gather Merge  (cost=732305.48..732306.06 rows=5 width=40) (actual time=3268.988..3271.949 rows=495.00 loops=1)
+               Buffers: shared hit=3079 read=450829
+               ->  Gather Merge  (cost=732305.48..732306.06 rows=5 width=40) (actual time=3434.453..3438.726 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=3082 read=450826
-                     ->  Sort  (cost=731305.46..731305.46 rows=2 width=40) (actual time=3261.475..3261.481 rows=165.00 loops=3)
+                     Buffers: shared hit=3079 read=450829
+                     ->  Sort  (cost=731305.46..731305.46 rows=2 width=40) (actual time=3426.618..3426.625 rows=165.00 loops=3)
                            Sort Key: tag.tag
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=3082 read=450826
+                           Buffers: shared hit=3079 read=450829
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=731305.43..731305.45 rows=2 width=40) (actual time=3261.332..3261.344 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=731305.43..731305.45 rows=2 width=40) (actual time=3426.480..3426.491 rows=165.00 loops=3)
                                  Group Key: tag.tag
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=3064 read=450826
+                                 Buffers: shared hit=3061 read=450829
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Nested Loop  (cost=0.01..683091.80 rows=9642725 width=32) (actual time=45.264..2640.288 rows=5380638.33 loops=3)
-                                       Buffers: shared hit=3064 read=450826
-                                       ->  Parallel Seq Scan on articles  (cost=0.00..502103.62 rows=4821362 width=40) (actual time=0.200..568.146 rows=3333333.33 loops=3)
-                                             Buffers: shared hit=3064 read=450826
+                                 ->  Nested Loop  (cost=0.01..683091.80 rows=9642725 width=32) (actual time=44.982..2806.856 rows=5380638.33 loops=3)
+                                       Buffers: shared hit=3061 read=450829
+                                       ->  Parallel Seq Scan on articles  (cost=0.00..502103.62 rows=4821362 width=40) (actual time=0.430..789.859 rows=3333333.33 loops=3)
+                                             Buffers: shared hit=3061 read=450829
                                        ->  Memoize  (cost=0.01..0.03 rows=2 width=32) (actual time=0.000..0.000 rows=1.61 loops=10000000)
                                              Cache Key: articles.tags
                                              Cache Mode: binary
-                                             Hits: 2963022  Misses: 366841  Evictions: 334349  Overflows: 0  Memory Usage: 8193kB
-                                             Worker 0:  Hits: 2968044  Misses: 366864  Evictions: 334398  Overflows: 0  Memory Usage: 8193kB
-                                             Worker 1:  Hits: 2968947  Misses: 366282  Evictions: 333830  Overflows: 0  Memory Usage: 8193kB
-                                             ->  Function Scan on unnest tag  (cost=0.00..0.02 rows=2 width=32) (actual time=0.000..0.001 rows=3.59 loops=1099987)
+                                             Hits: 2963071  Misses: 365471  Evictions: 333005  Overflows: 0  Memory Usage: 8193kB
+                                             Worker 0:  Hits: 2962493  Misses: 367356  Evictions: 334895  Overflows: 0  Memory Usage: 8193kB
+                                             Worker 1:  Hits: 2974148  Misses: 367461  Evictions: 334974  Overflows: 0  Memory Usage: 8193kB
+                                             ->  Function Scan on unnest tag  (cost=0.00..0.02 rows=2 width=32) (actual time=0.000..0.001 rows=3.59 loops=1100288)
  Planning:
    Buffers: shared hit=273
- Planning Time: 0.480 ms
+ Planning Time: 0.412 ms
  JIT:
    Functions: 43
    Options: Inlining true, Optimization true, Expressions true, Deforming true
-   Timing: Generation 0.890 ms (Deform 0.248 ms), Inlining 131.345 ms, Optimization 45.097 ms, Emission 35.744 ms, Total 213.077 ms
- Execution Time: 3359.864 ms
+   Timing: Generation 0.877 ms (Deform 0.246 ms), Inlining 124.609 ms, Optimization 44.267 ms, Emission 34.036 ms, Total 203.789 ms
+ Execution Time: 3517.698 ms
 (44 rows)
 
 ## 17_counts.sql run 2
@@ -1574,50 +1523,50 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                  QUERY PLAN                                                                                 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3366.550..3370.539 rows=20.00 loops=1)
-   Buffers: shared hit=3367 read=450544
-   ->  Sort  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3295.201..3299.188 rows=20.00 loops=1)
+ Limit  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3491.958..3495.253 rows=20.00 loops=1)
+   Buffers: shared hit=3364 read=450547
+   ->  Sort  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3418.131..3421.425 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=3367 read=450544
-         ->  Finalize GroupAggregate  (cost=732305.48..732306.11 rows=2 width=40) (actual time=3295.035..3299.141 rows=165.00 loops=1)
+         Buffers: shared hit=3364 read=450547
+         ->  Finalize GroupAggregate  (cost=732305.48..732306.11 rows=2 width=40) (actual time=3417.968..3421.374 rows=165.00 loops=1)
                Group Key: tag.tag
-               Buffers: shared hit=3364 read=450544
-               ->  Gather Merge  (cost=732305.48..732306.06 rows=5 width=40) (actual time=3295.021..3299.075 rows=495.00 loops=1)
+               Buffers: shared hit=3361 read=450547
+               ->  Gather Merge  (cost=732305.48..732306.06 rows=5 width=40) (actual time=3417.954..3421.315 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=3364 read=450544
-                     ->  Sort  (cost=731305.46..731305.46 rows=2 width=40) (actual time=3287.708..3287.714 rows=165.00 loops=3)
+                     Buffers: shared hit=3361 read=450547
+                     ->  Sort  (cost=731305.46..731305.46 rows=2 width=40) (actual time=3410.086..3410.092 rows=165.00 loops=3)
                            Sort Key: tag.tag
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=3364 read=450544
+                           Buffers: shared hit=3361 read=450547
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=731305.43..731305.45 rows=2 width=40) (actual time=3287.566..3287.577 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=731305.43..731305.45 rows=2 width=40) (actual time=3409.952..3409.964 rows=165.00 loops=3)
                                  Group Key: tag.tag
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=3346 read=450544
+                                 Buffers: shared hit=3343 read=450547
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Nested Loop  (cost=0.01..683091.80 rows=9642725 width=32) (actual time=43.466..2658.080 rows=5380638.33 loops=3)
-                                       Buffers: shared hit=3346 read=450544
-                                       ->  Parallel Seq Scan on articles  (cost=0.00..502103.62 rows=4821362 width=40) (actual time=0.184..549.063 rows=3333333.33 loops=3)
-                                             Buffers: shared hit=3346 read=450544
+                                 ->  Nested Loop  (cost=0.01..683091.80 rows=9642725 width=32) (actual time=46.229..2790.086 rows=5380638.33 loops=3)
+                                       Buffers: shared hit=3343 read=450547
+                                       ->  Parallel Seq Scan on articles  (cost=0.00..502103.62 rows=4821362 width=40) (actual time=0.529..753.695 rows=3333333.33 loops=3)
+                                             Buffers: shared hit=3343 read=450547
                                        ->  Memoize  (cost=0.01..0.03 rows=2 width=32) (actual time=0.000..0.000 rows=1.61 loops=10000000)
                                              Cache Key: articles.tags
                                              Cache Mode: binary
-                                             Hits: 2955738  Misses: 366194  Evictions: 333728  Overflows: 0  Memory Usage: 8193kB
-                                             Worker 0:  Hits: 2970725  Misses: 365916  Evictions: 333463  Overflows: 0  Memory Usage: 8193kB
-                                             Worker 1:  Hits: 2973263  Misses: 368164  Evictions: 335679  Overflows: 0  Memory Usage: 8193kB
-                                             ->  Function Scan on unnest tag  (cost=0.00..0.02 rows=2 width=32) (actual time=0.000..0.001 rows=3.59 loops=1100274)
+                                             Hits: 2968906  Misses: 367701  Evictions: 335208  Overflows: 0  Memory Usage: 8193kB
+                                             Worker 0:  Hits: 2968723  Misses: 366379  Evictions: 333937  Overflows: 0  Memory Usage: 8193kB
+                                             Worker 1:  Hits: 2961849  Misses: 366442  Evictions: 333974  Overflows: 0  Memory Usage: 8193kB
+                                             ->  Function Scan on unnest tag  (cost=0.00..0.02 rows=2 width=32) (actual time=0.000..0.001 rows=3.59 loops=1100522)
  Planning:
    Buffers: shared hit=273
- Planning Time: 0.583 ms
+ Planning Time: 0.471 ms
  JIT:
    Functions: 43
    Options: Inlining true, Optimization true, Expressions true, Deforming true
-   Timing: Generation 0.783 ms (Deform 0.219 ms), Inlining 123.932 ms, Optimization 43.362 ms, Emission 33.563 ms, Total 201.639 ms
- Execution Time: 3380.816 ms
+   Timing: Generation 0.906 ms (Deform 0.228 ms), Inlining 135.813 ms, Optimization 41.822 ms, Emission 33.067 ms, Total 211.609 ms
+ Execution Time: 3506.291 ms
 (44 rows)
 
 ## 17_counts.sql run 3
@@ -1630,50 +1579,50 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                  QUERY PLAN                                                                                 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3271.877..3275.901 rows=20.00 loops=1)
-   Buffers: shared hit=3649 read=450262
-   ->  Sort  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3200.414..3204.436 rows=20.00 loops=1)
+ Limit  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3475.836..3479.828 rows=20.00 loops=1)
+   Buffers: shared hit=3646 read=450265
+   ->  Sort  (cost=732306.12..732306.12 rows=2 width=40) (actual time=3406.443..3410.433 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=3649 read=450262
-         ->  Finalize GroupAggregate  (cost=732305.48..732306.11 rows=2 width=40) (actual time=3200.256..3204.391 rows=165.00 loops=1)
+         Buffers: shared hit=3646 read=450265
+         ->  Finalize GroupAggregate  (cost=732305.48..732306.11 rows=2 width=40) (actual time=3406.279..3410.387 rows=165.00 loops=1)
                Group Key: tag.tag
-               Buffers: shared hit=3646 read=450262
-               ->  Gather Merge  (cost=732305.48..732306.06 rows=5 width=40) (actual time=3200.239..3204.329 rows=495.00 loops=1)
+               Buffers: shared hit=3643 read=450265
+               ->  Gather Merge  (cost=732305.48..732306.06 rows=5 width=40) (actual time=3406.265..3410.324 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=3646 read=450262
-                     ->  Sort  (cost=731305.46..731305.46 rows=2 width=40) (actual time=3192.421..3192.427 rows=165.00 loops=3)
+                     Buffers: shared hit=3643 read=450265
+                     ->  Sort  (cost=731305.46..731305.46 rows=2 width=40) (actual time=3397.617..3397.623 rows=165.00 loops=3)
                            Sort Key: tag.tag
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=3646 read=450262
+                           Buffers: shared hit=3643 read=450265
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=731305.43..731305.45 rows=2 width=40) (actual time=3192.283..3192.295 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=731305.43..731305.45 rows=2 width=40) (actual time=3397.482..3397.493 rows=165.00 loops=3)
                                  Group Key: tag.tag
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=3628 read=450262
+                                 Buffers: shared hit=3625 read=450265
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Nested Loop  (cost=0.01..683091.80 rows=9642725 width=32) (actual time=44.938..2576.805 rows=5380638.33 loops=3)
-                                       Buffers: shared hit=3628 read=450262
-                                       ->  Parallel Seq Scan on articles  (cost=0.00..502103.62 rows=4821362 width=40) (actual time=0.251..534.397 rows=3333333.33 loops=3)
-                                             Buffers: shared hit=3628 read=450262
+                                 ->  Nested Loop  (cost=0.01..683091.80 rows=9642725 width=32) (actual time=43.837..2777.274 rows=5380638.33 loops=3)
+                                       Buffers: shared hit=3625 read=450265
+                                       ->  Parallel Seq Scan on articles  (cost=0.00..502103.62 rows=4821362 width=40) (actual time=0.232..739.800 rows=3333333.33 loops=3)
+                                             Buffers: shared hit=3625 read=450265
                                        ->  Memoize  (cost=0.01..0.03 rows=2 width=32) (actual time=0.000..0.000 rows=1.61 loops=10000000)
                                              Cache Key: articles.tags
                                              Cache Mode: binary
-                                             Hits: 2962773  Misses: 365903  Evictions: 333431  Overflows: 0  Memory Usage: 8193kB
-                                             Worker 0:  Hits: 2975025  Misses: 367938  Evictions: 335469  Overflows: 0  Memory Usage: 8193kB
-                                             Worker 1:  Hits: 2961567  Misses: 366794  Evictions: 334320  Overflows: 0  Memory Usage: 8193kB
-                                             ->  Function Scan on unnest tag  (cost=0.00..0.02 rows=2 width=32) (actual time=0.000..0.001 rows=3.59 loops=1100635)
+                                             Hits: 2955788  Misses: 366000  Evictions: 333518  Overflows: 0  Memory Usage: 8193kB
+                                             Worker 0:  Hits: 2979651  Misses: 368432  Evictions: 335952  Overflows: 0  Memory Usage: 8193kB
+                                             Worker 1:  Hits: 2964273  Misses: 365856  Evictions: 333414  Overflows: 0  Memory Usage: 8193kB
+                                             ->  Function Scan on unnest tag  (cost=0.00..0.02 rows=2 width=32) (actual time=0.000..0.001 rows=3.59 loops=1100288)
  Planning:
    Buffers: shared hit=273
- Planning Time: 0.485 ms
+ Planning Time: 0.570 ms
  JIT:
    Functions: 43
    Options: Inlining true, Optimization true, Expressions true, Deforming true
-   Timing: Generation 0.894 ms (Deform 0.273 ms), Inlining 127.792 ms, Optimization 42.354 ms, Emission 35.097 ms, Total 206.137 ms
- Execution Time: 3286.465 ms
+   Timing: Generation 0.861 ms (Deform 0.233 ms), Inlining 123.998 ms, Optimization 42.519 ms, Emission 33.438 ms, Total 200.816 ms
+ Execution Time: 3491.275 ms
 (44 rows)
 
 #### ch03_c
@@ -1687,17 +1636,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..28.73 rows=20 width=31) (actual time=0.294..0.804 rows=20.00 loops=1)
-   Buffers: shared hit=203 read=39 dirtied=33
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250785.47 rows=884201 width=31) (actual time=0.293..0.799 rows=20.00 loops=1)
+ Limit  (cost=0.43..28.73 rows=20 width=31) (actual time=0.530..0.817 rows=20.00 loops=1)
+   Buffers: shared hit=186 read=36
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250789.67 rows=884221 width=31) (actual time=0.528..0.810 rows=20.00 loops=1)
          Filter: (tags @> '["tag001"]'::jsonb)
          Rows Removed by Filter: 209
          Index Searches: 1
-         Buffers: shared hit=203 read=39 dirtied=33
+         Buffers: shared hit=186 read=36
  Planning:
    Buffers: shared hit=125 read=12
- Planning Time: 2.001 ms
- Execution Time: 0.823 ms
+ Planning Time: 2.933 ms
+ Execution Time: 0.893 ms
 (11 rows)
 
 ## 10_popular.sql run 2
@@ -1710,17 +1659,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..28.73 rows=20 width=31) (actual time=0.017..0.110 rows=20.00 loops=1)
+ Limit  (cost=0.43..28.73 rows=20 width=31) (actual time=0.022..0.142 rows=20.00 loops=1)
    Buffers: shared hit=222
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250785.47 rows=884201 width=31) (actual time=0.016..0.106 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250789.67 rows=884221 width=31) (actual time=0.021..0.137 rows=20.00 loops=1)
          Filter: (tags @> '["tag001"]'::jsonb)
          Rows Removed by Filter: 209
          Index Searches: 1
          Buffers: shared hit=222
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.272 ms
- Execution Time: 0.123 ms
+ Planning Time: 0.330 ms
+ Execution Time: 0.159 ms
 (11 rows)
 
 ## 10_popular.sql run 3
@@ -1733,17 +1682,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..28.73 rows=20 width=31) (actual time=0.020..0.116 rows=20.00 loops=1)
+ Limit  (cost=0.43..28.73 rows=20 width=31) (actual time=0.021..0.141 rows=20.00 loops=1)
    Buffers: shared hit=222
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250785.47 rows=884201 width=31) (actual time=0.019..0.112 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250789.67 rows=884221 width=31) (actual time=0.020..0.137 rows=20.00 loops=1)
          Filter: (tags @> '["tag001"]'::jsonb)
          Rows Removed by Filter: 209
          Index Searches: 1
          Buffers: shared hit=222
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.293 ms
- Execution Time: 0.129 ms
+ Planning Time: 0.317 ms
+ Execution Time: 0.157 ms
 (11 rows)
 
 ## 11_middle.sql run 1
@@ -1756,17 +1705,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..232.86 rows=20 width=31) (actual time=0.068..2.535 rows=20.00 loops=1)
-   Buffers: shared hit=2761 read=115 dirtied=99
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250785.47 rows=107631 width=31) (actual time=0.067..2.529 rows=20.00 loops=1)
+ Limit  (cost=0.43..232.85 rows=20 width=31) (actual time=0.081..2.417 rows=20.00 loops=1)
+   Buffers: shared hit=2582 read=108
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250789.67 rows=107633 width=31) (actual time=0.079..2.410 rows=20.00 loops=1)
          Filter: (tags @> '["tag050"]'::jsonb)
          Rows Removed by Filter: 2709
          Index Searches: 1
-         Buffers: shared hit=2761 read=115 dirtied=99
+         Buffers: shared hit=2582 read=108
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.295 ms
- Execution Time: 2.555 ms
+ Planning Time: 0.355 ms
+ Execution Time: 2.437 ms
 (11 rows)
 
 ## 11_middle.sql run 2
@@ -1779,17 +1728,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..232.86 rows=20 width=31) (actual time=0.066..0.913 rows=20.00 loops=1)
+ Limit  (cost=0.43..232.85 rows=20 width=31) (actual time=0.074..1.130 rows=20.00 loops=1)
    Buffers: shared hit=2690
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250785.47 rows=107631 width=31) (actual time=0.065..0.909 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250789.67 rows=107633 width=31) (actual time=0.073..1.122 rows=20.00 loops=1)
          Filter: (tags @> '["tag050"]'::jsonb)
          Rows Removed by Filter: 2709
          Index Searches: 1
          Buffers: shared hit=2690
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.263 ms
- Execution Time: 0.926 ms
+ Planning Time: 0.335 ms
+ Execution Time: 1.146 ms
 (11 rows)
 
 ## 11_middle.sql run 3
@@ -1802,17 +1751,17 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                         QUERY PLAN                                                                        
 ----------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.43..232.86 rows=20 width=31) (actual time=0.054..0.843 rows=20.00 loops=1)
+ Limit  (cost=0.43..232.85 rows=20 width=31) (actual time=0.078..1.057 rows=20.00 loops=1)
    Buffers: shared hit=2690
-   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250785.47 rows=107631 width=31) (actual time=0.054..0.838 rows=20.00 loops=1)
+   ->  Index Scan using articles_published_at_idx on articles  (cost=0.43..1250789.67 rows=107633 width=31) (actual time=0.077..1.049 rows=20.00 loops=1)
          Filter: (tags @> '["tag050"]'::jsonb)
          Rows Removed by Filter: 2709
          Index Searches: 1
          Buffers: shared hit=2690
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.248 ms
- Execution Time: 0.855 ms
+ Planning Time: 0.324 ms
+ Execution Time: 1.072 ms
 (11 rows)
 
 ## 12_rare.sql run 1
@@ -1825,24 +1774,24 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                   QUERY PLAN                                                                   
 -----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1585.05..1585.10 rows=20 width=31) (actual time=15.982..15.987 rows=20.00 loops=1)
-   Buffers: shared hit=9 read=428 dirtied=349
-   ->  Sort  (cost=1585.05..1585.99 rows=376 width=31) (actual time=15.980..15.981 rows=20.00 loops=1)
+ Limit  (cost=1593.31..1593.36 rows=20 width=31) (actual time=35.110..35.117 rows=20.00 loops=1)
+   Buffers: shared hit=7 read=430
+   ->  Sort  (cost=1593.31..1594.25 rows=376 width=31) (actual time=35.108..35.110 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
-         Buffers: shared hit=9 read=428 dirtied=349
-         ->  Bitmap Heap Scan on articles  (cost=101.26..1575.05 rows=376 width=31) (actual time=0.463..15.866 rows=405.00 loops=1)
+         Buffers: shared hit=7 read=430
+         ->  Bitmap Heap Scan on articles  (cost=109.51..1583.30 rows=376 width=31) (actual time=1.565..34.900 rows=405.00 loops=1)
                Recheck Cond: (tags @> '["tag150"]'::jsonb)
                Heap Blocks: exact=428
-               Buffers: shared hit=3 read=428 dirtied=349
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..101.17 rows=376 width=0) (actual time=0.054..0.054 rows=428.00 loops=1)
+               Buffers: shared hit=1 read=430
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=1.109..1.110 rows=428.00 loops=1)
                      Index Cond: (tags @> '["tag150"]'::jsonb)
                      Index Searches: 1
-                     Buffers: shared hit=3
+                     Buffers: shared hit=1 read=2
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.266 ms
- Execution Time: 16.013 ms
+ Planning Time: 0.445 ms
+ Execution Time: 35.146 ms
 (18 rows)
 
 ## 12_rare.sql run 2
@@ -1855,24 +1804,24 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                   QUERY PLAN                                                                   
 -----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1585.05..1585.10 rows=20 width=31) (actual time=0.569..0.573 rows=20.00 loops=1)
+ Limit  (cost=1593.31..1593.36 rows=20 width=31) (actual time=0.898..0.903 rows=20.00 loops=1)
    Buffers: shared hit=437
-   ->  Sort  (cost=1585.05..1585.99 rows=376 width=31) (actual time=0.568..0.569 rows=20.00 loops=1)
+   ->  Sort  (cost=1593.31..1594.25 rows=376 width=31) (actual time=0.896..0.897 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=437
-         ->  Bitmap Heap Scan on articles  (cost=101.26..1575.05 rows=376 width=31) (actual time=0.077..0.502 rows=405.00 loops=1)
+         ->  Bitmap Heap Scan on articles  (cost=109.51..1583.30 rows=376 width=31) (actual time=0.089..0.821 rows=405.00 loops=1)
                Recheck Cond: (tags @> '["tag150"]'::jsonb)
                Heap Blocks: exact=428
                Buffers: shared hit=431
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..101.17 rows=376 width=0) (actual time=0.045..0.045 rows=428.00 loops=1)
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.052..0.052 rows=428.00 loops=1)
                      Index Cond: (tags @> '["tag150"]'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=3
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.255 ms
- Execution Time: 0.593 ms
+ Planning Time: 0.350 ms
+ Execution Time: 0.930 ms
 (18 rows)
 
 ## 12_rare.sql run 3
@@ -1885,114 +1834,114 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                   QUERY PLAN                                                                   
 -----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1593.31..1593.36 rows=20 width=31) (actual time=0.634..0.638 rows=20.00 loops=1)
+ Limit  (cost=1593.31..1593.36 rows=20 width=31) (actual time=0.898..0.903 rows=20.00 loops=1)
    Buffers: shared hit=437
-   ->  Sort  (cost=1593.31..1594.25 rows=376 width=31) (actual time=0.633..0.634 rows=20.00 loops=1)
+   ->  Sort  (cost=1593.31..1594.25 rows=376 width=31) (actual time=0.896..0.897 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=437
-         ->  Bitmap Heap Scan on articles  (cost=109.51..1583.30 rows=376 width=31) (actual time=0.081..0.566 rows=405.00 loops=1)
+         ->  Bitmap Heap Scan on articles  (cost=109.51..1583.30 rows=376 width=31) (actual time=0.090..0.812 rows=405.00 loops=1)
                Recheck Cond: (tags @> '["tag150"]'::jsonb)
                Heap Blocks: exact=428
                Buffers: shared hit=431
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.049..0.049 rows=428.00 loops=1)
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.052..0.053 rows=428.00 loops=1)
                      Index Cond: (tags @> '["tag150"]'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=3
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.266 ms
- Execution Time: 0.658 ms
+ Planning Time: 0.328 ms
+ Execution Time: 0.930 ms
 (18 rows)
 
 ## 14_and.sql run 1
--- 珍しいタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
+-- よく使われるタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
 EXPLAIN (ANALYZE)
 SELECT id, title, published_at
 FROM ch03_c.articles
-WHERE tags @> '["tag100","tag101"]'::jsonb
+WHERE tags @> '["tag001","tag002"]'::jsonb
 ORDER BY published_at DESC, id
 LIMIT 20;
-                                                                 QUERY PLAN                                                                  
----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1696.72..1696.77 rows=20 width=31) (actual time=0.477..0.480 rows=2.00 loops=1)
-   Buffers: shared hit=16 read=4 dirtied=2
-   ->  Sort  (cost=1696.72..1697.66 rows=376 width=31) (actual time=0.476..0.476 rows=2.00 loops=1)
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1696.72..1696.77 rows=20 width=31) (actual time=2299.226..2299.235 rows=20.00 loops=1)
+   Buffers: shared hit=174 read=43166
+   ->  Sort  (cost=1696.72..1697.66 rows=376 width=31) (actual time=2299.224..2299.225 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=16 read=4 dirtied=2
-         ->  Bitmap Heap Scan on articles  (cost=212.93..1686.72 rows=376 width=31) (actual time=0.435..0.462 rows=2.00 loops=1)
-               Recheck Cond: (tags @> '["tag100", "tag101"]'::jsonb)
-               Heap Blocks: exact=2
-               Buffers: shared hit=10 read=4 dirtied=2
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..212.84 rows=376 width=0) (actual time=0.271..0.271 rows=2.00 loops=1)
-                     Index Cond: (tags @> '["tag100", "tag101"]'::jsonb)
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=174 read=43166
+         ->  Bitmap Heap Scan on articles  (cost=212.93..1686.72 rows=376 width=31) (actual time=47.665..2288.708 rows=45504.00 loops=1)
+               Recheck Cond: (tags @> '["tag001", "tag002"]'::jsonb)
+               Heap Blocks: exact=42908
+               Buffers: shared hit=168 read=43166
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..212.84 rows=376 width=0) (actual time=43.282..43.282 rows=45504.00 loops=1)
+                     Index Cond: (tags @> '["tag001", "tag002"]'::jsonb)
                      Index Searches: 1
-                     Buffers: shared hit=10 read=2
+                     Buffers: shared hit=137 read=289
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.256 ms
- Execution Time: 0.498 ms
+ Planning Time: 0.458 ms
+ Execution Time: 2299.404 ms
 (18 rows)
 
 ## 14_and.sql run 2
--- 珍しいタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
+-- よく使われるタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
 EXPLAIN (ANALYZE)
 SELECT id, title, published_at
 FROM ch03_c.articles
-WHERE tags @> '["tag100","tag101"]'::jsonb
+WHERE tags @> '["tag001","tag002"]'::jsonb
 ORDER BY published_at DESC, id
 LIMIT 20;
-                                                                 QUERY PLAN                                                                  
----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1696.72..1696.77 rows=20 width=31) (actual time=0.278..0.280 rows=2.00 loops=1)
-   Buffers: shared hit=20
-   ->  Sort  (cost=1696.72..1697.66 rows=376 width=31) (actual time=0.277..0.277 rows=2.00 loops=1)
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1696.72..1696.77 rows=20 width=31) (actual time=111.098..111.108 rows=20.00 loops=1)
+   Buffers: shared hit=143 read=43197
+   ->  Sort  (cost=1696.72..1697.66 rows=376 width=31) (actual time=111.097..111.098 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=20
-         ->  Bitmap Heap Scan on articles  (cost=212.93..1686.72 rows=376 width=31) (actual time=0.263..0.264 rows=2.00 loops=1)
-               Recheck Cond: (tags @> '["tag100", "tag101"]'::jsonb)
-               Heap Blocks: exact=2
-               Buffers: shared hit=14
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..212.84 rows=376 width=0) (actual time=0.257..0.257 rows=2.00 loops=1)
-                     Index Cond: (tags @> '["tag100", "tag101"]'::jsonb)
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=143 read=43197
+         ->  Bitmap Heap Scan on articles  (cost=212.93..1686.72 rows=376 width=31) (actual time=45.015..104.809 rows=45504.00 loops=1)
+               Recheck Cond: (tags @> '["tag001", "tag002"]'::jsonb)
+               Heap Blocks: exact=42908
+               Buffers: shared hit=137 read=43197
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..212.84 rows=376 width=0) (actual time=40.736..40.737 rows=45504.00 loops=1)
+                     Index Cond: (tags @> '["tag001", "tag002"]'::jsonb)
                      Index Searches: 1
-                     Buffers: shared hit=12
+                     Buffers: shared hit=137 read=289
  Planning:
-   Buffers: shared hit=137
- Planning Time: 0.256 ms
- Execution Time: 0.299 ms
+   Buffers: shared hit=114 read=23
+ Planning Time: 0.905 ms
+ Execution Time: 111.404 ms
 (18 rows)
 
 ## 14_and.sql run 3
--- 珍しいタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
+-- よく使われるタグ 2 つの AND 検索。@> の右辺に 2 つ並べる 1 文で書ける
 EXPLAIN (ANALYZE)
 SELECT id, title, published_at
 FROM ch03_c.articles
-WHERE tags @> '["tag100","tag101"]'::jsonb
+WHERE tags @> '["tag001","tag002"]'::jsonb
 ORDER BY published_at DESC, id
 LIMIT 20;
-                                                                 QUERY PLAN                                                                  
----------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1696.72..1696.77 rows=20 width=31) (actual time=0.298..0.301 rows=2.00 loops=1)
-   Buffers: shared hit=20
-   ->  Sort  (cost=1696.72..1697.66 rows=376 width=31) (actual time=0.297..0.297 rows=2.00 loops=1)
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1696.72..1696.77 rows=20 width=31) (actual time=108.359..108.368 rows=20.00 loops=1)
+   Buffers: shared hit=144 read=43196
+   ->  Sort  (cost=1696.72..1697.66 rows=376 width=31) (actual time=108.357..108.358 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
-         Sort Method: quicksort  Memory: 25kB
-         Buffers: shared hit=20
-         ->  Bitmap Heap Scan on articles  (cost=212.93..1686.72 rows=376 width=31) (actual time=0.282..0.283 rows=2.00 loops=1)
-               Recheck Cond: (tags @> '["tag100", "tag101"]'::jsonb)
-               Heap Blocks: exact=2
-               Buffers: shared hit=14
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..212.84 rows=376 width=0) (actual time=0.275..0.275 rows=2.00 loops=1)
-                     Index Cond: (tags @> '["tag100", "tag101"]'::jsonb)
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=144 read=43196
+         ->  Bitmap Heap Scan on articles  (cost=212.93..1686.72 rows=376 width=31) (actual time=43.895..102.209 rows=45504.00 loops=1)
+               Recheck Cond: (tags @> '["tag001", "tag002"]'::jsonb)
+               Heap Blocks: exact=42908
+               Buffers: shared hit=138 read=43196
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..212.84 rows=376 width=0) (actual time=39.637..39.637 rows=45504.00 loops=1)
+                     Index Cond: (tags @> '["tag001", "tag002"]'::jsonb)
                      Index Searches: 1
-                     Buffers: shared hit=12
+                     Buffers: shared hit=138 read=288
  Planning:
-   Buffers: shared hit=137
- Planning Time: 0.286 ms
- Execution Time: 0.321 ms
+   Buffers: shared hit=114 read=23
+ Planning Time: 0.440 ms
+ Execution Time: 108.517 ms
 (18 rows)
 
 ## 16_not.sql run 1
@@ -2006,26 +1955,26 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1594.25..1594.30 rows=20 width=31) (actual time=187.870..187.877 rows=20.00 loops=1)
-   Buffers: shared hit=25 read=5433 dirtied=4368 written=214
-   ->  Sort  (cost=1594.25..1595.19 rows=376 width=31) (actual time=187.868..187.870 rows=20.00 loops=1)
+ Limit  (cost=1594.25..1594.30 rows=20 width=31) (actual time=360.288..360.295 rows=20.00 loops=1)
+   Buffers: shared hit=193 read=5265
+   ->  Sort  (cost=1594.25..1595.19 rows=376 width=31) (actual time=360.287..360.288 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
-         Buffers: shared hit=25 read=5433 dirtied=4368 written=214
-         ->  Bitmap Heap Scan on articles  (cost=109.51..1584.24 rows=376 width=31) (actual time=1.466..186.709 rows=5159.00 loops=1)
+         Buffers: shared hit=193 read=5265
+         ->  Bitmap Heap Scan on articles  (cost=109.51..1584.24 rows=376 width=31) (actual time=2.543..359.099 rows=5159.00 loops=1)
                Recheck Cond: (tags @> '["tag100"]'::jsonb)
                Filter: (NOT (tags @> '["tag101"]'::jsonb))
                Rows Removed by Filter: 2
                Heap Blocks: exact=5446
-               Buffers: shared hit=19 read=5433 dirtied=4368 written=214
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.615..0.616 rows=5484.00 loops=1)
+               Buffers: shared hit=187 read=5265
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=1.630..1.631 rows=5484.00 loops=1)
                      Index Cond: (tags @> '["tag100"]'::jsonb)
                      Index Searches: 1
-                     Buffers: shared hit=6
+                     Buffers: shared hit=1 read=5
  Planning:
-   Buffers: shared hit=137
- Planning Time: 0.357 ms
- Execution Time: 187.956 ms
+   Buffers: shared hit=114 read=23
+ Planning Time: 0.572 ms
+ Execution Time: 360.357 ms
 (20 rows)
 
 ## 16_not.sql run 2
@@ -2039,26 +1988,26 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1594.25..1594.30 rows=20 width=31) (actual time=7.203..7.211 rows=20.00 loops=1)
+ Limit  (cost=1594.25..1594.30 rows=20 width=31) (actual time=9.560..9.565 rows=20.00 loops=1)
    Buffers: shared hit=5458
-   ->  Sort  (cost=1594.25..1595.19 rows=376 width=31) (actual time=7.202..7.203 rows=20.00 loops=1)
+   ->  Sort  (cost=1594.25..1595.19 rows=376 width=31) (actual time=9.558..9.559 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=5458
-         ->  Bitmap Heap Scan on articles  (cost=109.51..1584.24 rows=376 width=31) (actual time=1.020..6.527 rows=5159.00 loops=1)
+         ->  Bitmap Heap Scan on articles  (cost=109.51..1584.24 rows=376 width=31) (actual time=1.120..8.859 rows=5159.00 loops=1)
                Recheck Cond: (tags @> '["tag100"]'::jsonb)
                Filter: (NOT (tags @> '["tag101"]'::jsonb))
                Rows Removed by Filter: 2
                Heap Blocks: exact=5446
                Buffers: shared hit=5452
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.558..0.558 rows=5484.00 loops=1)
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.605..0.605 rows=5484.00 loops=1)
                      Index Cond: (tags @> '["tag100"]'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=6
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.303 ms
- Execution Time: 7.250 ms
+ Planning Time: 0.338 ms
+ Execution Time: 9.600 ms
 (20 rows)
 
 ## 16_not.sql run 3
@@ -2072,26 +2021,26 @@ ORDER BY published_at DESC, id
 LIMIT 20;
                                                                    QUERY PLAN                                                                   
 ------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=1594.25..1594.30 rows=20 width=31) (actual time=7.414..7.419 rows=20.00 loops=1)
+ Limit  (cost=1594.25..1594.30 rows=20 width=31) (actual time=10.781..10.787 rows=20.00 loops=1)
    Buffers: shared hit=5458
-   ->  Sort  (cost=1594.25..1595.19 rows=376 width=31) (actual time=7.413..7.414 rows=20.00 loops=1)
+   ->  Sort  (cost=1594.25..1595.19 rows=376 width=31) (actual time=10.780..10.781 rows=20.00 loops=1)
          Sort Key: published_at DESC, id
          Sort Method: top-N heapsort  Memory: 27kB
          Buffers: shared hit=5458
-         ->  Bitmap Heap Scan on articles  (cost=109.51..1584.24 rows=376 width=31) (actual time=1.020..6.708 rows=5159.00 loops=1)
+         ->  Bitmap Heap Scan on articles  (cost=109.51..1584.24 rows=376 width=31) (actual time=1.139..10.066 rows=5159.00 loops=1)
                Recheck Cond: (tags @> '["tag100"]'::jsonb)
                Filter: (NOT (tags @> '["tag101"]'::jsonb))
                Rows Removed by Filter: 2
                Heap Blocks: exact=5446
                Buffers: shared hit=5452
-               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.547..0.547 rows=5484.00 loops=1)
+               ->  Bitmap Index Scan on articles_tags_gin  (cost=0.00..109.42 rows=376 width=0) (actual time=0.617..0.617 rows=5484.00 loops=1)
                      Index Cond: (tags @> '["tag100"]'::jsonb)
                      Index Searches: 1
                      Buffers: shared hit=6
  Planning:
    Buffers: shared hit=137
- Planning Time: 0.289 ms
- Execution Time: 7.454 ms
+ Planning Time: 0.327 ms
+ Execution Time: 10.829 ms
 (20 rows)
 
 ## 17_counts.sql run 1
@@ -2104,44 +2053,44 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                     
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=11710343.84..11710343.89 rows=20 width=40) (actual time=7680.259..7685.681 rows=20.00 loops=1)
-   Buffers: shared hit=236 read=392232 dirtied=312181 written=298219
-   ->  Sort  (cost=11710343.84..11710344.09 rows=100 width=40) (actual time=7612.737..7618.158 rows=20.00 loops=1)
+ Limit  (cost=11710343.84..11710343.89 rows=20 width=40) (actual time=3280.520..3285.542 rows=20.00 loops=1)
+   Buffers: shared hit=15946 read=376522
+   ->  Sort  (cost=11710343.84..11710344.09 rows=100 width=40) (actual time=3212.745..3217.765 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=236 read=392232 dirtied=312181 written=298219
-         ->  Finalize GroupAggregate  (cost=11710311.02..11710341.18 rows=100 width=40) (actual time=7612.501..7618.097 rows=165.00 loops=1)
+         Buffers: shared hit=15946 read=376522
+         ->  Finalize GroupAggregate  (cost=11710311.02..11710341.18 rows=100 width=40) (actual time=3212.568..3217.716 rows=165.00 loops=1)
                Group Key: tag.value
-               Buffers: shared hit=233 read=392232 dirtied=312181 written=298219
-               ->  Gather Merge  (cost=11710311.02..11710338.98 rows=240 width=40) (actual time=7612.472..7617.993 rows=495.00 loops=1)
+               Buffers: shared hit=15943 read=376522
+               ->  Gather Merge  (cost=11710311.02..11710338.98 rows=240 width=40) (actual time=3212.558..3217.657 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=233 read=392232 dirtied=312181 written=298219
-                     ->  Sort  (cost=11709311.00..11709311.25 rows=100 width=40) (actual time=7604.551..7604.559 rows=165.00 loops=3)
+                     Buffers: shared hit=15943 read=376522
+                     ->  Sort  (cost=11709311.00..11709311.25 rows=100 width=40) (actual time=3203.148..3203.154 rows=165.00 loops=3)
                            Sort Key: tag.value
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=233 read=392232 dirtied=312181 written=298219
+                           Buffers: shared hit=15943 read=376522
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=11709306.68..11709307.68 rows=100 width=40) (actual time=7604.401..7604.413 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=11709306.68..11709307.68 rows=100 width=40) (actual time=3203.004..3203.016 rows=165.00 loops=3)
                                  Group Key: tag.value
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=215 read=392232 dirtied=312181 written=298219
+                                 Buffers: shared hit=15925 read=376522
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Nested Loop  (cost=0.00..9454952.09 rows=450870917 width=32) (actual time=43.868..6975.054 rows=5380638.33 loops=3)
-                                       Buffers: shared hit=215 read=392232 dirtied=312181 written=298219
-                                       ->  Parallel Seq Scan on articles  (cost=0.00..437534.09 rows=4508709 width=21) (actual time=0.122..4809.009 rows=3333333.33 loops=3)
-                                             Buffers: shared hit=215 read=392232 dirtied=312181 written=298219
+                                 ->  Nested Loop  (cost=0.00..9454952.09 rows=450870917 width=32) (actual time=40.765..2598.006 rows=5380638.33 loops=3)
+                                       Buffers: shared hit=15925 read=376522
+                                       ->  Parallel Seq Scan on articles  (cost=0.00..437534.09 rows=4508709 width=21) (actual time=0.139..475.627 rows=3333333.33 loops=3)
+                                             Buffers: shared hit=15925 read=376522
                                        ->  Function Scan on jsonb_array_elements_text tag  (cost=0.00..1.00 rows=100 width=32) (actual time=0.000..0.000 rows=1.61 loops=10000000)
  Planning:
-   Buffers: shared hit=217 read=1
- Planning Time: 0.643 ms
+   Buffers: shared hit=215 read=3
+ Planning Time: 0.740 ms
  JIT:
    Functions: 34
    Options: Inlining true, Optimization true, Expressions true, Deforming true
-   Timing: Generation 0.731 ms (Deform 0.187 ms), Inlining 133.468 ms, Optimization 36.257 ms, Emission 28.965 ms, Total 199.422 ms
- Execution Time: 7694.774 ms
+   Timing: Generation 0.703 ms (Deform 0.186 ms), Inlining 126.727 ms, Optimization 35.214 ms, Emission 27.605 ms, Total 190.248 ms
+ Execution Time: 3295.717 ms
 (38 rows)
 
 ## 17_counts.sql run 2
@@ -2154,44 +2103,44 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                     
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=11710343.84..11710343.89 rows=20 width=40) (actual time=3139.854..3144.718 rows=20.00 loops=1)
-   Buffers: shared hit=15422 read=377046 written=187
-   ->  Sort  (cost=11710343.84..11710344.09 rows=100 width=40) (actual time=3071.649..3076.511 rows=20.00 loops=1)
+ Limit  (cost=11710343.84..11710343.89 rows=20 width=40) (actual time=3315.523..3319.027 rows=20.00 loops=1)
+   Buffers: shared hit=15946 read=376522
+   ->  Sort  (cost=11710343.84..11710344.09 rows=100 width=40) (actual time=3250.168..3253.670 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=15422 read=377046 written=187
-         ->  Finalize GroupAggregate  (cost=11710311.02..11710341.18 rows=100 width=40) (actual time=3071.419..3076.445 rows=165.00 loops=1)
+         Buffers: shared hit=15946 read=376522
+         ->  Finalize GroupAggregate  (cost=11710311.02..11710341.18 rows=100 width=40) (actual time=3249.934..3253.615 rows=165.00 loops=1)
                Group Key: tag.value
-               Buffers: shared hit=15419 read=377046 written=187
-               ->  Gather Merge  (cost=11710311.02..11710338.98 rows=240 width=40) (actual time=3071.404..3076.358 rows=495.00 loops=1)
+               Buffers: shared hit=15943 read=376522
+               ->  Gather Merge  (cost=11710311.02..11710338.98 rows=240 width=40) (actual time=3249.905..3253.519 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=15419 read=377046 written=187
-                     ->  Sort  (cost=11709311.00..11709311.25 rows=100 width=40) (actual time=3062.382..3062.389 rows=165.00 loops=3)
+                     Buffers: shared hit=15943 read=376522
+                     ->  Sort  (cost=11709311.00..11709311.25 rows=100 width=40) (actual time=3242.247..3242.255 rows=165.00 loops=3)
                            Sort Key: tag.value
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=15419 read=377046 written=187
+                           Buffers: shared hit=15943 read=376522
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=11709306.68..11709307.68 rows=100 width=40) (actual time=3062.247..3062.258 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=11709306.68..11709307.68 rows=100 width=40) (actual time=3242.105..3242.118 rows=165.00 loops=3)
                                  Group Key: tag.value
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=15401 read=377046 written=187
+                                 Buffers: shared hit=15925 read=376522
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Nested Loop  (cost=0.00..9454952.09 rows=450870917 width=32) (actual time=44.835..2457.494 rows=5380638.33 loops=3)
-                                       Buffers: shared hit=15401 read=377046 written=187
-                                       ->  Parallel Seq Scan on articles  (cost=0.00..437534.09 rows=4508709 width=21) (actual time=0.099..347.332 rows=3333333.33 loops=3)
-                                             Buffers: shared hit=15401 read=377046 written=187
+                                 ->  Nested Loop  (cost=0.00..9454952.09 rows=450870917 width=32) (actual time=40.120..2627.921 rows=5380638.33 loops=3)
+                                       Buffers: shared hit=15925 read=376522
+                                       ->  Parallel Seq Scan on articles  (cost=0.00..437534.09 rows=4508709 width=21) (actual time=0.103..482.505 rows=3333333.33 loops=3)
+                                             Buffers: shared hit=15925 read=376522
                                        ->  Function Scan on jsonb_array_elements_text tag  (cost=0.00..1.00 rows=100 width=32) (actual time=0.000..0.000 rows=1.61 loops=10000000)
  Planning:
-   Buffers: shared hit=196 read=22 written=22
- Planning Time: 1.887 ms
+   Buffers: shared hit=218
+ Planning Time: 0.377 ms
  JIT:
    Functions: 34
    Options: Inlining true, Optimization true, Expressions true, Deforming true
-   Timing: Generation 0.704 ms (Deform 0.183 ms), Inlining 133.743 ms, Optimization 39.870 ms, Emission 28.755 ms, Total 203.072 ms
- Execution Time: 3154.471 ms
+   Timing: Generation 0.674 ms (Deform 0.174 ms), Inlining 122.415 ms, Optimization 35.293 ms, Emission 27.637 ms, Total 186.020 ms
+ Execution Time: 3329.781 ms
 (38 rows)
 
 ## 17_counts.sql run 3
@@ -2204,43 +2153,43 @@ ORDER BY n DESC
 LIMIT 20;
                                                                                     QUERY PLAN                                                                                     
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=11710343.84..11710343.89 rows=20 width=40) (actual time=3029.291..3033.001 rows=20.00 loops=1)
-   Buffers: shared hit=15416 read=377052 written=12
-   ->  Sort  (cost=11710343.84..11710344.09 rows=100 width=40) (actual time=2962.679..2966.388 rows=20.00 loops=1)
+ Limit  (cost=11710343.84..11710343.89 rows=20 width=40) (actual time=3225.484..3228.599 rows=20.00 loops=1)
+   Buffers: shared hit=15946 read=376522
+   ->  Sort  (cost=11710343.84..11710344.09 rows=100 width=40) (actual time=3160.792..3163.905 rows=20.00 loops=1)
          Sort Key: (count(*)) DESC
          Sort Method: top-N heapsort  Memory: 25kB
-         Buffers: shared hit=15416 read=377052 written=12
-         ->  Finalize GroupAggregate  (cost=11710311.02..11710341.18 rows=100 width=40) (actual time=2962.500..2966.342 rows=165.00 loops=1)
+         Buffers: shared hit=15946 read=376522
+         ->  Finalize GroupAggregate  (cost=11710311.02..11710341.18 rows=100 width=40) (actual time=3160.605..3163.851 rows=165.00 loops=1)
                Group Key: tag.value
-               Buffers: shared hit=15413 read=377052 written=12
-               ->  Gather Merge  (cost=11710311.02..11710338.98 rows=240 width=40) (actual time=2962.476..2966.272 rows=495.00 loops=1)
+               Buffers: shared hit=15943 read=376522
+               ->  Gather Merge  (cost=11710311.02..11710338.98 rows=240 width=40) (actual time=3160.593..3163.781 rows=495.00 loops=1)
                      Workers Planned: 2
                      Workers Launched: 2
-                     Buffers: shared hit=15413 read=377052 written=12
-                     ->  Sort  (cost=11709311.00..11709311.25 rows=100 width=40) (actual time=2955.491..2955.503 rows=165.00 loops=3)
+                     Buffers: shared hit=15943 read=376522
+                     ->  Sort  (cost=11709311.00..11709311.25 rows=100 width=40) (actual time=3153.275..3153.281 rows=165.00 loops=3)
                            Sort Key: tag.value
                            Sort Method: quicksort  Memory: 30kB
-                           Buffers: shared hit=15413 read=377052 written=12
+                           Buffers: shared hit=15943 read=376522
                            Worker 0:  Sort Method: quicksort  Memory: 30kB
                            Worker 1:  Sort Method: quicksort  Memory: 30kB
-                           ->  Partial HashAggregate  (cost=11709306.68..11709307.68 rows=100 width=40) (actual time=2955.356..2955.366 rows=165.00 loops=3)
+                           ->  Partial HashAggregate  (cost=11709306.68..11709307.68 rows=100 width=40) (actual time=3153.138..3153.150 rows=165.00 loops=3)
                                  Group Key: tag.value
                                  Batches: 1  Memory Usage: 40kB
-                                 Buffers: shared hit=15395 read=377052 written=12
+                                 Buffers: shared hit=15925 read=376522
                                  Worker 0:  Batches: 1  Memory Usage: 40kB
                                  Worker 1:  Batches: 1  Memory Usage: 40kB
-                                 ->  Nested Loop  (cost=0.00..9454952.09 rows=450870917 width=32) (actual time=41.438..2359.524 rows=5380638.33 loops=3)
-                                       Buffers: shared hit=15395 read=377052 written=12
-                                       ->  Parallel Seq Scan on articles  (cost=0.00..437534.09 rows=4508709 width=21) (actual time=0.214..293.409 rows=3333333.33 loops=3)
-                                             Buffers: shared hit=15395 read=377052 written=12
+                                 ->  Nested Loop  (cost=0.00..9454952.09 rows=450870917 width=32) (actual time=42.368..2549.962 rows=5380638.33 loops=3)
+                                       Buffers: shared hit=15925 read=376522
+                                       ->  Parallel Seq Scan on articles  (cost=0.00..437534.09 rows=4508709 width=21) (actual time=0.238..450.992 rows=3333333.33 loops=3)
+                                             Buffers: shared hit=15925 read=376522
                                        ->  Function Scan on jsonb_array_elements_text tag  (cost=0.00..1.00 rows=100 width=32) (actual time=0.000..0.000 rows=1.61 loops=10000000)
  Planning:
    Buffers: shared hit=218
- Planning Time: 0.356 ms
+ Planning Time: 0.467 ms
  JIT:
    Functions: 34
    Options: Inlining true, Optimization true, Expressions true, Deforming true
-   Timing: Generation 0.699 ms (Deform 0.182 ms), Inlining 123.782 ms, Optimization 36.083 ms, Emission 30.305 ms, Total 190.868 ms
- Execution Time: 3046.167 ms
+   Timing: Generation 0.781 ms (Deform 0.197 ms), Inlining 125.103 ms, Optimization 38.495 ms, Emission 27.324 ms, Total 191.702 ms
+ Execution Time: 3239.404 ms
 (38 rows)
 
