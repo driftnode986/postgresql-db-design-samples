@@ -1,0 +1,282 @@
+# 採取日時: 2026-09-19 05:06:13 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+## run 1 / ch07_f / naive
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_naive.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 112896
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.834 ms
+initial connection time = 7.230 ms
+tps = 5645.640636 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+7230|112896|105666
+## run 2 / ch07_f / naive
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_naive.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 115047
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.781 ms
+initial connection time = 5.716 ms
+tps = 5752.561694 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+7517|115047|107530
+## run 3 / ch07_f / naive
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_naive.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 112512
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.844 ms
+initial connection time = 5.391 ms
+tps = 5626.045020 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+7307|112512|105205
+## run 4 / ch07_f / naive
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_naive.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 110978
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.883 ms
+initial connection time = 6.361 ms
+tps = 5549.581211 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+7026|110978|103952
+## run 5 / ch07_f / naive
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_naive.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 114701
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.790 ms
+initial connection time = 6.035 ms
+tps = 5735.314685 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+7426|114701|107275
+## run 1 / ch07_f / forupdate
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_forupdate.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 108552
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.948 ms
+initial connection time = 5.523 ms
+tps = 5428.072242 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+108552|108552|0
+## run 2 / ch07_f / forupdate
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_forupdate.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 106714
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.998 ms
+initial connection time = 5.774 ms
+tps = 5336.011356 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+106714|106714|0
+## run 3 / ch07_f / forupdate
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_forupdate.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 107719
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.971 ms
+initial connection time = 5.742 ms
+tps = 5385.933842 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+107719|107719|0
+## run 4 / ch07_f / forupdate
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_forupdate.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 109156
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.931 ms
+initial connection time = 5.818 ms
+tps = 5458.259585 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+109156|109156|0
+## run 5 / ch07_f / forupdate
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_forupdate.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 107997
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.963 ms
+initial connection time = 6.930 ms
+tps = 5400.401381 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+107997|107997|0
+## run 1 / ch07_f / in_db
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_in_db.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 115301
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.775 ms
+initial connection time = 6.747 ms
+tps = 5765.553909 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+115301|115301|0
+## run 2 / ch07_f / in_db
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_in_db.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 114253
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.801 ms
+initial connection time = 6.256 ms
+tps = 5712.995636 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+114253|114253|0
+## run 3 / ch07_f / in_db
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_in_db.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 112726
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.839 ms
+initial connection time = 5.946 ms
+tps = 5636.446829 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+112726|112726|0
+## run 4 / ch07_f / in_db
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_in_db.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 113235
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.826 ms
+initial connection time = 6.147 ms
+tps = 5662.184006 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+113235|113235|0
+## run 5 / ch07_f / in_db
+pgbench (18.6 (Debian 18.6-1.pgdg13+2))
+transaction type: /tmp/ch07_bench/f_in_db.sql
+scaling factor: 1
+query mode: simple
+number of clients: 16
+number of threads: 4
+maximum number of tries: 1
+duration: 20 s
+number of transactions actually processed: 114244
+number of failed transactions: 0 (0.000%)
+number of serialization failures: 0 (0.000%)
+number of deadlock failures: 0 (0.000%)
+latency average = 2.801 ms
+initial connection time = 7.102 ms
+tps = 5713.025818 (without initial connection time)
+-- 検査（balance|ledger|drift。drift が 0 なら残高と台帳が一致）
+114244|114244|0
+done.
