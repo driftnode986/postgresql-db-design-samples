@@ -40,6 +40,10 @@ save "single_connection$T.txt" run book_owner ch06_f $D/queries/10_single_connec
 # 18 の機能の確認（WITHOUT OVERLAPS に WHERE が付かない・空の範囲の扱いの違い）
 save "pg18_features$T.txt" run book_owner ch06_d $D/queries/20_pg18_features.sql
 
+# WITHOUT OVERLAPS に WHERE は付けられない（構文エラーで終わるのが期待どおり）。
+# 本文はこのエラー文をそのまま引くので、ログとして残す
+save "where_fails$T.txt" run book_owner ch06_d $D/d_without_overlaps/20_where_fails.sql
+
 # 保存サイズ。🔴 load 直後に測る（同時実行の測定のあとだと不要になった行が残る）
 save "sizes$T.txt" run book_app ch06_b $D/queries/90_sizes.sql
 
@@ -51,5 +55,9 @@ save "search_index$T.txt" run book_owner ch06_c $D/queries/40_search_index.sql
 
 # 変更の手数（2 列の案B を範囲型の案C へ移す）。ROLLBACK で終わる
 save "change_b_to_c$T.txt" run book_owner ch06_b $D/change/10_b_to_c.sql
+
+# 排他制約は NOT VALID で足せない（止めずに移す逃げ道が無いことの確認）。
+# エラーで終わるのが期待どおりなので、save の戻り値は見ない
+save "not_valid$T.txt" run book_owner ch06_b $D/change/20_not_valid_fails.sql
 
 echo "done. 同時実行の測定は run_bench.sh で取る"
