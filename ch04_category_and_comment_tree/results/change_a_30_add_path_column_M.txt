@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:17:44 +0900
+# 採取日時: 2026-09-18 16:33:59 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -15,7 +15,7 @@
 Timing is on.
 BEGIN;
 BEGIN
-Time: 0.086 ms
+Time: 0.083 ms
 -- 既定値を付けないので、表は書き換えられない（一瞬で終わる）
 ALTER TABLE ch04_a.nodes ADD COLUMN path ltree;
 ALTER TABLE
@@ -30,11 +30,11 @@ WITH RECURSIVE p AS (
 )
 UPDATE ch04_a.nodes n SET path = p.path FROM p WHERE p.id = n.id;
 UPDATE 1000000
-Time: 5854.546 ms (00:05.855)
+Time: 6052.871 ms (00:06.053)
 -- 最後に NOT NULL を付ける（全行の検査が入る）
 ALTER TABLE ch04_a.nodes ALTER COLUMN path SET NOT NULL;
 ALTER TABLE
-Time: 70.954 ms
+Time: 66.571 ms
 ROLLBACK;
 ROLLBACK
-Time: 0.220 ms
+Time: 0.197 ms

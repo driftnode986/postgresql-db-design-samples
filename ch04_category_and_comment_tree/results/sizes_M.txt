@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:17:23 +0900
+# 採取日時: 2026-09-18 16:33:38 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -59,7 +59,7 @@ ORDER BY c.relname;
  object |  heap  | indexes | total  |  rows   
 --------+--------+---------+--------+---------
  nodes  | 72 MB  | 60 MB   | 132 MB | 1000000
- paths  | 408 MB | 583 MB  | 991 MB | 8207301
+ paths  | 408 MB | 583 MB  | 991 MB | 8207332
 (2 rows)
 
 -- インデックスごとの内訳
@@ -98,7 +98,7 @@ WHERE c.relnamespace = current_schema()::regnamespace
 ORDER BY c.relname;
  object |  heap  | indexes | total  |  rows   
 --------+--------+---------+--------+---------
- nodes  | 137 MB | 230 MB  | 368 MB | 1000000
+ nodes  | 137 MB | 231 MB  | 368 MB | 1000000
 (1 row)
 
 -- インデックスごとの内訳
@@ -108,7 +108,7 @@ WHERE schemaname = current_schema()
 ORDER BY pg_relation_size(indexrelid) DESC;
       index       |  size  
 ------------------+--------
- nodes_path_gist  | 170 MB
+ nodes_path_gist  | 171 MB
  nodes_parent_idx | 39 MB
  nodes_pkey       | 21 MB
 (3 rows)

@@ -55,6 +55,7 @@ cat_explain() { local f
 }
 save "cat_load$T.txt"    cat_build
 save "cat_explain$T.txt" cat_explain
+save "cat_move$T.txt"    run book_owner ch04_d $D/d_cat/change/10_move_summary.sql
 
 save "sizes$T.txt"   all_sizes
 save "explain$T.txt" all_explain

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:17:36 +0900
+# 採取日時: 2026-09-18 16:33:51 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -16,7 +16,7 @@
 CREATE SCHEMA IF NOT EXISTS ch04_x;
 CREATE SCHEMA
 DROP TABLE IF EXISTS ch04_x.nodes;
-psql:/tmp/run-sql-4656.sql:5: NOTICE:  table "nodes" does not exist, skipping
+psql:/tmp/run-sql-16015.sql:5: NOTICE:  table "nodes" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch04_x.nodes (
   id         bigint PRIMARY KEY,
@@ -42,7 +42,7 @@ SELECT id, parent_id, name FROM ch04_x.nodes ORDER BY id;
 -- run-as: book_owner
 -- 自分自身を親にすることだけは CHECK で防げる（他の行を見ないため）
 ALTER TABLE ch04_x.nodes DROP CONSTRAINT IF EXISTS no_self;
-psql:/tmp/run-sql-4664.sql:3: NOTICE:  constraint "no_self" of relation "nodes" does not exist, skipping
+psql:/tmp/run-sql-16023.sql:3: NOTICE:  constraint "no_self" of relation "nodes" does not exist, skipping
 ALTER TABLE
 UPDATE ch04_x.nodes SET parent_id = 2 WHERE id = 1;   -- 輪をほどいておく
 UPDATE 1
@@ -53,7 +53,7 @@ ALTER TABLE
 -- run-as: book_owner
 -- 自己ループは CHECK に弾かれる
 UPDATE ch04_x.nodes SET parent_id = 1 WHERE id = 1;
-psql:/tmp/run-sql-4671.sql:4: ERROR:  new row for relation "nodes" violates check constraint "no_self"
+psql:/tmp/run-sql-16031.sql:4: ERROR:  new row for relation "nodes" violates check constraint "no_self"
 DETAIL:  Failing row contains (1, 1, root).
 ## 40_cycle_still_passes.sql
 -- run-as: book_owner
@@ -109,6 +109,6 @@ SELECT 'a_b-c.d'::ltree           AS underscore_and_hyphen;
 -- expect-error: ltree syntax error
 -- 空白はどのロケールでも使えない
 SELECT 'camera lens'::ltree;
-psql:/tmp/run-sql-4692.sql:3: ERROR:  ltree syntax error at character 7
+psql:/tmp/run-sql-16057.sql:3: ERROR:  ltree syntax error at character 7
 LINE 1: SELECT 'camera lens'::ltree;
                ^

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:15:29 +0900
+# 採取日時: 2026-09-18 16:31:43 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -16,10 +16,10 @@
 CREATE SCHEMA IF NOT EXISTS ch04_r;
 CREATE SCHEMA
 DROP TABLE IF EXISTS ch04_r.src_cat;
-psql:/tmp/run-sql-3635.sql:7: NOTICE:  table "src_cat" does not exist, skipping
+psql:/tmp/run-sql-10277.sql:7: NOTICE:  table "src_cat" does not exist, skipping
 DROP TABLE
 DROP TABLE IF EXISTS ch04_r.src_thread;
-psql:/tmp/run-sql-3635.sql:8: NOTICE:  table "src_thread" does not exist, skipping
+psql:/tmp/run-sql-10277.sql:8: NOTICE:  table "src_thread" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch04_r.src_cat (
   id         bigint PRIMARY KEY,
@@ -59,26 +59,26 @@ SELECT :n_thread AS thread_nodes_to_load;  -- S・M 以外なら、ここで構�
 Timing is on.
 TRUNCATE ch04_r.src_cat;
 TRUNCATE TABLE
-Time: 1.367 ms
+Time: 1.690 ms
 TRUNCATE ch04_r.src_thread;
 TRUNCATE TABLE
-Time: 0.623 ms
+Time: 0.703 ms
 SELECT setseed(0.42);
  setseed 
 ---------
  
 (1 row)
 
-Time: 0.196 ms
+Time: 0.232 ms
 -- psql の変数は $$ … $$ の中では展開されないので、手続きに渡す値はここで一時表に置く
 DROP TABLE IF EXISTS ch04_r.gen_params;
-psql:/tmp/run-sql-3644.sql:21: NOTICE:  table "gen_params" does not exist, skipping
+psql:/tmp/run-sql-10284.sql:21: NOTICE:  table "gen_params" does not exist, skipping
 DROP TABLE
-Time: 0.083 ms
+Time: 0.160 ms
 CREATE TABLE ch04_r.gen_params AS
 SELECT :'fan'::int[] AS fan, :n_thread::bigint AS n_thread;
 SELECT 1
-Time: 0.779 ms
+Time: 1.057 ms
 -- ── カテゴリ型（深さ 5・分岐が広い・移動がある想定）
 DO $$
 DECLARE
@@ -102,7 +102,7 @@ BEGIN
   END LOOP;
 END $$;
 DO
-Time: 50.839 ms
+Time: 51.024 ms
 -- ── スレッド型（深さ 20・追記が中心）
 --
 -- 必ず深さ 20 まで作る。序盤を広げて幅を稼ぎ、以降は枝の一部だけを伸ばして先細りにする。
@@ -175,17 +175,17 @@ BEGIN
   END IF;
 END $$;
 DO
-Time: 2235.440 ms (00:02.235)
+Time: 2254.873 ms (00:02.255)
 DROP TABLE ch04_r.gen_params;
 DROP TABLE
-Time: 0.672 ms
+Time: 0.627 ms
 -- 統計が無いと、各案の投入で計画が変わって桁違いに遅くなる（第3章 §0 の事故）
 ANALYZE ch04_r.src_cat;
 ANALYZE
-Time: 23.183 ms
+Time: 23.321 ms
 ANALYZE ch04_r.src_thread;
 ANALYZE
-Time: 132.460 ms
+Time: 131.672 ms
 -- 元データの中身。案を作り直しても同じ木であることを、この出力で確かめる。
 SELECT 'cat' AS tree, count(*) AS nodes, max(depth) AS max_depth,
        round(avg(depth), 2) AS avg_depth

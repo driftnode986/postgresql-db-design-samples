@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:17:32 +0900
+# 採取日時: 2026-09-18 16:33:47 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -44,7 +44,7 @@ WHERE NOT EXISTS (SELECT 1 FROM reachable r WHERE r.id = n.id);
            0
 (1 row)
 
-Time: 1070.696 ms (00:01.071)
+Time: 1150.033 ms (00:01.150)
 ## 20_cycle_canary.sql（輪を入れると 0 以外）
 -- 検査そのものを検査する。わざと輪を作り、検査が 0 以外を返すことを確かめる。
 -- 0 件を返すだけの検査は、検査が働いていないのか違反が無いのか区別できない。
@@ -58,7 +58,7 @@ UPDATE ch04_a.nodes SET parent_id = (
   SELECT id FROM ch04_a.nodes WHERE parent_id = 11 ORDER BY id LIMIT 1)
 WHERE id = 11;
 UPDATE 1
-Time: 1.142 ms
+Time: 1.049 ms
 WITH RECURSIVE reachable AS (
   SELECT id FROM ch04_a.nodes WHERE parent_id IS NULL
   UNION
@@ -72,7 +72,7 @@ WHERE NOT EXISTS (SELECT 1 FROM reachable r WHERE r.id = n.id);
                                84700
 (1 row)
 
-Time: 964.910 ms
+Time: 1052.646 ms (00:01.053)
 ROLLBACK;
 ROLLBACK
-Time: 0.126 ms
+Time: 0.144 ms

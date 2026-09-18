@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:17:24 +0900
+# 採取日時: 2026-09-18 16:33:39 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -21,32 +21,32 @@ WITH RECURSIVE d AS (
 SELECT count(*) FROM d;
                                                                         QUERY PLAN                                                                         
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=480.27..480.28 rows=1 width=8) (actual time=87.867..87.868 rows=1.00 loops=1)
+ Aggregate  (cost=480.60..480.61 rows=1 width=8) (actual time=88.305..88.306 rows=1.00 loops=1)
    Buffers: shared hit=253727 read=443
    CTE d
-     ->  Recursive Union  (cost=0.42..468.10 rows=541 width=8) (actual time=0.046..74.036 rows=84700.00 loops=1)
+     ->  Recursive Union  (cost=0.42..468.20 rows=551 width=8) (actual time=0.053..74.506 rows=84700.00 loops=1)
            Storage: Memory  Maximum Storage: 790kB
            Buffers: shared hit=253727 read=443
-           ->  Index Only Scan using nodes_pkey on nodes  (cost=0.42..4.44 rows=1 width=8) (actual time=0.045..0.045 rows=1.00 loops=1)
+           ->  Index Only Scan using nodes_pkey on nodes  (cost=0.42..4.44 rows=1 width=8) (actual time=0.052..0.052 rows=1.00 loops=1)
                  Index Cond: (id = 11)
                  Heap Fetches: 0
                  Index Searches: 1
                  Buffers: shared hit=3 read=4
-           ->  Nested Loop  (cost=0.42..45.82 rows=54 width=8) (actual time=0.059..3.692 rows=4705.50 loops=18)
+           ->  Nested Loop  (cost=0.42..45.82 rows=55 width=8) (actual time=0.056..3.705 rows=4705.50 loops=18)
                  Buffers: shared hit=253724 read=439
-                 ->  WorkTable Scan on d d_1  (cost=0.00..0.20 rows=10 width=8) (actual time=0.000..0.178 rows=4705.56 loops=18)
+                 ->  WorkTable Scan on d d_1  (cost=0.00..0.20 rows=10 width=8) (actual time=0.000..0.184 rows=4705.56 loops=18)
                  ->  Index Only Scan using nodes_parent_idx on nodes n  (cost=0.42..4.51 rows=5 width=16) (actual time=0.001..0.001 rows=1.00 loops=84700)
                        Index Cond: (parent_id = d_1.id)
                        Heap Fetches: 0
                        Index Searches: 84700
                        Buffers: shared hit=253724 read=439
-   ->  CTE Scan on d  (cost=0.00..10.82 rows=541 width=0) (actual time=0.047..84.760 rows=84700.00 loops=1)
+   ->  CTE Scan on d  (cost=0.00..11.02 rows=551 width=0) (actual time=0.054..85.181 rows=84700.00 loops=1)
          Storage: Memory  Maximum Storage: 3467kB
          Buffers: shared hit=253727 read=443
  Planning:
-   Buffers: shared hit=190 read=3
- Planning Time: 0.450 ms
- Execution Time: 88.055 ms
+   Buffers: shared hit=190 read=2
+ Planning Time: 0.421 ms
+ Execution Time: 88.528 ms
 (26 rows)
 
 ## 10_descendants.sql run 2
@@ -60,32 +60,32 @@ WITH RECURSIVE d AS (
 SELECT count(*) FROM d;
                                                                         QUERY PLAN                                                                         
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=480.27..480.28 rows=1 width=8) (actual time=86.591..86.592 rows=1.00 loops=1)
+ Aggregate  (cost=480.60..480.61 rows=1 width=8) (actual time=85.513..85.514 rows=1.00 loops=1)
    Buffers: shared hit=254170
    CTE d
-     ->  Recursive Union  (cost=0.42..468.10 rows=541 width=8) (actual time=0.019..72.799 rows=84700.00 loops=1)
+     ->  Recursive Union  (cost=0.42..468.20 rows=551 width=8) (actual time=0.018..71.611 rows=84700.00 loops=1)
            Storage: Memory  Maximum Storage: 790kB
            Buffers: shared hit=254170
-           ->  Index Only Scan using nodes_pkey on nodes  (cost=0.42..4.44 rows=1 width=8) (actual time=0.018..0.018 rows=1.00 loops=1)
+           ->  Index Only Scan using nodes_pkey on nodes  (cost=0.42..4.44 rows=1 width=8) (actual time=0.017..0.017 rows=1.00 loops=1)
                  Index Cond: (id = 11)
                  Heap Fetches: 0
                  Index Searches: 1
                  Buffers: shared hit=7
-           ->  Nested Loop  (cost=0.42..45.82 rows=54 width=8) (actual time=0.051..3.619 rows=4705.50 loops=18)
+           ->  Nested Loop  (cost=0.42..45.82 rows=55 width=8) (actual time=0.049..3.558 rows=4705.50 loops=18)
                  Buffers: shared hit=254163
-                 ->  WorkTable Scan on d d_1  (cost=0.00..0.20 rows=10 width=8) (actual time=0.000..0.182 rows=4705.56 loops=18)
-                 ->  Index Only Scan using nodes_parent_idx on nodes n  (cost=0.42..4.51 rows=5 width=16) (actual time=0.001..0.001 rows=1.00 loops=84700)
+                 ->  WorkTable Scan on d d_1  (cost=0.00..0.20 rows=10 width=8) (actual time=0.000..0.183 rows=4705.56 loops=18)
+                 ->  Index Only Scan using nodes_parent_idx on nodes n  (cost=0.42..4.51 rows=5 width=16) (actual time=0.000..0.001 rows=1.00 loops=84700)
                        Index Cond: (parent_id = d_1.id)
                        Heap Fetches: 0
                        Index Searches: 84700
                        Buffers: shared hit=254163
-   ->  CTE Scan on d  (cost=0.00..10.82 rows=541 width=0) (actual time=0.020..83.331 rows=84700.00 loops=1)
+   ->  CTE Scan on d  (cost=0.00..11.02 rows=551 width=0) (actual time=0.019..82.465 rows=84700.00 loops=1)
          Storage: Memory  Maximum Storage: 3467kB
          Buffers: shared hit=254170
  Planning:
-   Buffers: shared hit=193
- Planning Time: 0.411 ms
- Execution Time: 86.762 ms
+   Buffers: shared hit=192
+ Planning Time: 0.470 ms
+ Execution Time: 85.699 ms
 (26 rows)
 
 ## 10_descendants.sql run 3
@@ -99,10 +99,10 @@ WITH RECURSIVE d AS (
 SELECT count(*) FROM d;
                                                                         QUERY PLAN                                                                         
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=480.27..480.28 rows=1 width=8) (actual time=84.906..84.907 rows=1.00 loops=1)
+ Aggregate  (cost=480.60..480.61 rows=1 width=8) (actual time=85.766..85.768 rows=1.00 loops=1)
    Buffers: shared hit=254170
    CTE d
-     ->  Recursive Union  (cost=0.42..468.10 rows=541 width=8) (actual time=0.019..71.171 rows=84700.00 loops=1)
+     ->  Recursive Union  (cost=0.42..468.20 rows=551 width=8) (actual time=0.019..72.045 rows=84700.00 loops=1)
            Storage: Memory  Maximum Storage: 790kB
            Buffers: shared hit=254170
            ->  Index Only Scan using nodes_pkey on nodes  (cost=0.42..4.44 rows=1 width=8) (actual time=0.018..0.018 rows=1.00 loops=1)
@@ -110,7 +110,7 @@ SELECT count(*) FROM d;
                  Heap Fetches: 0
                  Index Searches: 1
                  Buffers: shared hit=7
-           ->  Nested Loop  (cost=0.42..45.82 rows=54 width=8) (actual time=0.051..3.540 rows=4705.50 loops=18)
+           ->  Nested Loop  (cost=0.42..45.82 rows=55 width=8) (actual time=0.052..3.572 rows=4705.50 loops=18)
                  Buffers: shared hit=254163
                  ->  WorkTable Scan on d d_1  (cost=0.00..0.20 rows=10 width=8) (actual time=0.000..0.179 rows=4705.56 loops=18)
                  ->  Index Only Scan using nodes_parent_idx on nodes n  (cost=0.42..4.51 rows=5 width=16) (actual time=0.000..0.001 rows=1.00 loops=84700)
@@ -118,13 +118,13 @@ SELECT count(*) FROM d;
                        Heap Fetches: 0
                        Index Searches: 84700
                        Buffers: shared hit=254163
-   ->  CTE Scan on d  (cost=0.00..10.82 rows=541 width=0) (actual time=0.020..81.835 rows=84700.00 loops=1)
+   ->  CTE Scan on d  (cost=0.00..11.02 rows=551 width=0) (actual time=0.020..82.722 rows=84700.00 loops=1)
          Storage: Memory  Maximum Storage: 3467kB
          Buffers: shared hit=254170
  Planning:
-   Buffers: shared hit=193
- Planning Time: 0.445 ms
- Execution Time: 85.088 ms
+   Buffers: shared hit=192
+ Planning Time: 0.522 ms
+ Execution Time: 85.965 ms
 (26 rows)
 
 ## 11_ancestors.sql run 1
@@ -138,30 +138,30 @@ WITH RECURSIVE a AS (
 SELECT count(*) FROM a;
                                                                  QUERY PLAN                                                                  
 ---------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=857.98..857.99 rows=1 width=8) (actual time=0.383..0.384 rows=1.00 loops=1)
+ Aggregate  (cost=857.98..857.99 rows=1 width=8) (actual time=0.444..0.445 rows=1.00 loops=1)
    Buffers: shared hit=45 read=38
    CTE a
-     ->  Recursive Union  (cost=0.42..855.70 rows=101 width=16) (actual time=0.070..0.375 rows=20.00 loops=1)
+     ->  Recursive Union  (cost=0.42..855.70 rows=101 width=16) (actual time=0.100..0.436 rows=20.00 loops=1)
            Storage: Memory  Maximum Storage: 33kB
            Buffers: shared hit=45 read=38
-           ->  Index Scan using nodes_pkey on nodes  (cost=0.42..8.44 rows=1 width=16) (actual time=0.069..0.069 rows=1.00 loops=1)
+           ->  Index Scan using nodes_pkey on nodes  (cost=0.42..8.44 rows=1 width=16) (actual time=0.099..0.099 rows=1.00 loops=1)
                  Index Cond: (id = 992336)
                  Index Searches: 1
                  Buffers: shared hit=4 read=3
-           ->  Nested Loop  (cost=0.42..84.63 rows=10 width=16) (actual time=0.015..0.015 rows=0.95 loops=20)
+           ->  Nested Loop  (cost=0.42..84.63 rows=10 width=16) (actual time=0.016..0.016 rows=0.95 loops=20)
                  Buffers: shared hit=41 read=35
                  ->  WorkTable Scan on a a_1  (cost=0.00..0.20 rows=10 width=8) (actual time=0.000..0.000 rows=1.00 loops=20)
-                 ->  Index Scan using nodes_pkey on nodes n  (cost=0.42..8.44 rows=1 width=16) (actual time=0.015..0.015 rows=0.95 loops=20)
+                 ->  Index Scan using nodes_pkey on nodes n  (cost=0.42..8.44 rows=1 width=16) (actual time=0.016..0.016 rows=0.95 loops=20)
                        Index Cond: (id = a_1.parent_id)
                        Index Searches: 19
                        Buffers: shared hit=41 read=35
-   ->  CTE Scan on a  (cost=0.00..2.02 rows=101 width=0) (actual time=0.071..0.379 rows=20.00 loops=1)
+   ->  CTE Scan on a  (cost=0.00..2.02 rows=101 width=0) (actual time=0.102..0.440 rows=20.00 loops=1)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=45 read=38
  Planning:
-   Buffers: shared hit=184
- Planning Time: 0.407 ms
- Execution Time: 0.445 ms
+   Buffers: shared hit=183
+ Planning Time: 0.475 ms
+ Execution Time: 0.507 ms
 (24 rows)
 
 ## 11_ancestors.sql run 2
@@ -175,30 +175,30 @@ WITH RECURSIVE a AS (
 SELECT count(*) FROM a;
                                                                  QUERY PLAN                                                                  
 ---------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=857.98..857.99 rows=1 width=8) (actual time=0.094..0.095 rows=1.00 loops=1)
+ Aggregate  (cost=857.98..857.99 rows=1 width=8) (actual time=0.081..0.082 rows=1.00 loops=1)
    Buffers: shared hit=83
    CTE a
-     ->  Recursive Union  (cost=0.42..855.70 rows=101 width=16) (actual time=0.017..0.088 rows=20.00 loops=1)
+     ->  Recursive Union  (cost=0.42..855.70 rows=101 width=16) (actual time=0.017..0.075 rows=20.00 loops=1)
            Storage: Memory  Maximum Storage: 33kB
            Buffers: shared hit=83
-           ->  Index Scan using nodes_pkey on nodes  (cost=0.42..8.44 rows=1 width=16) (actual time=0.016..0.016 rows=1.00 loops=1)
+           ->  Index Scan using nodes_pkey on nodes  (cost=0.42..8.44 rows=1 width=16) (actual time=0.015..0.015 rows=1.00 loops=1)
                  Index Cond: (id = 992336)
                  Index Searches: 1
                  Buffers: shared hit=7
            ->  Nested Loop  (cost=0.42..84.63 rows=10 width=16) (actual time=0.003..0.003 rows=0.95 loops=20)
                  Buffers: shared hit=76
                  ->  WorkTable Scan on a a_1  (cost=0.00..0.20 rows=10 width=8) (actual time=0.000..0.000 rows=1.00 loops=20)
-                 ->  Index Scan using nodes_pkey on nodes n  (cost=0.42..8.44 rows=1 width=16) (actual time=0.003..0.003 rows=0.95 loops=20)
+                 ->  Index Scan using nodes_pkey on nodes n  (cost=0.42..8.44 rows=1 width=16) (actual time=0.002..0.002 rows=0.95 loops=20)
                        Index Cond: (id = a_1.parent_id)
                        Index Searches: 19
                        Buffers: shared hit=76
-   ->  CTE Scan on a  (cost=0.00..2.02 rows=101 width=0) (actual time=0.018..0.091 rows=20.00 loops=1)
+   ->  CTE Scan on a  (cost=0.00..2.02 rows=101 width=0) (actual time=0.017..0.078 rows=20.00 loops=1)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=83
  Planning:
-   Buffers: shared hit=184
- Planning Time: 0.384 ms
- Execution Time: 0.168 ms
+   Buffers: shared hit=183
+ Planning Time: 0.391 ms
+ Execution Time: 0.137 ms
 (24 rows)
 
 ## 11_ancestors.sql run 3
@@ -212,13 +212,13 @@ WITH RECURSIVE a AS (
 SELECT count(*) FROM a;
                                                                  QUERY PLAN                                                                  
 ---------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=857.98..857.99 rows=1 width=8) (actual time=0.086..0.087 rows=1.00 loops=1)
+ Aggregate  (cost=857.98..857.99 rows=1 width=8) (actual time=0.090..0.090 rows=1.00 loops=1)
    Buffers: shared hit=83
    CTE a
-     ->  Recursive Union  (cost=0.42..855.70 rows=101 width=16) (actual time=0.017..0.081 rows=20.00 loops=1)
+     ->  Recursive Union  (cost=0.42..855.70 rows=101 width=16) (actual time=0.016..0.084 rows=20.00 loops=1)
            Storage: Memory  Maximum Storage: 33kB
            Buffers: shared hit=83
-           ->  Index Scan using nodes_pkey on nodes  (cost=0.42..8.44 rows=1 width=16) (actual time=0.016..0.016 rows=1.00 loops=1)
+           ->  Index Scan using nodes_pkey on nodes  (cost=0.42..8.44 rows=1 width=16) (actual time=0.015..0.015 rows=1.00 loops=1)
                  Index Cond: (id = 992336)
                  Index Searches: 1
                  Buffers: shared hit=7
@@ -229,13 +229,13 @@ SELECT count(*) FROM a;
                        Index Cond: (id = a_1.parent_id)
                        Index Searches: 19
                        Buffers: shared hit=76
-   ->  CTE Scan on a  (cost=0.00..2.02 rows=101 width=0) (actual time=0.017..0.084 rows=20.00 loops=1)
+   ->  CTE Scan on a  (cost=0.00..2.02 rows=101 width=0) (actual time=0.017..0.087 rows=20.00 loops=1)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=83
  Planning:
-   Buffers: shared hit=184
- Planning Time: 0.341 ms
- Execution Time: 0.136 ms
+   Buffers: shared hit=183
+ Planning Time: 0.415 ms
+ Execution Time: 0.146 ms
 (24 rows)
 
 ## 12_children.sql run 1
@@ -244,19 +244,19 @@ EXPLAIN (ANALYZE)
 SELECT id FROM ch04_a.nodes WHERE parent_id = 11 ORDER BY id;
                                                               QUERY PLAN                                                              
 --------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=4.57..4.58 rows=5 width=8) (actual time=0.039..0.041 rows=9.00 loops=1)
+ Sort  (cost=4.57..4.58 rows=5 width=8) (actual time=0.027..0.031 rows=9.00 loops=1)
    Sort Key: id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=10
-   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..4.51 rows=5 width=8) (actual time=0.026..0.027 rows=9.00 loops=1)
+   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..4.51 rows=5 width=8) (actual time=0.016..0.017 rows=9.00 loops=1)
          Index Cond: (parent_id = 11)
          Heap Fetches: 0
          Index Searches: 1
          Buffers: shared hit=7
  Planning:
-   Buffers: shared hit=109
- Planning Time: 0.226 ms
- Execution Time: 0.071 ms
+   Buffers: shared hit=108
+ Planning Time: 0.233 ms
+ Execution Time: 0.055 ms
 (13 rows)
 
 ## 12_children.sql run 2
@@ -265,19 +265,19 @@ EXPLAIN (ANALYZE)
 SELECT id FROM ch04_a.nodes WHERE parent_id = 11 ORDER BY id;
                                                               QUERY PLAN                                                              
 --------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=4.57..4.58 rows=5 width=8) (actual time=0.042..0.045 rows=9.00 loops=1)
+ Sort  (cost=4.57..4.58 rows=5 width=8) (actual time=0.040..0.042 rows=9.00 loops=1)
    Sort Key: id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=10
-   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..4.51 rows=5 width=8) (actual time=0.028..0.029 rows=9.00 loops=1)
+   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..4.51 rows=5 width=8) (actual time=0.027..0.028 rows=9.00 loops=1)
          Index Cond: (parent_id = 11)
          Heap Fetches: 0
          Index Searches: 1
          Buffers: shared hit=7
  Planning:
-   Buffers: shared hit=109
- Planning Time: 0.212 ms
- Execution Time: 0.076 ms
+   Buffers: shared hit=108
+ Planning Time: 0.263 ms
+ Execution Time: 0.078 ms
 (13 rows)
 
 ## 12_children.sql run 3
@@ -286,19 +286,19 @@ EXPLAIN (ANALYZE)
 SELECT id FROM ch04_a.nodes WHERE parent_id = 11 ORDER BY id;
                                                               QUERY PLAN                                                              
 --------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=4.57..4.58 rows=5 width=8) (actual time=0.032..0.034 rows=9.00 loops=1)
+ Sort  (cost=4.57..4.58 rows=5 width=8) (actual time=0.036..0.039 rows=9.00 loops=1)
    Sort Key: id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=10
-   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..4.51 rows=5 width=8) (actual time=0.018..0.019 rows=9.00 loops=1)
+   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..4.51 rows=5 width=8) (actual time=0.022..0.023 rows=9.00 loops=1)
          Index Cond: (parent_id = 11)
          Heap Fetches: 0
          Index Searches: 1
          Buffers: shared hit=7
  Planning:
-   Buffers: shared hit=109
- Planning Time: 0.211 ms
- Execution Time: 0.065 ms
+   Buffers: shared hit=108
+ Planning Time: 0.271 ms
+ Execution Time: 0.074 ms
 (13 rows)
 
 #### ch04_b
@@ -308,22 +308,22 @@ EXPLAIN (ANALYZE)
 SELECT count(*) FROM ch04_b.paths WHERE ancestor_id = 11 AND depth > 0;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=58213.15..58213.16 rows=1 width=8) (actual time=13.324..13.328 rows=1.00 loops=1)
+ Aggregate  (cost=58130.27..58130.28 rows=1 width=8) (actual time=12.971..12.978 rows=1.00 loops=1)
    Buffers: shared hit=3 read=885
-   ->  Bitmap Heap Scan on paths  (cost=2145.05..58038.31 rows=69936 width=0) (actual time=3.677..10.301 rows=84699.00 loops=1)
+   ->  Bitmap Heap Scan on paths  (cost=2240.55..57947.14 rows=73250 width=0) (actual time=3.536..9.862 rows=84699.00 loops=1)
          Recheck Cond: (ancestor_id = 11)
          Filter: (depth > 0)
          Rows Removed by Filter: 1
          Heap Blocks: exact=558
          Buffers: shared hit=3 read=885
-         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2127.56 rows=79884 width=0) (actual time=3.501..3.501 rows=84700.00 loops=1)
+         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2222.24 rows=83441 width=0) (actual time=3.365..3.365 rows=84700.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=3 read=327
  Planning:
-   Buffers: shared hit=135 read=5
- Planning Time: 0.407 ms
- Execution Time: 13.364 ms
+   Buffers: shared hit=137 read=5
+ Planning Time: 0.408 ms
+ Execution Time: 13.008 ms
 (16 rows)
 
 ## 10_descendants.sql run 2
@@ -332,22 +332,22 @@ EXPLAIN (ANALYZE)
 SELECT count(*) FROM ch04_b.paths WHERE ancestor_id = 11 AND depth > 0;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=58213.15..58213.16 rows=1 width=8) (actual time=11.443..11.450 rows=1.00 loops=1)
+ Aggregate  (cost=58130.27..58130.28 rows=1 width=8) (actual time=10.630..10.636 rows=1.00 loops=1)
    Buffers: shared hit=888
-   ->  Bitmap Heap Scan on paths  (cost=2145.05..58038.31 rows=69936 width=0) (actual time=1.877..8.294 rows=84699.00 loops=1)
+   ->  Bitmap Heap Scan on paths  (cost=2240.55..57947.14 rows=73250 width=0) (actual time=1.718..7.633 rows=84699.00 loops=1)
          Recheck Cond: (ancestor_id = 11)
          Filter: (depth > 0)
          Rows Removed by Filter: 1
          Heap Blocks: exact=558
          Buffers: shared hit=888
-         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2127.56 rows=79884 width=0) (actual time=1.824..1.825 rows=84700.00 loops=1)
+         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2222.24 rows=83441 width=0) (actual time=1.654..1.654 rows=84700.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=330
  Planning:
-   Buffers: shared hit=140
- Planning Time: 0.320 ms
- Execution Time: 11.482 ms
+   Buffers: shared hit=142
+ Planning Time: 0.343 ms
+ Execution Time: 10.663 ms
 (16 rows)
 
 ## 10_descendants.sql run 3
@@ -356,22 +356,22 @@ EXPLAIN (ANALYZE)
 SELECT count(*) FROM ch04_b.paths WHERE ancestor_id = 11 AND depth > 0;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=58213.15..58213.16 rows=1 width=8) (actual time=11.117..11.128 rows=1.00 loops=1)
+ Aggregate  (cost=58130.27..58130.28 rows=1 width=8) (actual time=11.086..11.092 rows=1.00 loops=1)
    Buffers: shared hit=888
-   ->  Bitmap Heap Scan on paths  (cost=2145.05..58038.31 rows=69936 width=0) (actual time=1.864..7.990 rows=84699.00 loops=1)
+   ->  Bitmap Heap Scan on paths  (cost=2240.55..57947.14 rows=73250 width=0) (actual time=1.807..8.038 rows=84699.00 loops=1)
          Recheck Cond: (ancestor_id = 11)
          Filter: (depth > 0)
          Rows Removed by Filter: 1
          Heap Blocks: exact=558
          Buffers: shared hit=888
-         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2127.56 rows=79884 width=0) (actual time=1.816..1.816 rows=84700.00 loops=1)
+         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2222.24 rows=83441 width=0) (actual time=1.761..1.761 rows=84700.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=330
  Planning:
-   Buffers: shared hit=140
- Planning Time: 0.278 ms
- Execution Time: 11.157 ms
+   Buffers: shared hit=142
+ Planning Time: 0.326 ms
+ Execution Time: 11.125 ms
 (16 rows)
 
 ## 11_ancestors.sql run 1
@@ -380,17 +380,17 @@ EXPLAIN (ANALYZE)
 SELECT count(*) FROM ch04_b.paths WHERE descendant_id = 992336 AND depth > 0;
                                                               QUERY PLAN                                                              
 --------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=33.77..33.78 rows=1 width=8) (actual time=0.186..0.188 rows=1.00 loops=1)
+ Aggregate  (cost=30.25..30.26 rows=1 width=8) (actual time=0.166..0.168 rows=1.00 loops=1)
    Buffers: shared hit=5 read=20
-   ->  Index Only Scan using paths_desc_idx on paths  (cost=0.43..33.75 rows=8 width=0) (actual time=0.056..0.182 rows=19.00 loops=1)
+   ->  Index Only Scan using paths_desc_idx on paths  (cost=0.43..30.23 rows=7 width=0) (actual time=0.056..0.163 rows=19.00 loops=1)
          Index Cond: ((descendant_id = 992336) AND (depth > 0))
          Heap Fetches: 19
          Index Searches: 1
          Buffers: shared hit=5 read=20
  Planning:
-   Buffers: shared hit=140
- Planning Time: 0.270 ms
- Execution Time: 0.208 ms
+   Buffers: shared hit=142
+ Planning Time: 0.269 ms
+ Execution Time: 0.189 ms
 (11 rows)
 
 ## 11_ancestors.sql run 2
@@ -399,17 +399,17 @@ EXPLAIN (ANALYZE)
 SELECT count(*) FROM ch04_b.paths WHERE descendant_id = 992336 AND depth > 0;
                                                               QUERY PLAN                                                              
 --------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=33.77..33.78 rows=1 width=8) (actual time=0.061..0.063 rows=1.00 loops=1)
+ Aggregate  (cost=30.25..30.26 rows=1 width=8) (actual time=0.039..0.041 rows=1.00 loops=1)
    Buffers: shared hit=25
-   ->  Index Only Scan using paths_desc_idx on paths  (cost=0.43..33.75 rows=8 width=0) (actual time=0.029..0.058 rows=19.00 loops=1)
+   ->  Index Only Scan using paths_desc_idx on paths  (cost=0.43..30.23 rows=7 width=0) (actual time=0.018..0.036 rows=19.00 loops=1)
          Index Cond: ((descendant_id = 992336) AND (depth > 0))
          Heap Fetches: 19
          Index Searches: 1
          Buffers: shared hit=25
  Planning:
-   Buffers: shared hit=140
- Planning Time: 0.370 ms
- Execution Time: 0.087 ms
+   Buffers: shared hit=142
+ Planning Time: 0.267 ms
+ Execution Time: 0.062 ms
 (11 rows)
 
 ## 11_ancestors.sql run 3
@@ -418,17 +418,17 @@ EXPLAIN (ANALYZE)
 SELECT count(*) FROM ch04_b.paths WHERE descendant_id = 992336 AND depth > 0;
                                                               QUERY PLAN                                                              
 --------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=33.77..33.78 rows=1 width=8) (actual time=0.058..0.061 rows=1.00 loops=1)
+ Aggregate  (cost=30.25..30.26 rows=1 width=8) (actual time=0.044..0.046 rows=1.00 loops=1)
    Buffers: shared hit=25
-   ->  Index Only Scan using paths_desc_idx on paths  (cost=0.43..33.75 rows=8 width=0) (actual time=0.029..0.055 rows=19.00 loops=1)
+   ->  Index Only Scan using paths_desc_idx on paths  (cost=0.43..30.23 rows=7 width=0) (actual time=0.018..0.041 rows=19.00 loops=1)
          Index Cond: ((descendant_id = 992336) AND (depth > 0))
          Heap Fetches: 19
          Index Searches: 1
          Buffers: shared hit=25
  Planning:
-   Buffers: shared hit=140
- Planning Time: 0.355 ms
- Execution Time: 0.087 ms
+   Buffers: shared hit=142
+ Planning Time: 0.282 ms
+ Execution Time: 0.065 ms
 (11 rows)
 
 ## 12_children.sql run 1
@@ -438,24 +438,24 @@ EXPLAIN (ANALYZE)
 SELECT descendant_id FROM ch04_b.paths
 WHERE ancestor_id = 11 AND depth = 1
 ORDER BY descendant_id;
-                                                              QUERY PLAN                                                              
---------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=25936.65..25961.41 rows=9906 width=8) (actual time=0.093..0.096 rows=9.00 loops=1)
+                                                              QUERY PLAN                                                               
+---------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=26624.14..26649.82 rows=10272 width=8) (actual time=0.080..0.083 rows=9.00 loops=1)
    Sort Key: descendant_id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=7 read=3
-   ->  Bitmap Heap Scan on paths  (cost=229.20..25279.18 rows=9906 width=8) (actual time=0.080..0.081 rows=9.00 loops=1)
+   ->  Bitmap Heap Scan on paths  (cost=240.03..25939.69 rows=10272 width=8) (actual time=0.069..0.069 rows=9.00 loops=1)
          Recheck Cond: ((ancestor_id = 11) AND (depth = 1))
          Heap Blocks: exact=1
          Buffers: shared hit=4 read=3
-         ->  Bitmap Index Scan on paths_child_idx  (cost=0.00..226.72 rows=9906 width=0) (actual time=0.070..0.070 rows=9.00 loops=1)
+         ->  Bitmap Index Scan on paths_child_idx  (cost=0.00..237.47 rows=10272 width=0) (actual time=0.061..0.062 rows=9.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=3 read=3
  Planning:
-   Buffers: shared hit=129
- Planning Time: 0.312 ms
- Execution Time: 0.129 ms
+   Buffers: shared hit=131
+ Planning Time: 0.238 ms
+ Execution Time: 0.111 ms
 (16 rows)
 
 ## 12_children.sql run 2
@@ -465,24 +465,24 @@ EXPLAIN (ANALYZE)
 SELECT descendant_id FROM ch04_b.paths
 WHERE ancestor_id = 11 AND depth = 1
 ORDER BY descendant_id;
-                                                              QUERY PLAN                                                              
---------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=25936.65..25961.41 rows=9906 width=8) (actual time=0.040..0.042 rows=9.00 loops=1)
+                                                              QUERY PLAN                                                               
+---------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=26624.14..26649.82 rows=10272 width=8) (actual time=0.028..0.031 rows=9.00 loops=1)
    Sort Key: descendant_id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=10
-   ->  Bitmap Heap Scan on paths  (cost=229.20..25279.18 rows=9906 width=8) (actual time=0.023..0.024 rows=9.00 loops=1)
+   ->  Bitmap Heap Scan on paths  (cost=240.03..25939.69 rows=10272 width=8) (actual time=0.016..0.016 rows=9.00 loops=1)
          Recheck Cond: ((ancestor_id = 11) AND (depth = 1))
          Heap Blocks: exact=1
          Buffers: shared hit=7
-         ->  Bitmap Index Scan on paths_child_idx  (cost=0.00..226.72 rows=9906 width=0) (actual time=0.014..0.014 rows=9.00 loops=1)
+         ->  Bitmap Index Scan on paths_child_idx  (cost=0.00..237.47 rows=10272 width=0) (actual time=0.009..0.009 rows=9.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=6
  Planning:
-   Buffers: shared hit=129
- Planning Time: 0.240 ms
- Execution Time: 0.070 ms
+   Buffers: shared hit=131
+ Planning Time: 0.294 ms
+ Execution Time: 0.060 ms
 (16 rows)
 
 ## 12_children.sql run 3
@@ -492,24 +492,24 @@ EXPLAIN (ANALYZE)
 SELECT descendant_id FROM ch04_b.paths
 WHERE ancestor_id = 11 AND depth = 1
 ORDER BY descendant_id;
-                                                              QUERY PLAN                                                              
---------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=25936.65..25961.41 rows=9906 width=8) (actual time=0.034..0.036 rows=9.00 loops=1)
+                                                              QUERY PLAN                                                               
+---------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=26624.14..26649.82 rows=10272 width=8) (actual time=0.027..0.029 rows=9.00 loops=1)
    Sort Key: descendant_id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=10
-   ->  Bitmap Heap Scan on paths  (cost=229.20..25279.18 rows=9906 width=8) (actual time=0.022..0.023 rows=9.00 loops=1)
+   ->  Bitmap Heap Scan on paths  (cost=240.03..25939.69 rows=10272 width=8) (actual time=0.016..0.016 rows=9.00 loops=1)
          Recheck Cond: ((ancestor_id = 11) AND (depth = 1))
          Heap Blocks: exact=1
          Buffers: shared hit=7
-         ->  Bitmap Index Scan on paths_child_idx  (cost=0.00..226.72 rows=9906 width=0) (actual time=0.014..0.014 rows=9.00 loops=1)
+         ->  Bitmap Index Scan on paths_child_idx  (cost=0.00..237.47 rows=10272 width=0) (actual time=0.008..0.008 rows=9.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=6
  Planning:
-   Buffers: shared hit=129
- Planning Time: 0.242 ms
- Execution Time: 0.063 ms
+   Buffers: shared hit=131
+ Planning Time: 0.243 ms
+ Execution Time: 0.068 ms
 (16 rows)
 
 ## 13_children_no_partial.sql run 1
@@ -522,27 +522,33 @@ BEGIN;
 BEGIN
 DROP INDEX ch04_b.paths_child_idx;
 DROP INDEX
+-- 🔴 12_children.sql と同じ問い合わせにする（返す列も並べ替えも同じ）。
+--    片方が count(*) だと、インデックスの差ではなく問い合わせの差を測ることになる。
 EXPLAIN (ANALYZE)
-SELECT count(*) FROM ch04_b.paths WHERE ancestor_id = 11 AND depth = 1;
+SELECT descendant_id FROM ch04_b.paths
+WHERE ancestor_id = 11 AND depth = 1
+ORDER BY descendant_id;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=58048.07..58048.08 rows=1 width=8) (actual time=5.251..5.254 rows=1.00 loops=1)
-   Buffers: shared hit=888
-   ->  Bitmap Heap Scan on paths  (cost=2130.04..58023.31 rows=9906 width=0) (actual time=1.776..5.248 rows=9.00 loops=1)
+ Sort  (cost=58615.85..58641.53 rows=10272 width=8) (actual time=4.527..4.530 rows=9.00 loops=1)
+   Sort Key: descendant_id
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=891
+   ->  Bitmap Heap Scan on paths  (cost=2224.81..57931.40 rows=10272 width=8) (actual time=1.543..4.516 rows=9.00 loops=1)
          Recheck Cond: (ancestor_id = 11)
          Filter: (depth = 1)
          Rows Removed by Filter: 84691
          Heap Blocks: exact=558
          Buffers: shared hit=888
-         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2127.56 rows=79884 width=0) (actual time=1.723..1.723 rows=84700.00 loops=1)
+         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2222.24 rows=83441 width=0) (actual time=1.500..1.500 rows=84700.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=330
  Planning:
-   Buffers: shared hit=95
- Planning Time: 0.229 ms
- Execution Time: 5.289 ms
-(16 rows)
+   Buffers: shared hit=106
+ Planning Time: 0.204 ms
+ Execution Time: 4.558 ms
+(18 rows)
 
 ROLLBACK;
 ROLLBACK
@@ -556,27 +562,33 @@ BEGIN;
 BEGIN
 DROP INDEX ch04_b.paths_child_idx;
 DROP INDEX
+-- 🔴 12_children.sql と同じ問い合わせにする（返す列も並べ替えも同じ）。
+--    片方が count(*) だと、インデックスの差ではなく問い合わせの差を測ることになる。
 EXPLAIN (ANALYZE)
-SELECT count(*) FROM ch04_b.paths WHERE ancestor_id = 11 AND depth = 1;
+SELECT descendant_id FROM ch04_b.paths
+WHERE ancestor_id = 11 AND depth = 1
+ORDER BY descendant_id;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=58048.07..58048.08 rows=1 width=8) (actual time=5.381..5.385 rows=1.00 loops=1)
-   Buffers: shared hit=888
-   ->  Bitmap Heap Scan on paths  (cost=2130.04..58023.31 rows=9906 width=0) (actual time=1.903..5.377 rows=9.00 loops=1)
+ Sort  (cost=58615.85..58641.53 rows=10272 width=8) (actual time=4.605..4.608 rows=9.00 loops=1)
+   Sort Key: descendant_id
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=891
+   ->  Bitmap Heap Scan on paths  (cost=2224.81..57931.40 rows=10272 width=8) (actual time=1.563..4.592 rows=9.00 loops=1)
          Recheck Cond: (ancestor_id = 11)
          Filter: (depth = 1)
          Rows Removed by Filter: 84691
          Heap Blocks: exact=558
          Buffers: shared hit=888
-         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2127.56 rows=79884 width=0) (actual time=1.852..1.852 rows=84700.00 loops=1)
+         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2222.24 rows=83441 width=0) (actual time=1.521..1.521 rows=84700.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=330
  Planning:
-   Buffers: shared hit=95
- Planning Time: 0.247 ms
- Execution Time: 5.428 ms
-(16 rows)
+   Buffers: shared hit=106
+ Planning Time: 0.214 ms
+ Execution Time: 4.647 ms
+(18 rows)
 
 ROLLBACK;
 ROLLBACK
@@ -590,27 +602,33 @@ BEGIN;
 BEGIN
 DROP INDEX ch04_b.paths_child_idx;
 DROP INDEX
+-- 🔴 12_children.sql と同じ問い合わせにする（返す列も並べ替えも同じ）。
+--    片方が count(*) だと、インデックスの差ではなく問い合わせの差を測ることになる。
 EXPLAIN (ANALYZE)
-SELECT count(*) FROM ch04_b.paths WHERE ancestor_id = 11 AND depth = 1;
+SELECT descendant_id FROM ch04_b.paths
+WHERE ancestor_id = 11 AND depth = 1
+ORDER BY descendant_id;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=58048.07..58048.08 rows=1 width=8) (actual time=5.441..5.443 rows=1.00 loops=1)
-   Buffers: shared hit=888
-   ->  Bitmap Heap Scan on paths  (cost=2130.04..58023.31 rows=9906 width=0) (actual time=1.836..5.438 rows=9.00 loops=1)
+ Sort  (cost=58615.85..58641.53 rows=10272 width=8) (actual time=4.653..4.655 rows=9.00 loops=1)
+   Sort Key: descendant_id
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=891
+   ->  Bitmap Heap Scan on paths  (cost=2224.81..57931.40 rows=10272 width=8) (actual time=1.541..4.642 rows=9.00 loops=1)
          Recheck Cond: (ancestor_id = 11)
          Filter: (depth = 1)
          Rows Removed by Filter: 84691
          Heap Blocks: exact=558
          Buffers: shared hit=888
-         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2127.56 rows=79884 width=0) (actual time=1.786..1.786 rows=84700.00 loops=1)
+         ->  Bitmap Index Scan on paths_pkey  (cost=0.00..2222.24 rows=83441 width=0) (actual time=1.499..1.499 rows=84700.00 loops=1)
                Index Cond: (ancestor_id = 11)
                Index Searches: 1
                Buffers: shared hit=330
  Planning:
-   Buffers: shared hit=95
- Planning Time: 0.218 ms
- Execution Time: 5.482 ms
-(16 rows)
+   Buffers: shared hit=106
+ Planning Time: 0.231 ms
+ Execution Time: 4.684 ms
+(18 rows)
 
 ROLLBACK;
 ROLLBACK
@@ -622,27 +640,27 @@ SELECT count(*) FROM ch04_c.nodes
 WHERE path <@ (SELECT path FROM ch04_c.nodes WHERE id = 11) AND id <> 11;
                                                                  QUERY PLAN                                                                  
 ---------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=16722.20..16722.21 rows=1 width=8) (actual time=30.460..30.466 rows=1.00 loops=1)
-   Buffers: shared hit=1081 read=2977
+ Aggregate  (cost=16726.20..16726.21 rows=1 width=8) (actual time=28.807..28.817 rows=1.00 loops=1)
+   Buffers: shared hit=388 read=3654
    InitPlan 1
-     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.021..0.022 rows=1.00 loops=1)
+     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.015..0.015 rows=1.00 loops=1)
            Index Cond: (id = 11)
            Index Searches: 1
            Buffers: shared hit=7
-   ->  Bitmap Heap Scan on nodes  (cost=949.91..16688.76 rows=10000 width=0) (actual time=18.801..27.625 rows=84699.00 loops=1)
+   ->  Bitmap Heap Scan on nodes  (cost=953.91..16692.76 rows=10000 width=0) (actual time=17.762..25.881 rows=84699.00 loops=1)
          Recheck Cond: (path <@ (InitPlan 1).col1)
          Filter: (id <> 11)
          Rows Removed by Filter: 1
          Heap Blocks: exact=1851
-         Buffers: shared hit=1081 read=2977
-         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..947.41 rows=10000 width=0) (actual time=18.523..18.523 rows=84700.00 loops=1)
+         Buffers: shared hit=388 read=3654
+         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..951.41 rows=10000 width=0) (actual time=17.504..17.504 rows=84700.00 loops=1)
                Index Cond: (path <@ (InitPlan 1).col1)
                Index Searches: 1
-               Buffers: shared hit=7 read=2200
+               Buffers: shared hit=7 read=2184
  Planning:
-   Buffers: shared hit=144 read=5
- Planning Time: 0.664 ms
- Execution Time: 30.580 ms
+   Buffers: shared hit=146 read=2
+ Planning Time: 0.747 ms
+ Execution Time: 28.946 ms
 (21 rows)
 
 ## 10_descendants.sql run 2
@@ -652,27 +670,27 @@ SELECT count(*) FROM ch04_c.nodes
 WHERE path <@ (SELECT path FROM ch04_c.nodes WHERE id = 11) AND id <> 11;
                                                                 QUERY PLAN                                                                 
 -------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=16722.20..16722.21 rows=1 width=8) (actual time=18.650..18.656 rows=1.00 loops=1)
-   Buffers: shared hit=4058
+ Aggregate  (cost=16726.20..16726.21 rows=1 width=8) (actual time=19.099..19.108 rows=1.00 loops=1)
+   Buffers: shared hit=4042
    InitPlan 1
-     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.023..0.024 rows=1.00 loops=1)
+     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.015..0.015 rows=1.00 loops=1)
            Index Cond: (id = 11)
            Index Searches: 1
            Buffers: shared hit=7
-   ->  Bitmap Heap Scan on nodes  (cost=949.91..16688.76 rows=10000 width=0) (actual time=7.494..15.642 rows=84699.00 loops=1)
+   ->  Bitmap Heap Scan on nodes  (cost=953.91..16692.76 rows=10000 width=0) (actual time=7.755..16.146 rows=84699.00 loops=1)
          Recheck Cond: (path <@ (InitPlan 1).col1)
          Filter: (id <> 11)
          Rows Removed by Filter: 1
          Heap Blocks: exact=1851
-         Buffers: shared hit=4058
-         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..947.41 rows=10000 width=0) (actual time=7.328..7.328 rows=84700.00 loops=1)
+         Buffers: shared hit=4042
+         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..951.41 rows=10000 width=0) (actual time=7.594..7.594 rows=84700.00 loops=1)
                Index Cond: (path <@ (InitPlan 1).col1)
                Index Searches: 1
-               Buffers: shared hit=2207
+               Buffers: shared hit=2191
  Planning:
-   Buffers: shared hit=149
- Planning Time: 0.558 ms
- Execution Time: 18.763 ms
+   Buffers: shared hit=148
+ Planning Time: 0.620 ms
+ Execution Time: 19.221 ms
 (21 rows)
 
 ## 10_descendants.sql run 3
@@ -682,27 +700,27 @@ SELECT count(*) FROM ch04_c.nodes
 WHERE path <@ (SELECT path FROM ch04_c.nodes WHERE id = 11) AND id <> 11;
                                                                 QUERY PLAN                                                                 
 -------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=16722.20..16722.21 rows=1 width=8) (actual time=18.431..18.436 rows=1.00 loops=1)
-   Buffers: shared hit=4058
+ Aggregate  (cost=16726.20..16726.21 rows=1 width=8) (actual time=19.093..19.101 rows=1.00 loops=1)
+   Buffers: shared hit=4042
    InitPlan 1
-     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.020..0.021 rows=1.00 loops=1)
+     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.014..0.015 rows=1.00 loops=1)
            Index Cond: (id = 11)
            Index Searches: 1
            Buffers: shared hit=7
-   ->  Bitmap Heap Scan on nodes  (cost=949.91..16688.76 rows=10000 width=0) (actual time=7.341..15.419 rows=84699.00 loops=1)
+   ->  Bitmap Heap Scan on nodes  (cost=953.91..16692.76 rows=10000 width=0) (actual time=7.700..16.107 rows=84699.00 loops=1)
          Recheck Cond: (path <@ (InitPlan 1).col1)
          Filter: (id <> 11)
          Rows Removed by Filter: 1
          Heap Blocks: exact=1851
-         Buffers: shared hit=4058
-         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..947.41 rows=10000 width=0) (actual time=7.178..7.178 rows=84700.00 loops=1)
+         Buffers: shared hit=4042
+         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..951.41 rows=10000 width=0) (actual time=7.524..7.524 rows=84700.00 loops=1)
                Index Cond: (path <@ (InitPlan 1).col1)
                Index Searches: 1
-               Buffers: shared hit=2207
+               Buffers: shared hit=2191
  Planning:
-   Buffers: shared hit=149
- Planning Time: 0.494 ms
- Execution Time: 18.532 ms
+   Buffers: shared hit=148
+ Planning Time: 0.612 ms
+ Execution Time: 19.214 ms
 (21 rows)
 
 ## 11_ancestors.sql run 1
@@ -712,27 +730,27 @@ SELECT count(*) FROM ch04_c.nodes
 WHERE path @> (SELECT path FROM ch04_c.nodes WHERE id = 992336) AND id <> 992336;
                                                                QUERY PLAN                                                               
 ----------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=16722.20..16722.21 rows=1 width=8) (actual time=0.385..0.391 rows=1.00 loops=1)
+ Aggregate  (cost=16726.20..16726.21 rows=1 width=8) (actual time=0.230..0.232 rows=1.00 loops=1)
    Buffers: shared hit=30 read=4
    InitPlan 1
-     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.055..0.056 rows=1.00 loops=1)
+     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.037..0.037 rows=1.00 loops=1)
            Index Cond: (id = 992336)
            Index Searches: 1
            Buffers: shared hit=6 read=1
-   ->  Bitmap Heap Scan on nodes  (cost=949.91..16688.76 rows=10000 width=0) (actual time=0.282..0.376 rows=19.00 loops=1)
+   ->  Bitmap Heap Scan on nodes  (cost=953.91..16692.76 rows=10000 width=0) (actual time=0.163..0.227 rows=19.00 loops=1)
          Recheck Cond: (path @> (InitPlan 1).col1)
          Filter: (id <> 992336)
          Rows Removed by Filter: 1
          Heap Blocks: exact=18
          Buffers: shared hit=30 read=4
-         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..947.41 rows=10000 width=0) (actual time=0.213..0.213 rows=20.00 loops=1)
+         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..951.41 rows=10000 width=0) (actual time=0.156..0.156 rows=20.00 loops=1)
                Index Cond: (path @> (InitPlan 1).col1)
                Index Searches: 1
                Buffers: shared hit=12 read=4
  Planning:
-   Buffers: shared hit=149
- Planning Time: 0.584 ms
- Execution Time: 0.496 ms
+   Buffers: shared hit=148
+ Planning Time: 0.478 ms
+ Execution Time: 0.318 ms
 (21 rows)
 
 ## 11_ancestors.sql run 2
@@ -742,27 +760,27 @@ SELECT count(*) FROM ch04_c.nodes
 WHERE path @> (SELECT path FROM ch04_c.nodes WHERE id = 992336) AND id <> 992336;
                                                                QUERY PLAN                                                               
 ----------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=16722.20..16722.21 rows=1 width=8) (actual time=0.188..0.190 rows=1.00 loops=1)
+ Aggregate  (cost=16726.20..16726.21 rows=1 width=8) (actual time=0.196..0.198 rows=1.00 loops=1)
    Buffers: shared hit=34
    InitPlan 1
-     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.025..0.025 rows=1.00 loops=1)
+     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.027..0.028 rows=1.00 loops=1)
            Index Cond: (id = 992336)
            Index Searches: 1
            Buffers: shared hit=7
-   ->  Bitmap Heap Scan on nodes  (cost=949.91..16688.76 rows=10000 width=0) (actual time=0.127..0.185 rows=19.00 loops=1)
+   ->  Bitmap Heap Scan on nodes  (cost=953.91..16692.76 rows=10000 width=0) (actual time=0.130..0.193 rows=19.00 loops=1)
          Recheck Cond: (path @> (InitPlan 1).col1)
          Filter: (id <> 992336)
          Rows Removed by Filter: 1
          Heap Blocks: exact=18
          Buffers: shared hit=34
-         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..947.41 rows=10000 width=0) (actual time=0.119..0.119 rows=20.00 loops=1)
+         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..951.41 rows=10000 width=0) (actual time=0.123..0.123 rows=20.00 loops=1)
                Index Cond: (path @> (InitPlan 1).col1)
                Index Searches: 1
                Buffers: shared hit=16
  Planning:
-   Buffers: shared hit=149
- Planning Time: 0.543 ms
- Execution Time: 0.284 ms
+   Buffers: shared hit=148
+ Planning Time: 0.553 ms
+ Execution Time: 0.293 ms
 (21 rows)
 
 ## 11_ancestors.sql run 3
@@ -772,27 +790,27 @@ SELECT count(*) FROM ch04_c.nodes
 WHERE path @> (SELECT path FROM ch04_c.nodes WHERE id = 992336) AND id <> 992336;
                                                                QUERY PLAN                                                               
 ----------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=16722.20..16722.21 rows=1 width=8) (actual time=0.237..0.240 rows=1.00 loops=1)
+ Aggregate  (cost=16726.20..16726.21 rows=1 width=8) (actual time=0.169..0.171 rows=1.00 loops=1)
    Buffers: shared hit=34
    InitPlan 1
-     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.031..0.031 rows=1.00 loops=1)
+     ->  Index Scan using nodes_pkey on nodes nodes_1  (cost=0.42..8.44 rows=1 width=70) (actual time=0.020..0.021 rows=1.00 loops=1)
            Index Cond: (id = 992336)
            Index Searches: 1
            Buffers: shared hit=7
-   ->  Bitmap Heap Scan on nodes  (cost=949.91..16688.76 rows=10000 width=0) (actual time=0.140..0.234 rows=19.00 loops=1)
+   ->  Bitmap Heap Scan on nodes  (cost=953.91..16692.76 rows=10000 width=0) (actual time=0.107..0.166 rows=19.00 loops=1)
          Recheck Cond: (path @> (InitPlan 1).col1)
          Filter: (id <> 992336)
          Rows Removed by Filter: 1
          Heap Blocks: exact=18
          Buffers: shared hit=34
-         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..947.41 rows=10000 width=0) (actual time=0.132..0.132 rows=20.00 loops=1)
+         ->  Bitmap Index Scan on nodes_path_gist  (cost=0.00..951.41 rows=10000 width=0) (actual time=0.101..0.101 rows=20.00 loops=1)
                Index Cond: (path @> (InitPlan 1).col1)
                Index Searches: 1
                Buffers: shared hit=16
  Planning:
-   Buffers: shared hit=149
- Planning Time: 0.552 ms
- Execution Time: 0.343 ms
+   Buffers: shared hit=148
+ Planning Time: 0.494 ms
+ Execution Time: 0.243 ms
 (21 rows)
 
 ## 12_children.sql run 1
@@ -801,19 +819,19 @@ EXPLAIN (ANALYZE)
 SELECT id FROM ch04_c.nodes WHERE parent_id = 11 ORDER BY id;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=17.42..17.43 rows=6 width=8) (actual time=0.091..0.094 rows=9.00 loops=1)
+ Sort  (cost=17.42..17.44 rows=6 width=8) (actual time=0.043..0.045 rows=9.00 loops=1)
    Sort Key: id
    Sort Method: quicksort  Memory: 25kB
-   Buffers: shared hit=8 read=2
-   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..17.34 rows=6 width=8) (actual time=0.079..0.081 rows=9.00 loops=1)
+   Buffers: shared hit=10
+   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..17.35 rows=6 width=8) (actual time=0.031..0.033 rows=9.00 loops=1)
          Index Cond: (parent_id = 11)
          Heap Fetches: 9
          Index Searches: 1
-         Buffers: shared hit=5 read=2
+         Buffers: shared hit=7
  Planning:
-   Buffers: shared hit=131
- Planning Time: 0.506 ms
- Execution Time: 0.131 ms
+   Buffers: shared hit=130
+ Planning Time: 0.428 ms
+ Execution Time: 0.080 ms
 (13 rows)
 
 ## 12_children.sql run 2
@@ -822,19 +840,19 @@ EXPLAIN (ANALYZE)
 SELECT id FROM ch04_c.nodes WHERE parent_id = 11 ORDER BY id;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=17.42..17.43 rows=6 width=8) (actual time=0.060..0.062 rows=9.00 loops=1)
+ Sort  (cost=17.42..17.44 rows=6 width=8) (actual time=0.046..0.049 rows=9.00 loops=1)
    Sort Key: id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=10
-   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..17.34 rows=6 width=8) (actual time=0.047..0.049 rows=9.00 loops=1)
+   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..17.35 rows=6 width=8) (actual time=0.036..0.037 rows=9.00 loops=1)
          Index Cond: (parent_id = 11)
          Heap Fetches: 9
          Index Searches: 1
          Buffers: shared hit=7
  Planning:
-   Buffers: shared hit=131
- Planning Time: 0.493 ms
- Execution Time: 0.106 ms
+   Buffers: shared hit=130
+ Planning Time: 0.436 ms
+ Execution Time: 0.083 ms
 (13 rows)
 
 ## 12_children.sql run 3
@@ -843,18 +861,18 @@ EXPLAIN (ANALYZE)
 SELECT id FROM ch04_c.nodes WHERE parent_id = 11 ORDER BY id;
                                                               QUERY PLAN                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=17.42..17.43 rows=6 width=8) (actual time=0.063..0.066 rows=9.00 loops=1)
+ Sort  (cost=17.42..17.44 rows=6 width=8) (actual time=0.036..0.038 rows=9.00 loops=1)
    Sort Key: id
    Sort Method: quicksort  Memory: 25kB
    Buffers: shared hit=10
-   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..17.34 rows=6 width=8) (actual time=0.048..0.050 rows=9.00 loops=1)
+   ->  Index Only Scan using nodes_parent_idx on nodes  (cost=0.42..17.35 rows=6 width=8) (actual time=0.026..0.027 rows=9.00 loops=1)
          Index Cond: (parent_id = 11)
          Heap Fetches: 9
          Index Searches: 1
          Buffers: shared hit=7
  Planning:
-   Buffers: shared hit=131
- Planning Time: 0.459 ms
- Execution Time: 0.102 ms
+   Buffers: shared hit=130
+ Planning Time: 0.467 ms
+ Execution Time: 0.068 ms
 (13 rows)
 

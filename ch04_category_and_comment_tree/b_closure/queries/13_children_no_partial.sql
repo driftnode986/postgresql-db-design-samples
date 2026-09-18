@@ -6,7 +6,11 @@
 BEGIN;
 DROP INDEX ch04_b.paths_child_idx;
 
+-- 🔴 12_children.sql と同じ問い合わせにする（返す列も並べ替えも同じ）。
+--    片方が count(*) だと、インデックスの差ではなく問い合わせの差を測ることになる。
 EXPLAIN (ANALYZE)
-SELECT count(*) FROM ch04_b.paths WHERE ancestor_id = 11 AND depth = 1;
+SELECT descendant_id FROM ch04_b.paths
+WHERE ancestor_id = 11 AND depth = 1
+ORDER BY descendant_id;
 
 ROLLBACK;

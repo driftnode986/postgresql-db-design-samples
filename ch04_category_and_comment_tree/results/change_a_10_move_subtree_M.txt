@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:17:43 +0900
+# 採取日時: 2026-09-18 16:33:58 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -16,10 +16,10 @@
 Timing is on.
 BEGIN;
 BEGIN
-Time: 0.136 ms
+Time: 0.125 ms
 UPDATE ch04_a.nodes SET parent_id = 3 WHERE id = 11;
 UPDATE 1
-Time: 1.185 ms
+Time: 1.110 ms
 ROLLBACK;
 ROLLBACK
-Time: 0.120 ms
+Time: 0.094 ms

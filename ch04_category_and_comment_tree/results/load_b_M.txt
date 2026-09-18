@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:15:38 +0900
+# 採取日時: 2026-09-18 16:31:52 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -41,28 +41,28 @@ SELECT CASE WHEN :src_rows = 0
 Timing is on.
 TRUNCATE ch04_b.paths;
 TRUNCATE TABLE
-Time: 1.556 ms
+Time: 1.110 ms
 TRUNCATE ch04_b.nodes RESTART IDENTITY CASCADE;
-psql:/tmp/run-sql-3745.sql:8: NOTICE:  truncate cascades to table "paths"
+psql:/tmp/run-sql-10442.sql:8: NOTICE:  truncate cascades to table "paths"
 TRUNCATE TABLE
-Time: 0.884 ms
+Time: 0.973 ms
 DROP INDEX IF EXISTS ch04_b.nodes_parent_idx;
-psql:/tmp/run-sql-3745.sql:9: NOTICE:  index "nodes_parent_idx" does not exist, skipping
+psql:/tmp/run-sql-10442.sql:9: NOTICE:  index "nodes_parent_idx" does not exist, skipping
 DROP INDEX
-Time: 0.092 ms
+Time: 0.091 ms
 DROP INDEX IF EXISTS ch04_b.paths_desc_idx;
-psql:/tmp/run-sql-3745.sql:10: NOTICE:  index "paths_desc_idx" does not exist, skipping
+psql:/tmp/run-sql-10442.sql:10: NOTICE:  index "paths_desc_idx" does not exist, skipping
 DROP INDEX
-Time: 0.083 ms
+Time: 0.066 ms
 DROP INDEX IF EXISTS ch04_b.paths_child_idx;
-psql:/tmp/run-sql-3745.sql:11: NOTICE:  index "paths_child_idx" does not exist, skipping
+psql:/tmp/run-sql-10442.sql:11: NOTICE:  index "paths_child_idx" does not exist, skipping
 DROP INDEX
-Time: 0.199 ms
+Time: 0.206 ms
 INSERT INTO ch04_b.nodes (id, parent_id, body, pos)
 OVERRIDING SYSTEM VALUE
 SELECT id, parent_id, body, pos FROM ch04_r.src_thread ORDER BY id;
 INSERT 0 1000000
-Time: 3779.611 ms (00:03.780)
+Time: 3960.305 ms (00:03.960)
 SELECT setval(pg_get_serial_sequence('ch04_b.nodes', 'id'),
               (SELECT max(id) FROM ch04_b.nodes));
  setval  
@@ -70,7 +70,7 @@ SELECT setval(pg_get_serial_sequence('ch04_b.nodes', 'id'),
  1000000
 (1 row)
 
-Time: 0.499 ms
+Time: 0.610 ms
 -- 閉包を 1 文で作る。行数は「ノード数 × 平均の深さ」になる
 INSERT INTO ch04_b.paths (ancestor_id, descendant_id, depth)
 WITH RECURSIVE p(ancestor_id, descendant_id, depth) AS (
@@ -81,26 +81,26 @@ WITH RECURSIVE p(ancestor_id, descendant_id, depth) AS (
 )
 SELECT ancestor_id, descendant_id, depth FROM p;
 INSERT 0 8207314
-Time: 62915.234 ms (01:02.915)
+Time: 63399.539 ms (01:03.400)
 CREATE INDEX nodes_parent_idx ON ch04_b.nodes (parent_id, pos, id);
 CREATE INDEX
-Time: 250.598 ms
+Time: 261.041 ms
 -- 先祖をたどる（パンくず）用。主キーは先祖から子孫へ向きなので、逆向きに 1 本要る
 CREATE INDEX paths_desc_idx ON ch04_b.paths (descendant_id, depth);
 CREATE INDEX
-Time: 2505.074 ms (00:02.505)
+Time: 2386.484 ms (00:02.386)
 -- 直下の子だけを引く用。主キーには depth が入っていないので、これが無いと
 -- 子孫を全部読んでから depth = 1 で絞ることになる
 CREATE INDEX paths_child_idx ON ch04_b.paths (ancestor_id, descendant_id)
   WHERE depth = 1;
 CREATE INDEX
-Time: 430.312 ms
+Time: 442.090 ms
 ANALYZE ch04_b.nodes;
 ANALYZE
-Time: 113.008 ms
+Time: 130.523 ms
 ANALYZE ch04_b.paths;
 ANALYZE
-Time: 113.847 ms
+Time: 126.928 ms
 -- 元データと同じ木が入っているか、閉包が正しいか（全行の先頭列が 0 になること）
 SELECT count(*) AS nodes_diff FROM (
   SELECT id, parent_id, body FROM ch04_b.nodes

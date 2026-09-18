@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 16:15:33 +0900
+# 採取日時: 2026-09-18 16:31:46 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -35,17 +35,17 @@ SELECT CASE WHEN :src_rows = 0
 Timing is on.
 TRUNCATE ch04_a.nodes RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 1.642 ms
+Time: 1.827 ms
 DROP INDEX IF EXISTS ch04_a.nodes_parent_idx;
-psql:/tmp/run-sql-3699.sql:8: NOTICE:  index "nodes_parent_idx" does not exist, skipping
+psql:/tmp/run-sql-10333.sql:8: NOTICE:  index "nodes_parent_idx" does not exist, skipping
 DROP INDEX
-Time: 0.120 ms
+Time: 0.119 ms
 -- 親は必ず子より小さい id を持つので、id の順に入れれば外部キーを満たす
 INSERT INTO ch04_a.nodes (id, parent_id, body, pos)
 OVERRIDING SYSTEM VALUE
 SELECT id, parent_id, body, pos FROM ch04_r.src_thread ORDER BY id;
 INSERT 0 1000000
-Time: 3721.872 ms (00:03.722)
+Time: 3912.777 ms (00:03.913)
 SELECT setval(pg_get_serial_sequence('ch04_a.nodes', 'id'),
               (SELECT max(id) FROM ch04_a.nodes));
  setval  
@@ -53,14 +53,14 @@ SELECT setval(pg_get_serial_sequence('ch04_a.nodes', 'id'),
  1000000
 (1 row)
 
-Time: 0.765 ms
+Time: 0.709 ms
 -- 直下の子を引くインデックス。並び順も一緒に持つので、表示順のまま取り出せる
 CREATE INDEX nodes_parent_idx ON ch04_a.nodes (parent_id, pos, id);
 CREATE INDEX
-Time: 242.003 ms
+Time: 241.139 ms
 ANALYZE ch04_a.nodes;
 ANALYZE
-Time: 110.332 ms
+Time: 109.842 ms
 -- 元データと同じ木が入っているか（全行の先頭列が 0 になること）
 SELECT count(*) AS nodes_diff FROM (
   SELECT id, parent_id, body FROM ch04_a.nodes
