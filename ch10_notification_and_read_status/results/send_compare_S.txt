@@ -1,0 +1,11 @@
+# 告知 1 件の配信コスト（案A 対 案B）
+# ch10_notification_and_read_status/results/send_a_S.txt と ch10_notification_and_read_status/results/send_b_S.txt から make_send_compare.sh が抜き出したもの。手で書き換えない
+
+案A 受信者ごとに 1 行（wal_records | wal_size）:
+       30534 | 3414 kB
+案B 告知は 1 行（wal_records | wal_size）:
+           3 | 225 bytes
+
+投入した行数と時間:
+案A INSERT 0 10000  Time: 24.013 ms
+案B INSERT 0 1  Time: 0.543 ms

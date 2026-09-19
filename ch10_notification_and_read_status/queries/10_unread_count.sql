@@ -11,6 +11,20 @@
 --    （docs/research/ch10_verification.md §17）。
 --
 -- このファイルは案ごとの search_path で実行される（どの案にも notifications がある）。
+--
+-- 🔴 元データのスキーマ（ch10_r）には notifications が無い。
+--    検査は queries/ の全ファイルを全スキーマに対して流すので、
+--    表が無いときは何もせずに終わるようにしておく。
+--    そうしないと「relation "notifications" does not exist」で検査が落ちる。
+SELECT NOT EXISTS (
+  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE c.relname = 'notifications' AND c.relkind = 'r'
+     AND n.nspname = split_part(current_setting('search_path'), ',', 1)
+) AS skip \gset
+\if :skip
+  \echo '(このスキーマには notifications が無いので測らない)'
+  \quit
+\endif
 
 \timing on
 

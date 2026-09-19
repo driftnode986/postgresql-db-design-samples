@@ -10,6 +10,19 @@
 --    送る操作そのものは案のディレクトリ側（30_send_broadcast.sql）に置く。
 --
 -- ここでは送る前の状態だけを記録する。
+--
+-- 🔴 元データのスキーマ（ch10_r）には notifications が無い。
+--    検査は queries/ の全ファイルを全スキーマに対して流すので、
+--    表が無いときは何もせずに終わるようにしておく。
+SELECT NOT EXISTS (
+  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE c.relname = 'notifications' AND c.relkind = 'r'
+     AND n.nspname = split_part(current_setting('search_path'), ',', 1)
+) AS skip \gset
+\if :skip
+  \echo '(このスキーマには notifications が無いので測らない)'
+  \quit
+\endif
 
 \timing on
 
