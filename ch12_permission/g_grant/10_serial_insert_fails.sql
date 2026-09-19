@@ -1,0 +1,13 @@
+-- run-as: book_guest
+-- expect-error: 42501
+-- serial の列を持つ表に INSERT する。表への INSERT は GRANT されている。
+--
+-- 🔴 それでも失敗する。serial の既定値はシーケンスを読むので、
+--    シーケンスの USAGE が別に必要になる。
+--
+-- 🔴 期待するエラー: 42501 permission denied for sequence t_serial_id_seq
+--
+-- 🔴 このファイルを 11_identity_insert.sql と分けている理由:
+--    psql は最初のエラーで止まる（ON_ERROR_STOP=1）。1 ファイルに両方書くと
+--    IDENTITY 側が実行されず、「両方失敗した」と読み誤る（確認記録 §4 で踏んだ）。
+INSERT INTO ch12_g.t_serial (memo) VALUES ('guest からの挿入');

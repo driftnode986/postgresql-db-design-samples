@@ -1,0 +1,257 @@
+# 採取日時: 2026-09-19 13:41:37 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案A: 判定結果を持たず、必要なときに階層をたどる。
+--
+-- テーブルは元データの写しだけで、権限判定のための入れ物を持たない。
+-- 所属を 1 行足せば、その配下の文書がすぐ見えるようになる（作り直しが要らない）。
+CREATE SCHEMA IF NOT EXISTS ch12_a;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch12_a.memberships;
+psql:/tmp/run-sql.sql:7: NOTICE:  table "memberships" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch12_a.documents;
+psql:/tmp/run-sql.sql:8: NOTICE:  table "documents" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch12_a.users;
+psql:/tmp/run-sql.sql:9: NOTICE:  table "users" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch12_a.scopes;
+psql:/tmp/run-sql.sql:10: NOTICE:  table "scopes" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch12_a.scopes (
+  id        bigint PRIMARY KEY,
+  parent_id bigint REFERENCES ch12_a.scopes(id),
+  kind      text   NOT NULL,
+  name      text   NOT NULL,
+  path      public.ltree NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch12_a.users (
+  id    bigint PRIMARY KEY,
+  login text   NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch12_a.documents (
+  id         bigint      PRIMARY KEY,
+  project_id bigint      NOT NULL REFERENCES ch12_a.scopes(id),
+  title      text        NOT NULL,
+  created_at timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch12_a.memberships (
+  id       bigint PRIMARY KEY,
+  user_id  bigint NOT NULL REFERENCES ch12_a.users(id),
+  scope_id bigint NOT NULL REFERENCES ch12_a.scopes(id),
+  role     text   NOT NULL
+);
+CREATE TABLE
+-- 案A の「1 件ずつ可否を返す関数」。
+--
+-- 🔴 これは**アプリに権限判定の関数があるサービスから持ち込まれる形**である。
+--    要件文だけを渡したときに AI が書く形ではない（3 本とも集合として書いた。
+--    docs/research/ch12_first_idea.md）。既存の判定ロジックをそのまま一覧に使うと
+--    何が起きるかを見るために置く。
+--
+-- STABLE を付けてあるので同じ引数なら 1 文の中で再利用されうるが、
+-- 引数が行ごとに変わる（id を渡す）ので、行の数だけ実行される。
+CREATE FUNCTION ch12_a.can_view(p_user bigint, p_doc bigint) RETURNS boolean AS $$
+  SELECT EXISTS (
+    WITH RECURSIVE anc AS (
+      SELECT s.id, s.parent_id
+        FROM ch12_a.scopes s
+       WHERE s.id = (SELECT project_id FROM ch12_a.documents WHERE id = p_doc)
+      UNION ALL
+      SELECT s.id, s.parent_id
+        FROM ch12_a.scopes s JOIN anc ON s.id = anc.parent_id
+    )
+    SELECT 1 FROM ch12_a.memberships m JOIN anc ON anc.id = m.scope_id
+     WHERE m.user_id = p_user);
+$$ LANGUAGE sql STABLE;
+CREATE FUNCTION
+GRANT EXECUTE ON FUNCTION ch12_a.can_view(bigint, bigint) TO book_app;
+GRANT
+
+-- 案A に元データを写す。
+--
+-- 🔴 元データが空なら、何も消す前に止める。
+--    検証の実行順は schema → load なので、元データを作る schema_20_generate.sql が
+--    走っていないと、全案が空のまま「全件 OK」になる（第2章で実際に起きた）。
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM ch12_r.src_document) THEN
+    RAISE EXCEPTION '元データが空。先に r_source/schema_20_generate.sql を実行する';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+TRUNCATE ch12_a.memberships;
+TRUNCATE TABLE
+Time: 1.139 ms
+TRUNCATE ch12_a.documents;
+TRUNCATE TABLE
+Time: 0.667 ms
+TRUNCATE ch12_a.users CASCADE;
+psql:/tmp/run-sql.sql:17: NOTICE:  truncate cascades to table "memberships"
+TRUNCATE TABLE
+Time: 0.902 ms
+TRUNCATE ch12_a.scopes CASCADE;
+psql:/tmp/run-sql.sql:18: NOTICE:  truncate cascades to table "documents"
+psql:/tmp/run-sql.sql:18: NOTICE:  truncate cascades to table "memberships"
+TRUNCATE TABLE
+Time: 1.154 ms
+INSERT INTO ch12_a.scopes (id, parent_id, kind, name, path)
+SELECT id, parent_id, kind, name, path FROM ch12_r.src_scope ORDER BY id;
+INSERT 0 421
+Time: 2.235 ms
+INSERT INTO ch12_a.users (id, login)
+SELECT id, login FROM ch12_r.src_user ORDER BY id;
+INSERT 0 1000
+Time: 1.265 ms
+INSERT INTO ch12_a.documents (id, project_id, title, created_at)
+SELECT id, project_id, title, created_at FROM ch12_r.src_document ORDER BY id;
+INSERT 0 100000
+Time: 327.208 ms
+INSERT INTO ch12_a.memberships (id, user_id, scope_id, role)
+SELECT id, user_id, scope_id, role FROM ch12_r.src_membership ORDER BY id;
+INSERT 0 3098
+Time: 19.817 ms
+-- 🔴 インデックスはデータを入れてから作る。
+--    付けたまま入れると充填率が 90 から 67 に下がり、
+--    サイズが実行のたびに変わる（docs/measurement-rules.yml の sizes）。
+--
+-- 一覧は「新しい順に 20 件」なので created_at の降順の索引を張る。
+-- プロジェクトで絞ってから並べる形も試せるように (project_id, created_at DESC) も張る。
+-- 🔴 TRUNCATE では索引は消えないので、入れ直しでも同じ結果になるように先に落とす
+--    （落とさないと 2 回目の実行が「既にある」で止まる）。
+DROP INDEX IF EXISTS ch12_a.documents_created_at;
+psql:/tmp/run-sql.sql:40: NOTICE:  index "documents_created_at" does not exist, skipping
+DROP INDEX
+Time: 0.094 ms
+DROP INDEX IF EXISTS ch12_a.documents_proj_created;
+psql:/tmp/run-sql.sql:41: NOTICE:  index "documents_proj_created" does not exist, skipping
+DROP INDEX
+Time: 0.175 ms
+DROP INDEX IF EXISTS ch12_a.memberships_user;
+psql:/tmp/run-sql.sql:42: NOTICE:  index "memberships_user" does not exist, skipping
+DROP INDEX
+Time: 0.099 ms
+DROP INDEX IF EXISTS ch12_a.scopes_parent;
+psql:/tmp/run-sql.sql:43: NOTICE:  index "scopes_parent" does not exist, skipping
+DROP INDEX
+Time: 0.079 ms
+DROP INDEX IF EXISTS ch12_a.scopes_path_gist;
+psql:/tmp/run-sql.sql:44: NOTICE:  index "scopes_path_gist" does not exist, skipping
+DROP INDEX
+Time: 0.062 ms
+CREATE INDEX documents_created_at ON ch12_a.documents (created_at DESC);
+CREATE INDEX
+Time: 26.390 ms
+CREATE INDEX documents_proj_created ON ch12_a.documents (project_id, created_at DESC);
+CREATE INDEX
+Time: 32.099 ms
+CREATE INDEX memberships_user ON ch12_a.memberships (user_id);
+CREATE INDEX
+Time: 0.909 ms
+CREATE INDEX scopes_parent ON ch12_a.scopes (parent_id);
+CREATE INDEX
+Time: 0.414 ms
+-- ltree 版のための GiST 索引（第4章と同じ）
+CREATE INDEX scopes_path_gist ON ch12_a.scopes USING gist (path);
+CREATE INDEX
+Time: 2.392 ms
+ANALYZE ch12_a.scopes;
+ANALYZE
+Time: 1.027 ms
+ANALYZE ch12_a.users;
+ANALYZE
+Time: 1.207 ms
+ANALYZE ch12_a.documents;
+ANALYZE
+Time: 179.796 ms
+ANALYZE ch12_a.memberships;
+ANALYZE
+Time: 1.308 ms
+\echo '=== 案A の件数 ==='
+=== 案A の件数 ===
+SELECT (SELECT count(*) FROM ch12_a.scopes)      AS scopes,
+       (SELECT count(*) FROM ch12_a.users)       AS users,
+       (SELECT count(*) FROM ch12_a.documents)   AS documents,
+       (SELECT count(*) FROM ch12_a.memberships) AS memberships;
+ scopes | users | documents | memberships 
+--------+-------+-----------+-------------
+    421 |  1000 |    100000 |        3098
+(1 row)
+
+Time: 2.688 ms
+
+-- run-as: book_owner
+-- 案A の中身が元データと一致すること。返す全行の先頭列が 0 になる形で書く。
+--
+-- 🔴 「差が 0」だけでは、両方が空でも通ってしまう（第2章で全案が空のまま
+--    54 件 OK になった）。**元データが空でないこと**も同時に検査する。
+-- 🔴 対称差は必ず括弧で囲む。囲まないと EXCEPT と UNION ALL が左結合になり、
+--    片方向にしか働かない（第9章で 5 ファイルが同じ誤りだった）。
+\echo '=== (0) 元データが空でないこと（先頭列が 0 であること） ==='
+=== (0) 元データが空でないこと（先頭列が 0 であること） ===
+SELECT (SELECT count(*) FROM ch12_r.src_document)   = 0 AS source_documents_empty,
+       (SELECT count(*) FROM ch12_r.src_membership) = 0 AS source_memberships_empty,
+       (SELECT count(*) FROM ch12_a.documents)      = 0 AS a_documents_empty;
+ source_documents_empty | source_memberships_empty | a_documents_empty 
+------------------------+--------------------------+-------------------
+ f                      | f                        | f
+(1 row)
+
+\echo '=== (1) scopes の差（先頭列が 0 であること） ==='
+=== (1) scopes の差（先頭列が 0 であること） ===
+SELECT count(*) AS scopes_diff FROM (
+  (SELECT id, parent_id, kind, name, path FROM ch12_r.src_scope
+   EXCEPT ALL SELECT id, parent_id, kind, name, path FROM ch12_a.scopes)
+  UNION ALL
+  (SELECT id, parent_id, kind, name, path FROM ch12_a.scopes
+   EXCEPT ALL SELECT id, parent_id, kind, name, path FROM ch12_r.src_scope)
+) t;
+ scopes_diff 
+-------------
+           0
+(1 row)
+
+\echo '=== (2) documents の差（先頭列が 0 であること） ==='
+=== (2) documents の差（先頭列が 0 であること） ===
+SELECT count(*) AS documents_diff FROM (
+  (SELECT id, project_id, title, created_at FROM ch12_r.src_document
+   EXCEPT ALL SELECT id, project_id, title, created_at FROM ch12_a.documents)
+  UNION ALL
+  (SELECT id, project_id, title, created_at FROM ch12_a.documents
+   EXCEPT ALL SELECT id, project_id, title, created_at FROM ch12_r.src_document)
+) t;
+ documents_diff 
+----------------
+              0
+(1 row)
+
+\echo '=== (3) memberships の差（先頭列が 0 であること） ==='
+=== (3) memberships の差（先頭列が 0 であること） ===
+SELECT count(*) AS memberships_diff FROM (
+  (SELECT id, user_id, scope_id, role FROM ch12_r.src_membership
+   EXCEPT ALL SELECT id, user_id, scope_id, role FROM ch12_a.memberships)
+  UNION ALL
+  (SELECT id, user_id, scope_id, role FROM ch12_a.memberships
+   EXCEPT ALL SELECT id, user_id, scope_id, role FROM ch12_r.src_membership)
+) t;
+ memberships_diff 
+------------------
+                0
+(1 row)
+

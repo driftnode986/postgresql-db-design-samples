@@ -1,0 +1,978 @@
+# 採取日時: 2026-09-19 13:45:33 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- 階層の深さを変えたときの、案A（再帰 CTE）の時間を測るための専用データ。
+--
+-- 企画は「階層の深さが選び方の軸になる」としていた。それを確かめる。
+--
+-- 形: 一本道の鎖を 200 本、各鎖の深さを 12 にする（節点 2,400）。
+--     最深部に文書 10,000 件。利用者1 は各鎖の**最上位**に所属する
+--     （= 文書に届くまで深さぶんたどる必要がある）。
+--
+-- 🔴 深さごとに別の階層を作るのではなく、1 つの階層を作って
+--    再帰の上限を `lvl < d` で切って測る。こうすると、
+--    深さ以外の条件（文書の数・所属の数・キャッシュの温まり方）が揃う。
+CREATE SCHEMA IF NOT EXISTS ch12_d;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch12_d.memberships;
+psql:/tmp/run-sql.sql:15: NOTICE:  table "memberships" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch12_d.documents;
+psql:/tmp/run-sql.sql:16: NOTICE:  table "documents" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch12_d.scopes;
+psql:/tmp/run-sql.sql:17: NOTICE:  table "scopes" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch12_d.scopes (
+  id        bigint PRIMARY KEY,
+  parent_id bigint REFERENCES ch12_d.scopes(id),
+  lvl       int    NOT NULL,       -- 鎖の中の深さ（1 が最上位）
+  chain     int    NOT NULL        -- どの鎖か
+);
+CREATE TABLE
+CREATE TABLE ch12_d.documents (
+  id         bigint      PRIMARY KEY,
+  project_id bigint      NOT NULL REFERENCES ch12_d.scopes(id),
+  title      text        NOT NULL,
+  created_at timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch12_d.memberships (
+  id       bigint PRIMARY KEY,
+  user_id  bigint NOT NULL,
+  scope_id bigint NOT NULL REFERENCES ch12_d.scopes(id),
+  role     text   NOT NULL
+);
+CREATE TABLE
+
+-- run-as: book_owner
+-- 深さ 12 の鎖を 200 本作る。文書は最深部（lvl = 12）に 10,000 件。
+--
+-- 🔴 この章のほかの案と違い、元データ（ch12_r）からは写さない。
+--    深さを変えるための専用の形であり、元データの形とは別物である。
+\timing on
+Timing is on.
+SELECT setseed(0.42);
+ setseed 
+---------
+ 
+(1 row)
+
+Time: 1.351 ms
+TRUNCATE ch12_d.memberships;
+TRUNCATE TABLE
+Time: 2.168 ms
+TRUNCATE ch12_d.documents;
+TRUNCATE TABLE
+Time: 0.713 ms
+TRUNCATE ch12_d.scopes CASCADE;
+psql:/tmp/run-sql.sql:12: NOTICE:  truncate cascades to table "documents"
+psql:/tmp/run-sql.sql:12: NOTICE:  truncate cascades to table "memberships"
+TRUNCATE TABLE
+Time: 0.998 ms
+\set n_chain 200
+\set max_depth 12
+-- 節点。id は (chain - 1) * max_depth + lvl で決める（親の計算が簡単になる）
+-- 🔴 親は「同じ鎖の 1 つ上」。lvl = 1 は親なし
+INSERT INTO ch12_d.scopes (id, parent_id, lvl, chain)
+SELECT (c - 1) * :max_depth + l,
+       CASE WHEN l = 1 THEN NULL ELSE (c - 1) * :max_depth + (l - 1) END,
+       l, c
+  FROM generate_series(1, :n_chain) AS c,
+       generate_series(1, :max_depth) AS l
+ ORDER BY c, l;
+INSERT 0 2400
+Time: 10.529 ms
+-- 文書は**すべての深さ**に散らす。
+--
+-- 🔴 ここを間違えると測定が成立しない。最初は「文書を最深部だけに置く」形で作ったが、
+--    深さの上限を切ると**一覧が 0 件になり**、
+--    「10,000 件を走査して 1 件も見つからない時間」（depth<=2 で 133 ms）を
+--    測ることになった。深さの差ではなく、空振りの走査の差を測っていた。
+--    深さごとに 0 件でない一覧が返るように、各深さに文書を置く。
+INSERT INTO ch12_d.documents (id, project_id, title, created_at)
+WITH base AS MATERIALIZED (
+  SELECT g,
+         1 + floor(:n_chain * random())::bigint AS chain,
+         1 + floor(:max_depth * random())::int  AS lvl,
+         floor(random() * 86400)::int           AS sec_ago
+    FROM generate_series(1, 10000) AS g
+)
+SELECT b.g, (b.chain - 1) * :max_depth + b.lvl,
+       '文書' || b.g,
+       now() - make_interval(secs => b.sec_ago)
+  FROM base b
+ ORDER BY b.g;
+INSERT 0 10000
+Time: 41.636 ms
+-- 利用者1 は各鎖の最上位（lvl = 1）に所属する。
+-- 文書に届くには 12 段たどる必要がある。
+INSERT INTO ch12_d.memberships (id, user_id, scope_id, role)
+SELECT row_number() OVER (ORDER BY s.id), 1, s.id, 'viewer'
+  FROM ch12_d.scopes s WHERE s.lvl = 1 ORDER BY s.id;
+INSERT 0 200
+Time: 1.654 ms
+-- 🔴 索引はデータを入れてから作る。
+--    TRUNCATE では索引は消えないので、入れ直しでも同じ結果になるように先に落とす
+--    （落とさないと 2 回目の実行が「既にある」で止まる）。
+DROP INDEX IF EXISTS ch12_d.scopes_parent;
+psql:/tmp/run-sql.sql:57: NOTICE:  index "scopes_parent" does not exist, skipping
+DROP INDEX
+Time: 0.237 ms
+DROP INDEX IF EXISTS ch12_d.documents_created_at;
+psql:/tmp/run-sql.sql:58: NOTICE:  index "documents_created_at" does not exist, skipping
+DROP INDEX
+Time: 0.106 ms
+DROP INDEX IF EXISTS ch12_d.memberships_user;
+psql:/tmp/run-sql.sql:59: NOTICE:  index "memberships_user" does not exist, skipping
+DROP INDEX
+Time: 0.088 ms
+CREATE INDEX scopes_parent ON ch12_d.scopes (parent_id);
+CREATE INDEX
+Time: 1.514 ms
+CREATE INDEX documents_created_at ON ch12_d.documents (created_at DESC);
+CREATE INDEX
+Time: 2.927 ms
+CREATE INDEX memberships_user ON ch12_d.memberships (user_id);
+CREATE INDEX
+Time: 0.297 ms
+ANALYZE ch12_d.scopes;
+ANALYZE
+Time: 0.632 ms
+ANALYZE ch12_d.documents;
+ANALYZE
+Time: 51.523 ms
+ANALYZE ch12_d.memberships;
+ANALYZE
+Time: 0.320 ms
+\echo '=== 深さの実験のデータ ==='
+=== 深さの実験のデータ ===
+SELECT (SELECT count(*) FROM ch12_d.scopes)      AS scopes,
+       (SELECT max(lvl) FROM ch12_d.scopes)      AS max_depth,
+       (SELECT count(DISTINCT chain) FROM ch12_d.scopes) AS chains,
+       (SELECT count(*) FROM ch12_d.documents)   AS documents,
+       (SELECT count(*) FROM ch12_d.memberships) AS memberships;
+ scopes | max_depth | chains | documents | memberships 
+--------+-----------+--------+-----------+-------------
+   2400 |        12 |    200 |     10000 |         200
+(1 row)
+
+Time: 1.357 ms
+\echo '=== 🔴 すべての深さに文書があること（先頭列が 0 であること） ==='
+=== 🔴 すべての深さに文書があること（先頭列が 0 であること） ===
+-- 1 つでも文書が無い深さがあると、その深さの測定が「0 件の走査」になる。
+SELECT count(*) AS depths_without_documents
+  FROM generate_series(1, (SELECT max(lvl) FROM ch12_d.scopes)) AS l
+ WHERE NOT EXISTS (SELECT 1 FROM ch12_d.documents d
+                     JOIN ch12_d.scopes s ON s.id = d.project_id
+                    WHERE s.lvl = l);
+ depths_without_documents 
+--------------------------
+                        0
+(1 row)
+
+Time: 1.769 ms
+\echo '--- 深さごとの文書数 ---'
+--- 深さごとの文書数 ---
+SELECT s.lvl, count(*) AS docs
+  FROM ch12_d.documents d JOIN ch12_d.scopes s ON s.id = d.project_id
+ GROUP BY s.lvl ORDER BY s.lvl;
+ lvl | docs 
+-----+------
+   1 |  855
+   2 |  856
+   3 |  860
+   4 |  834
+   5 |  824
+   6 |  817
+   7 |  811
+   8 |  833
+   9 |  787
+  10 |  834
+  11 |  858
+  12 |  831
+(12 rows)
+
+Time: 1.556 ms
+\echo '=== 🔴 所属がすべて最上位にあること（先頭列が 0 であること） ==='
+=== 🔴 所属がすべて最上位にあること（先頭列が 0 であること） ===
+SELECT count(*) AS memberships_not_at_top
+  FROM ch12_d.memberships m JOIN ch12_d.scopes s ON s.id = m.scope_id
+ WHERE s.lvl <> 1;
+ memberships_not_at_top 
+------------------------
+                      0
+(1 row)
+
+Time: 0.262 ms
+
+-- run-as: book_app
+-- 深さを 2・4・6・8・10・12 と変えて、案A（再帰 CTE）の一覧を測る。
+--
+-- 🔴 深さの上限を `s.lvl < :d` で切る。データは 1 つで、たどる段数だけを変える。
+--    こうすると文書の数・所属の数・キャッシュの温まり方が揃うので、
+--    差が出たらそれは深さの差である。
+--
+-- 🔴 確認記録（§8）は 1 深さにつき 1 回しか測っておらず、幅を出していなかった。
+--    ここでは **各深さ 5 回**取る。幅（(最大−最小)/中央値）より小さい差は主張しない
+--    （docs/measurement-rules.yml の claims）。
+--
+-- 🔴 深さを切ると、その深さで届かない文書は一覧に出ない。
+--    出る件数も一緒に記録する（0 件のものを速いと言わないため）。
+\timing on
+Timing is on.
+\echo '=== 各深さの実行計画（1 回ずつ。Recursive Union の行数を見る） ==='
+=== 各深さの実行計画（1 回ずつ。Recursive Union の行数を見る） ===
+\echo '--- depth <= 2 ---'
+--- depth <= 2 ---
+EXPLAIN (ANALYZE)
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 2)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20;
+                                                                        QUERY PLAN                                                                        
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1366.22..2426.87 rows=20 width=26) (actual time=1.273..8.403 rows=20.00 loops=1)
+   Buffers: shared hit=195 read=2
+   CTE vis
+     ->  Recursive Union  (cost=7.00..1365.94 rows=6870 width=12) (actual time=0.065..0.986 rows=400.00 loops=1)
+           Storage: Memory  Maximum Storage: 48kB
+           Buffers: shared hit=34
+           ->  Hash Semi Join  (cost=7.00..55.52 rows=200 width=12) (actual time=0.063..0.326 rows=200.00 loops=1)
+                 Hash Cond: (s.id = m.scope_id)
+                 Buffers: shared hit=18
+                 ->  Seq Scan on scopes s  (cost=0.00..40.00 rows=2400 width=12) (actual time=0.004..0.131 rows=2400.00 loops=1)
+                       Buffers: shared hit=16
+                 ->  Hash  (cost=4.50..4.50 rows=200 width=8) (actual time=0.047..0.048 rows=200.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                       Buffers: shared hit=2
+                       ->  Seq Scan on memberships m  (cost=0.00..4.50 rows=200 width=8) (actual time=0.005..0.018 rows=200.00 loops=1)
+                             Filter: (user_id = 1)
+                             Buffers: shared hit=2
+           ->  Hash Join  (cost=70.00..124.17 rows=667 width=12) (actual time=0.268..0.286 rows=100.00 loops=2)
+                 Hash Cond: (vis_1.id = s_1.parent_id)
+                 Buffers: shared hit=16
+                 ->  WorkTable Scan on vis vis_1  (cost=0.00..45.00 rows=667 width=8) (actual time=0.003..0.009 rows=100.00 loops=2)
+                       Filter: (lvl < 2)
+                       Rows Removed by Filter: 100
+                 ->  Hash  (cost=40.00..40.00 rows=2400 width=20) (actual time=0.521..0.522 rows=2200.00 loops=1)
+                       Buckets: 4096  Batches: 1  Memory Usage: 153kB
+                       Buffers: shared hit=16
+                       ->  Seq Scan on scopes s_1  (cost=0.00..40.00 rows=2400 width=20) (actual time=0.003..0.141 rows=2400.00 loops=1)
+                             Buffers: shared hit=16
+   ->  Nested Loop  (cost=0.29..1546420.89 rows=29160 width=26) (actual time=1.272..8.399 rows=20.00 loops=1)
+         Join Filter: (d.project_id = vis.id)
+         Rows Removed by Join Filter: 64508
+         Buffers: shared hit=195 read=2
+         ->  Index Scan using documents_created_at on documents d  (cost=0.29..602.19 rows=10000 width=34) (actual time=0.045..0.221 rows=162.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=161 read=2
+         ->  CTE Scan on vis  (cost=0.00..137.40 rows=6870 width=8) (actual time=0.000..0.031 rows=398.32 loops=162)
+               Storage: Memory  Maximum Storage: 32kB
+               Buffers: shared hit=34
+ Planning:
+   Buffers: shared hit=224
+ Planning Time: 0.555 ms
+ Execution Time: 8.509 ms
+(42 rows)
+
+Time: 9.949 ms
+\echo '--- depth <= 4 ---'
+--- depth <= 4 ---
+EXPLAIN (ANALYZE)
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 4)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20;
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1366.22..2426.87 rows=20 width=26) (actual time=1.347..6.258 rows=20.00 loops=1)
+   Buffers: shared hit=100
+   CTE vis
+     ->  Recursive Union  (cost=7.00..1365.94 rows=6870 width=12) (actual time=0.040..0.949 rows=800.00 loops=1)
+           Storage: Memory  Maximum Storage: 48kB
+           Buffers: shared hit=34
+           ->  Hash Semi Join  (cost=7.00..55.52 rows=200 width=12) (actual time=0.040..0.269 rows=200.00 loops=1)
+                 Hash Cond: (s.id = m.scope_id)
+                 Buffers: shared hit=18
+                 ->  Seq Scan on scopes s  (cost=0.00..40.00 rows=2400 width=12) (actual time=0.002..0.106 rows=2400.00 loops=1)
+                       Buffers: shared hit=16
+                 ->  Hash  (cost=4.50..4.50 rows=200 width=8) (actual time=0.034..0.034 rows=200.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                       Buffers: shared hit=2
+                       ->  Seq Scan on memberships m  (cost=0.00..4.50 rows=200 width=8) (actual time=0.002..0.014 rows=200.00 loops=1)
+                             Filter: (user_id = 1)
+                             Buffers: shared hit=2
+           ->  Hash Join  (cost=70.00..124.17 rows=667 width=12) (actual time=0.114..0.137 rows=150.00 loops=4)
+                 Hash Cond: (vis_1.id = s_1.parent_id)
+                 Buffers: shared hit=16
+                 ->  WorkTable Scan on vis vis_1  (cost=0.00..45.00 rows=667 width=8) (actual time=0.001..0.008 rows=150.00 loops=4)
+                       Filter: (lvl < 4)
+                       Rows Removed by Filter: 50
+                 ->  Hash  (cost=40.00..40.00 rows=2400 width=20) (actual time=0.447..0.447 rows=2200.00 loops=1)
+                       Buckets: 4096  Batches: 1  Memory Usage: 153kB
+                       Buffers: shared hit=16
+                       ->  Seq Scan on scopes s_1  (cost=0.00..40.00 rows=2400 width=20) (actual time=0.003..0.133 rows=2400.00 loops=1)
+                             Buffers: shared hit=16
+   ->  Nested Loop  (cost=0.29..1546420.89 rows=29160 width=26) (actual time=1.347..6.256 rows=20.00 loops=1)
+         Join Filter: (d.project_id = vis.id)
+         Rows Removed by Join Filter: 51894
+         Buffers: shared hit=100
+         ->  Index Scan using documents_created_at on documents d  (cost=0.29..602.19 rows=10000 width=34) (actual time=0.005..0.023 rows=65.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=66
+         ->  CTE Scan on vis  (cost=0.00..137.40 rows=6870 width=8) (actual time=0.001..0.064 rows=798.68 loops=65)
+               Storage: Memory  Maximum Storage: 48kB
+               Buffers: shared hit=34
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.126 ms
+ Execution Time: 6.279 ms
+(42 rows)
+
+Time: 6.602 ms
+\echo '--- depth <= 6 ---'
+--- depth <= 6 ---
+EXPLAIN (ANALYZE)
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 6)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20;
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1366.22..2426.87 rows=20 width=26) (actual time=1.352..6.817 rows=20.00 loops=1)
+   Buffers: shared hit=85
+   CTE vis
+     ->  Recursive Union  (cost=7.00..1365.94 rows=6870 width=12) (actual time=0.043..1.015 rows=1200.00 loops=1)
+           Storage: Memory  Maximum Storage: 48kB
+           Buffers: shared hit=34
+           ->  Hash Semi Join  (cost=7.00..55.52 rows=200 width=12) (actual time=0.043..0.269 rows=200.00 loops=1)
+                 Hash Cond: (s.id = m.scope_id)
+                 Buffers: shared hit=18
+                 ->  Seq Scan on scopes s  (cost=0.00..40.00 rows=2400 width=12) (actual time=0.002..0.103 rows=2400.00 loops=1)
+                       Buffers: shared hit=16
+                 ->  Hash  (cost=4.50..4.50 rows=200 width=8) (actual time=0.034..0.034 rows=200.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                       Buffers: shared hit=2
+                       ->  Seq Scan on memberships m  (cost=0.00..4.50 rows=200 width=8) (actual time=0.002..0.014 rows=200.00 loops=1)
+                             Filter: (user_id = 1)
+                             Buffers: shared hit=2
+           ->  Hash Join  (cost=70.00..124.17 rows=667 width=12) (actual time=0.065..0.094 rows=166.67 loops=6)
+                 Hash Cond: (vis_1.id = s_1.parent_id)
+                 Buffers: shared hit=16
+                 ->  WorkTable Scan on vis vis_1  (cost=0.00..45.00 rows=667 width=8) (actual time=0.001..0.009 rows=166.67 loops=6)
+                       Filter: (lvl < 6)
+                       Rows Removed by Filter: 33
+                 ->  Hash  (cost=40.00..40.00 rows=2400 width=20) (actual time=0.385..0.385 rows=2200.00 loops=1)
+                       Buckets: 4096  Batches: 1  Memory Usage: 153kB
+                       Buffers: shared hit=16
+                       ->  Seq Scan on scopes s_1  (cost=0.00..40.00 rows=2400 width=20) (actual time=0.002..0.132 rows=2400.00 loops=1)
+                             Buffers: shared hit=16
+   ->  Nested Loop  (cost=0.29..1546420.89 rows=29160 width=26) (actual time=1.351..6.814 rows=20.00 loops=1)
+         Join Filter: (d.project_id = vis.id)
+         Rows Removed by Join Filter: 59602
+         Buffers: shared hit=85
+         ->  Index Scan using documents_created_at on documents d  (cost=0.29..602.19 rows=10000 width=34) (actual time=0.004..0.017 rows=50.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=51
+         ->  CTE Scan on vis  (cost=0.00..137.40 rows=6870 width=8) (actual time=0.001..0.090 rows=1192.44 loops=50)
+               Storage: Memory  Maximum Storage: 63kB
+               Buffers: shared hit=34
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.109 ms
+ Execution Time: 6.844 ms
+(42 rows)
+
+Time: 7.138 ms
+\echo '--- depth <= 8 ---'
+--- depth <= 8 ---
+EXPLAIN (ANALYZE)
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 8)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20;
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1366.22..2426.87 rows=20 width=26) (actual time=1.545..7.246 rows=20.00 loops=1)
+   Buffers: shared hit=74
+   CTE vis
+     ->  Recursive Union  (cost=7.00..1365.94 rows=6870 width=12) (actual time=0.042..1.142 rows=1600.00 loops=1)
+           Storage: Memory  Maximum Storage: 48kB
+           Buffers: shared hit=34
+           ->  Hash Semi Join  (cost=7.00..55.52 rows=200 width=12) (actual time=0.041..0.294 rows=200.00 loops=1)
+                 Hash Cond: (s.id = m.scope_id)
+                 Buffers: shared hit=18
+                 ->  Seq Scan on scopes s  (cost=0.00..40.00 rows=2400 width=12) (actual time=0.004..0.114 rows=2400.00 loops=1)
+                       Buffers: shared hit=16
+                 ->  Hash  (cost=4.50..4.50 rows=200 width=8) (actual time=0.035..0.035 rows=200.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                       Buffers: shared hit=2
+                       ->  Seq Scan on memberships m  (cost=0.00..4.50 rows=200 width=8) (actual time=0.003..0.015 rows=200.00 loops=1)
+                             Filter: (user_id = 1)
+                             Buffers: shared hit=2
+           ->  Hash Join  (cost=70.00..124.17 rows=667 width=12) (actual time=0.048..0.076 rows=175.00 loops=8)
+                 Hash Cond: (vis_1.id = s_1.parent_id)
+                 Buffers: shared hit=16
+                 ->  WorkTable Scan on vis vis_1  (cost=0.00..45.00 rows=667 width=8) (actual time=0.001..0.008 rows=175.00 loops=8)
+                       Filter: (lvl < 8)
+                       Rows Removed by Filter: 25
+                 ->  Hash  (cost=40.00..40.00 rows=2400 width=20) (actual time=0.379..0.379 rows=2200.00 loops=1)
+                       Buckets: 4096  Batches: 1  Memory Usage: 153kB
+                       Buffers: shared hit=16
+                       ->  Seq Scan on scopes s_1  (cost=0.00..40.00 rows=2400 width=20) (actual time=0.002..0.126 rows=2400.00 loops=1)
+                             Buffers: shared hit=16
+   ->  Nested Loop  (cost=0.29..1546420.89 rows=29160 width=26) (actual time=1.545..7.240 rows=20.00 loops=1)
+         Join Filter: (d.project_id = vis.id)
+         Rows Removed by Join Filter: 61712
+         Buffers: shared hit=74
+         ->  Index Scan using documents_created_at on documents d  (cost=0.29..602.19 rows=10000 width=34) (actual time=0.006..0.151 rows=39.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=40
+         ->  CTE Scan on vis  (cost=0.00..137.40 rows=6870 width=8) (actual time=0.001..0.122 rows=1582.87 loops=39)
+               Storage: Memory  Maximum Storage: 79kB
+               Buffers: shared hit=34
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.145 ms
+ Execution Time: 7.277 ms
+(42 rows)
+
+Time: 7.673 ms
+\echo '--- depth <= 10 ---'
+--- depth <= 10 ---
+EXPLAIN (ANALYZE)
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 10)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20;
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1366.22..2426.87 rows=20 width=26) (actual time=1.417..6.479 rows=20.00 loops=1)
+   Buffers: shared hit=63
+   CTE vis
+     ->  Recursive Union  (cost=7.00..1365.94 rows=6870 width=12) (actual time=0.038..1.173 rows=2000.00 loops=1)
+           Storage: Memory  Maximum Storage: 48kB
+           Buffers: shared hit=34
+           ->  Hash Semi Join  (cost=7.00..55.52 rows=200 width=12) (actual time=0.038..0.250 rows=200.00 loops=1)
+                 Hash Cond: (s.id = m.scope_id)
+                 Buffers: shared hit=18
+                 ->  Seq Scan on scopes s  (cost=0.00..40.00 rows=2400 width=12) (actual time=0.002..0.097 rows=2400.00 loops=1)
+                       Buffers: shared hit=16
+                 ->  Hash  (cost=4.50..4.50 rows=200 width=8) (actual time=0.032..0.032 rows=200.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                       Buffers: shared hit=2
+                       ->  Seq Scan on memberships m  (cost=0.00..4.50 rows=200 width=8) (actual time=0.002..0.013 rows=200.00 loops=1)
+                             Filter: (user_id = 1)
+                             Buffers: shared hit=2
+           ->  Hash Join  (cost=70.00..124.17 rows=667 width=12) (actual time=0.038..0.064 rows=180.00 loops=10)
+                 Hash Cond: (vis_1.id = s_1.parent_id)
+                 Buffers: shared hit=16
+                 ->  WorkTable Scan on vis vis_1  (cost=0.00..45.00 rows=667 width=8) (actual time=0.000..0.008 rows=180.00 loops=10)
+                       Filter: (lvl < 10)
+                       Rows Removed by Filter: 20
+                 ->  Hash  (cost=40.00..40.00 rows=2400 width=20) (actual time=0.372..0.372 rows=2200.00 loops=1)
+                       Buckets: 4096  Batches: 1  Memory Usage: 153kB
+                       Buffers: shared hit=16
+                       ->  Seq Scan on scopes s_1  (cost=0.00..40.00 rows=2400 width=20) (actual time=0.002..0.133 rows=2400.00 loops=1)
+                             Buffers: shared hit=16
+   ->  Nested Loop  (cost=0.29..1546420.89 rows=29160 width=26) (actual time=1.417..6.476 rows=20.00 loops=1)
+         Join Filter: (d.project_id = vis.id)
+         Rows Removed by Join Filter: 55909
+         Buffers: shared hit=63
+         ->  Index Scan using documents_created_at on documents d  (cost=0.29..602.19 rows=10000 width=34) (actual time=0.004..0.014 rows=28.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=29
+         ->  CTE Scan on vis  (cost=0.00..137.40 rows=6870 width=8) (actual time=0.001..0.156 rows=1997.46 loops=28)
+               Storage: Memory  Maximum Storage: 95kB
+               Buffers: shared hit=34
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.103 ms
+ Execution Time: 6.503 ms
+(42 rows)
+
+Time: 6.761 ms
+\echo '--- depth <= 12 ---'
+--- depth <= 12 ---
+EXPLAIN (ANALYZE)
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 12)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20;
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1366.22..2426.87 rows=20 width=26) (actual time=1.389..5.819 rows=20.00 loops=1)
+   Buffers: shared hit=55
+   CTE vis
+     ->  Recursive Union  (cost=7.00..1365.94 rows=6870 width=12) (actual time=0.036..1.272 rows=2400.00 loops=1)
+           Storage: Memory  Maximum Storage: 48kB
+           Buffers: shared hit=34
+           ->  Hash Semi Join  (cost=7.00..55.52 rows=200 width=12) (actual time=0.036..0.246 rows=200.00 loops=1)
+                 Hash Cond: (s.id = m.scope_id)
+                 Buffers: shared hit=18
+                 ->  Seq Scan on scopes s  (cost=0.00..40.00 rows=2400 width=12) (actual time=0.002..0.096 rows=2400.00 loops=1)
+                       Buffers: shared hit=16
+                 ->  Hash  (cost=4.50..4.50 rows=200 width=8) (actual time=0.032..0.032 rows=200.00 loops=1)
+                       Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                       Buffers: shared hit=2
+                       ->  Seq Scan on memberships m  (cost=0.00..4.50 rows=200 width=8) (actual time=0.002..0.013 rows=200.00 loops=1)
+                             Filter: (user_id = 1)
+                             Buffers: shared hit=2
+           ->  Hash Join  (cost=70.00..124.17 rows=667 width=12) (actual time=0.031..0.057 rows=183.33 loops=12)
+                 Hash Cond: (vis_1.id = s_1.parent_id)
+                 Buffers: shared hit=16
+                 ->  WorkTable Scan on vis vis_1  (cost=0.00..45.00 rows=667 width=8) (actual time=0.000..0.009 rows=183.33 loops=12)
+                       Filter: (lvl < 12)
+                       Rows Removed by Filter: 17
+                 ->  Hash  (cost=40.00..40.00 rows=2400 width=20) (actual time=0.365..0.365 rows=2200.00 loops=1)
+                       Buckets: 4096  Batches: 1  Memory Usage: 153kB
+                       Buffers: shared hit=16
+                       ->  Seq Scan on scopes s_1  (cost=0.00..40.00 rows=2400 width=20) (actual time=0.002..0.120 rows=2400.00 loops=1)
+                             Buffers: shared hit=16
+   ->  Nested Loop  (cost=0.29..1546420.89 rows=29160 width=26) (actual time=1.389..5.817 rows=20.00 loops=1)
+         Join Filter: (d.project_id = vis.id)
+         Rows Removed by Join Filter: 47172
+         Buffers: shared hit=55
+         ->  Index Scan using documents_created_at on documents d  (cost=0.29..602.19 rows=10000 width=34) (actual time=0.004..0.009 rows=20.00 loops=1)
+               Index Searches: 1
+               Buffers: shared hit=21
+         ->  CTE Scan on vis  (cost=0.00..137.40 rows=6870 width=8) (actual time=0.002..0.204 rows=2359.60 loops=20)
+               Storage: Memory  Maximum Storage: 126kB
+               Buffers: shared hit=34
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.085 ms
+ Execution Time: 5.842 ms
+(42 rows)
+
+Time: 6.090 ms
+\echo '=== 各深さ 5 回ずつ（実行時間は下の Time: を読む） ==='
+=== 各深さ 5 回ずつ（実行時間は下の Time: を読む） ===
+\echo '--- depth <= 2 を 5 回 ---'
+--- depth <= 2 を 5 回 ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 2)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.810 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 2)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.729 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 2)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.701 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 2)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.728 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 2)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.730 ms
+\echo '--- depth <= 4 を 5 回 ---'
+--- depth <= 4 を 5 回 ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 4)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.418 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 4)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.339 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 4)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.410 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 4)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.387 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 4)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.401 ms
+\echo '--- depth <= 6 を 5 回 ---'
+--- depth <= 6 を 5 回 ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 6)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.669 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 6)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.710 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 6)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.667 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 6)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.661 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 6)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.729 ms
+\echo '--- depth <= 8 を 5 回 ---'
+--- depth <= 8 を 5 回 ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 8)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.856 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 8)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.853 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 8)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.806 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 8)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.814 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 8)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.850 ms
+\echo '--- depth <= 10 を 5 回 ---'
+--- depth <= 10 を 5 回 ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 10)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.754 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 10)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.718 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 10)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.707 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 10)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.735 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 10)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.748 ms
+\echo '--- depth <= 12 を 5 回 ---'
+--- depth <= 12 を 5 回 ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 12)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.541 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 12)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.520 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 12)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.584 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 12)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.566 ms
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 12)
+SELECT d.id, d.title FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id
+ ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 2.635 ms
+\echo '=== 各深さで一覧に出る文書の数と、たどった節点の数 ==='
+=== 各深さで一覧に出る文書の数と、たどった節点の数 ===
+\echo '--- depth <= 2 で一覧に出る文書の総数（0 件でないことの確認） ---'
+--- depth <= 2 で一覧に出る文書の総数（0 件でないことの確認） ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 2)
+SELECT 2 AS depth_limit,
+       (SELECT count(*) FROM vis) AS scopes_traversed,
+       count(*)                   AS visible_documents
+  FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id;
+ depth_limit | scopes_traversed | visible_documents 
+-------------+------------------+-------------------
+           2 |              400 |              1711
+(1 row)
+
+Time: 1.800 ms
+\echo '--- depth <= 4 で一覧に出る文書の総数（0 件でないことの確認） ---'
+--- depth <= 4 で一覧に出る文書の総数（0 件でないことの確認） ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 4)
+SELECT 4 AS depth_limit,
+       (SELECT count(*) FROM vis) AS scopes_traversed,
+       count(*)                   AS visible_documents
+  FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id;
+ depth_limit | scopes_traversed | visible_documents 
+-------------+------------------+-------------------
+           4 |              800 |              3405
+(1 row)
+
+Time: 1.857 ms
+\echo '--- depth <= 6 で一覧に出る文書の総数（0 件でないことの確認） ---'
+--- depth <= 6 で一覧に出る文書の総数（0 件でないことの確認） ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 6)
+SELECT 6 AS depth_limit,
+       (SELECT count(*) FROM vis) AS scopes_traversed,
+       count(*)                   AS visible_documents
+  FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id;
+ depth_limit | scopes_traversed | visible_documents 
+-------------+------------------+-------------------
+           6 |             1200 |              5046
+(1 row)
+
+Time: 2.314 ms
+\echo '--- depth <= 8 で一覧に出る文書の総数（0 件でないことの確認） ---'
+--- depth <= 8 で一覧に出る文書の総数（0 件でないことの確認） ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 8)
+SELECT 8 AS depth_limit,
+       (SELECT count(*) FROM vis) AS scopes_traversed,
+       count(*)                   AS visible_documents
+  FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id;
+ depth_limit | scopes_traversed | visible_documents 
+-------------+------------------+-------------------
+           8 |             1600 |              6690
+(1 row)
+
+Time: 2.217 ms
+\echo '--- depth <= 10 で一覧に出る文書の総数（0 件でないことの確認） ---'
+--- depth <= 10 で一覧に出る文書の総数（0 件でないことの確認） ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 10)
+SELECT 10 AS depth_limit,
+       (SELECT count(*) FROM vis) AS scopes_traversed,
+       count(*)                   AS visible_documents
+  FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id;
+ depth_limit | scopes_traversed | visible_documents 
+-------------+------------------+-------------------
+          10 |             2000 |              8311
+(1 row)
+
+Time: 2.318 ms
+\echo '--- depth <= 12 で一覧に出る文書の総数（0 件でないことの確認） ---'
+--- depth <= 12 で一覧に出る文書の総数（0 件でないことの確認） ---
+WITH RECURSIVE vis AS (
+  SELECT s.id, s.lvl FROM ch12_d.scopes s
+   WHERE s.id IN (SELECT m.scope_id FROM ch12_d.memberships m WHERE m.user_id = 1)
+  UNION
+  SELECT s.id, s.lvl FROM ch12_d.scopes s JOIN vis ON s.parent_id = vis.id
+   WHERE vis.lvl < 12)
+SELECT 12 AS depth_limit,
+       (SELECT count(*) FROM vis) AS scopes_traversed,
+       count(*)                   AS visible_documents
+  FROM ch12_d.documents d JOIN vis ON vis.id = d.project_id;
+ depth_limit | scopes_traversed | visible_documents 
+-------------+------------------+-------------------
+          12 |             2400 |             10000
+(1 row)
+
+Time: 2.564 ms

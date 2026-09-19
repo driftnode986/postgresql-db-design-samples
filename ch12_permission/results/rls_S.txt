@@ -1,0 +1,667 @@
+# 採取日時: 2026-09-19 13:41:48 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- 案A の判定を、問い合わせではなく**行レベルセキュリティのポリシー**に書く。
+--
+-- ここまでの 3 つの書き方（関数・集合・ltree）は、すべて「アプリが正しい WHERE を書く」
+-- という前提に立っていた。書き忘れたら全件が見える。
+-- ポリシーに書けば、素の `SELECT * FROM documents` でも絞られる。
+--
+-- 🔴 測定は book_app で行う。公式マニュアル（ddl-rowsecurity）:
+--    「Superusers and roles with the BYPASSRLS attribute always bypass the row security
+--     system ... Table owners normally bypass row security as well」
+--    所有者も迂回するので、FORCE ROW LEVEL SECURITY を付けて所有者にも効かせる。
+--
+-- 🔴 ポリシーが参照する表（memberships / scopes）に、
+--    ポリシーを使うロールの SELECT 権限が必要である。公式（sql-createpolicy）:
+--    「users who are using a given policy must be able to access any tables or functions
+--     referenced in the expression or they will simply receive a permission denied error」
+--    （book_app は ALTER DEFAULT PRIVILEGES で既に持っているが、明示しておく）
+--
+-- 🔴 このファイルは ch12_a の documents にポリシーを付ける。
+--    ポリシーを残したまま関数方式（20_read_func.sql）を測ると、
+--    関数は「ポリシーが絞ったあとの行」にしか適用されず、
+--    235 ms が 4 ms に見える（確認記録 §6 で実際に踏んだ）。
+--    そのため run_measure.sh は 20〜22 の測定をすべて終えてからこれを実行し、
+--    最後に 39_rls_disable.sql でポリシーを外す。
+\timing on
+Timing is on.
+GRANT SELECT ON ch12_a.memberships, ch12_a.scopes, ch12_a.documents TO book_app;
+GRANT
+Time: 0.967 ms
+ALTER TABLE ch12_a.documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE
+Time: 1.115 ms
+ALTER TABLE ch12_a.documents FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+Time: 0.322 ms
+DROP POLICY IF EXISTS doc_visible ON ch12_a.documents;
+psql:/tmp/run-sql.sql:32: NOTICE:  policy "doc_visible" for relation "ch12_a.documents" does not exist, skipping
+DROP POLICY
+Time: 0.117 ms
+CREATE POLICY doc_visible ON ch12_a.documents FOR SELECT USING (
+  project_id IN (
+    WITH RECURSIVE vis AS (
+      SELECT m.scope_id AS id
+        FROM ch12_a.memberships m
+       WHERE m.user_id = current_setting('app.user_id')::bigint
+      UNION
+      SELECT s.id FROM ch12_a.scopes s JOIN vis ON s.parent_id = vis.id
+    )
+    SELECT id FROM vis));
+CREATE POLICY
+Time: 1.805 ms
+-- 書き込みのポリシーも付ける。
+--
+-- 🔴 SELECT のポリシーしか付けないと、INSERT は**すべて**拒否される
+--    （「ポリシーが無い操作は許可されない」ため）。実在するサービスでは
+--    「自分が編集者として所属するプロジェクトには文書を作れる」形になるので、
+--    それを書く。31_rls_read.sql の covert channel の実演は、
+--    このポリシーを通ったあとに一意制約の検査に当たることを見るものである。
+DROP POLICY IF EXISTS doc_insertable ON ch12_a.documents;
+psql:/tmp/run-sql.sql:51: NOTICE:  policy "doc_insertable" for relation "ch12_a.documents" does not exist, skipping
+DROP POLICY
+Time: 0.225 ms
+CREATE POLICY doc_insertable ON ch12_a.documents FOR INSERT WITH CHECK (
+  project_id IN (
+    WITH RECURSIVE vis AS (
+      SELECT m.scope_id AS id
+        FROM ch12_a.memberships m
+       WHERE m.user_id = current_setting('app.user_id')::bigint
+      UNION
+      SELECT s.id FROM ch12_a.scopes s JOIN vis ON s.parent_id = vis.id
+    )
+    SELECT id FROM vis));
+CREATE POLICY
+Time: 0.359 ms
+\echo '=== ポリシーが付いたこと ==='
+=== ポリシーが付いたこと ===
+SELECT c.relname, c.relrowsecurity AS row_security, c.relforcerowsecurity AS forced,
+       (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid) AS policies
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'ch12_a' AND c.relname = 'documents';
+  relname  | row_security | forced | policies 
+-----------+--------------+--------+----------
+ documents | t            | t      |        2
+(1 row)
+
+Time: 0.687 ms
+\echo '=== 🔴 所有者にも効くこと（FORCE を付けたので book_owner でもエラーになる） ==='
+=== 🔴 所有者にも効くこと（FORCE を付けたので book_owner でもエラーになる） ===
+-- app.user_id を設定していないセッションでは、ポリシー式の
+-- current_setting('app.user_id') が失敗する。所有者も迂回できない。
+-- 案C の初期構築がこれで止まった（確認記録 §6）。
+-- 🔴 期待するエラー: 42704 unrecognized configuration parameter "app.user_id"
+--    ここでは止めたくないので、例外を捕まえて文面だけを出す。
+DO $$
+BEGIN
+  PERFORM count(*) FROM ch12_a.documents;
+  RAISE NOTICE '🔴 想定外: app.user_id 未設定でも読めた（FORCE が効いていない）';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE '想定どおりエラー: % (SQLSTATE %)', SQLERRM, SQLSTATE;
+END $$;
+psql:/tmp/run-sql.sql:81: NOTICE:  想定どおりエラー: unrecognized configuration parameter "app.user_id" (SQLSTATE 42704)
+DO
+Time: 0.650 ms
+
+-- run-as: book_app
+-- ポリシーを付けた状態で、素の SELECT を測る。
+--
+-- 問い合わせに WHERE が 1 つも無いことに注目する。絞り込みはポリシーが行う。
+--
+-- 🔴 見るのは実行計画の `hashed SubPlan` と `loops=1` である。
+--    ポリシーの中の副問い合わせ（vis の展開）が、行ごとに再実行されるのか、
+--    1 回だけ評価されてハッシュに保持されるのかを、ここで確かめる。
+--
+-- 🔴 公式（ddl-rowsecurity）は「This expression will be evaluated **for each row**」と書いている。
+--    両方とも正しい。行ごとに走るのは `IN` のハッシュ照合だけで、
+--    副問い合わせそのものは 1 回である。この区別を実行計画で見る。
+\timing on
+Timing is on.
+\echo '=== 利用者7（SET app.user_id = 7）実行計画 3 回 ==='
+=== 利用者7（SET app.user_id = 7）実行計画 3 回 ===
+SET app.user_id = '7';
+SET
+Time: 0.195 ms
+EXPLAIN (ANALYZE, VERBOSE)
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20;
+                                                                              QUERY PLAN                                                                              
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=304.87..307.34 rows=20 width=27) (actual time=0.204..1.519 rows=20.00 loops=1)
+   Output: d.id, d.title, d.created_at
+   Buffers: shared hit=2982
+   ->  Index Scan using documents_created_at on ch12_a.documents d  (cost=304.87..6494.85 rows=50000 width=27) (actual time=0.203..1.510 rows=20.00 loops=1)
+         Output: d.id, d.title, d.created_at
+         Filter: (ANY (d.project_id = (hashed SubPlan 2).col1))
+         Rows Removed by Filter: 2947
+         Index Searches: 1
+         Buffers: shared hit=2982
+         SubPlan 2
+           ->  CTE Scan on vis vis_1  (cost=210.01..294.07 rows=4203 width=8) (actual time=0.011..0.068 rows=3.00 loops=1)
+                 Output: vis_1.id
+                 Storage: Memory  Maximum Storage: 17kB
+                 Buffers: shared hit=8
+                 CTE vis
+                   ->  Recursive Union  (cost=0.29..210.01 rows=4203 width=8) (actual time=0.011..0.067 rows=3.00 loops=1)
+                         Storage: Memory  Maximum Storage: 33kB
+                         Buffers: shared hit=8
+                         ->  Index Scan using memberships_user on ch12_a.memberships m  (cost=0.29..8.34 rows=3 width=8) (actual time=0.009..0.010 rows=3.00 loops=1)
+                               Output: m.scope_id
+                               Index Cond: (m.user_id = (current_setting('app.user_id'::text))::bigint)
+                               Index Searches: 1
+                               Buffers: shared hit=3
+                         ->  Hash Join  (cost=0.97..15.96 rows=420 width=8) (actual time=0.054..0.055 rows=0.00 loops=1)
+                               Output: s.id
+                               Hash Cond: (s.parent_id = vis.id)
+                               Buffers: shared hit=5
+                               ->  Seq Scan on ch12_a.scopes s  (cost=0.00..9.21 rows=421 width=16) (actual time=0.004..0.025 rows=421.00 loops=1)
+                                     Output: s.id, s.parent_id, s.kind, s.name, s.path
+                                     Buffers: shared hit=5
+                               ->  Hash  (cost=0.60..0.60 rows=30 width=8) (actual time=0.002..0.003 rows=3.00 loops=1)
+                                     Output: vis.id
+                                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                     ->  WorkTable Scan on vis  (cost=0.00..0.60 rows=30 width=8) (actual time=0.000..0.000 rows=3.00 loops=1)
+                                           Output: vis.id
+ Planning:
+   Buffers: shared hit=307
+ Planning Time: 0.668 ms
+ Execution Time: 1.613 ms
+(39 rows)
+
+Time: 3.095 ms
+EXPLAIN (ANALYZE)
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20;
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=304.87..307.34 rows=20 width=27) (actual time=0.149..1.173 rows=20.00 loops=1)
+   Buffers: shared hit=2982
+   ->  Index Scan using documents_created_at on documents d  (cost=304.87..6494.85 rows=50000 width=27) (actual time=0.149..1.171 rows=20.00 loops=1)
+         Filter: (ANY (project_id = (hashed SubPlan 2).col1))
+         Rows Removed by Filter: 2947
+         Index Searches: 1
+         Buffers: shared hit=2982
+         SubPlan 2
+           ->  CTE Scan on vis vis_1  (cost=210.01..294.07 rows=4203 width=8) (actual time=0.014..0.073 rows=3.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+                 Buffers: shared hit=8
+                 CTE vis
+                   ->  Recursive Union  (cost=0.29..210.01 rows=4203 width=8) (actual time=0.014..0.072 rows=3.00 loops=1)
+                         Storage: Memory  Maximum Storage: 33kB
+                         Buffers: shared hit=8
+                         ->  Index Scan using memberships_user on memberships m  (cost=0.29..8.34 rows=3 width=8) (actual time=0.012..0.013 rows=3.00 loops=1)
+                               Index Cond: (user_id = (current_setting('app.user_id'::text))::bigint)
+                               Index Searches: 1
+                               Buffers: shared hit=3
+                         ->  Hash Join  (cost=0.97..15.96 rows=420 width=8) (actual time=0.056..0.057 rows=0.00 loops=1)
+                               Hash Cond: (s.parent_id = vis.id)
+                               Buffers: shared hit=5
+                               ->  Seq Scan on scopes s  (cost=0.00..9.21 rows=421 width=16) (actual time=0.004..0.030 rows=421.00 loops=1)
+                                     Buffers: shared hit=5
+                               ->  Hash  (cost=0.60..0.60 rows=30 width=8) (actual time=0.001..0.002 rows=3.00 loops=1)
+                                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                     ->  WorkTable Scan on vis  (cost=0.00..0.60 rows=30 width=8) (actual time=0.000..0.000 rows=3.00 loops=1)
+ Planning Time: 0.101 ms
+ Execution Time: 1.231 ms
+(29 rows)
+
+Time: 1.530 ms
+EXPLAIN (ANALYZE)
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20;
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=304.87..307.34 rows=20 width=27) (actual time=0.077..0.817 rows=20.00 loops=1)
+   Buffers: shared hit=2982
+   ->  Index Scan using documents_created_at on documents d  (cost=304.87..6494.85 rows=50000 width=27) (actual time=0.077..0.815 rows=20.00 loops=1)
+         Filter: (ANY (project_id = (hashed SubPlan 2).col1))
+         Rows Removed by Filter: 2947
+         Index Searches: 1
+         Buffers: shared hit=2982
+         SubPlan 2
+           ->  CTE Scan on vis vis_1  (cost=210.01..294.07 rows=4203 width=8) (actual time=0.005..0.053 rows=3.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+                 Buffers: shared hit=8
+                 CTE vis
+                   ->  Recursive Union  (cost=0.29..210.01 rows=4203 width=8) (actual time=0.004..0.052 rows=3.00 loops=1)
+                         Storage: Memory  Maximum Storage: 33kB
+                         Buffers: shared hit=8
+                         ->  Index Scan using memberships_user on memberships m  (cost=0.29..8.34 rows=3 width=8) (actual time=0.003..0.004 rows=3.00 loops=1)
+                               Index Cond: (user_id = (current_setting('app.user_id'::text))::bigint)
+                               Index Searches: 1
+                               Buffers: shared hit=3
+                         ->  Hash Join  (cost=0.97..15.96 rows=420 width=8) (actual time=0.046..0.046 rows=0.00 loops=1)
+                               Hash Cond: (s.parent_id = vis.id)
+                               Buffers: shared hit=5
+                               ->  Seq Scan on scopes s  (cost=0.00..9.21 rows=421 width=16) (actual time=0.003..0.020 rows=421.00 loops=1)
+                                     Buffers: shared hit=5
+                               ->  Hash  (cost=0.60..0.60 rows=30 width=8) (actual time=0.001..0.001 rows=3.00 loops=1)
+                                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                     ->  WorkTable Scan on vis  (cost=0.00..0.60 rows=30 width=8) (actual time=0.000..0.000 rows=3.00 loops=1)
+ Planning Time: 0.083 ms
+ Execution Time: 0.845 ms
+(29 rows)
+
+Time: 1.072 ms
+\echo '=== 利用者7 素の実行 5 回（実行時間は下の Time: を読む） ==='
+=== 利用者7 素の実行 5 回（実行時間は下の Time: を読む） ===
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.910 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.826 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.775 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.750 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.728 ms
+\echo '=== 🔴 ポリシーが効いていること（count が全件ではなく、見える件数になる） ==='
+=== 🔴 ポリシーが効いていること（count が全件ではなく、見える件数になる） ===
+-- WHERE を書いていないのに件数が絞られる。これがポリシーの効果である。
+SELECT count(*) AS visible_documents_for_user7 FROM ch12_a.documents;
+ visible_documents_for_user7 
+-----------------------------
+                         673
+(1 row)
+
+Time: 4.748 ms
+\echo '=== 利用者42（SET app.user_id = 42）実行計画 3 回 ==='
+=== 利用者42（SET app.user_id = 42）実行計画 3 回 ===
+SET app.user_id = '42';
+SET
+Time: 0.063 ms
+EXPLAIN (ANALYZE)
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20;
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=304.87..307.34 rows=20 width=27) (actual time=0.126..0.156 rows=20.00 loops=1)
+   Buffers: shared hit=98
+   ->  Index Scan using documents_created_at on documents d  (cost=304.87..6494.85 rows=50000 width=27) (actual time=0.125..0.155 rows=20.00 loops=1)
+         Filter: (ANY (project_id = (hashed SubPlan 2).col1))
+         Rows Removed by Filter: 63
+         Index Searches: 1
+         Buffers: shared hit=98
+         SubPlan 2
+           ->  CTE Scan on vis vis_1  (cost=210.01..294.07 rows=4203 width=8) (actual time=0.005..0.098 rows=21.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+                 Buffers: shared hit=13
+                 CTE vis
+                   ->  Recursive Union  (cost=0.29..210.01 rows=4203 width=8) (actual time=0.004..0.095 rows=21.00 loops=1)
+                         Storage: Memory  Maximum Storage: 33kB
+                         Buffers: shared hit=13
+                         ->  Index Scan using memberships_user on memberships m  (cost=0.29..8.34 rows=3 width=8) (actual time=0.004..0.004 rows=1.00 loops=1)
+                               Index Cond: (user_id = (current_setting('app.user_id'::text))::bigint)
+                               Index Searches: 1
+                               Buffers: shared hit=3
+                         ->  Hash Join  (cost=0.97..15.96 rows=420 width=8) (actual time=0.024..0.043 rows=10.00 loops=2)
+                               Hash Cond: (s.parent_id = vis.id)
+                               Buffers: shared hit=10
+                               ->  Seq Scan on scopes s  (cost=0.00..9.21 rows=421 width=16) (actual time=0.002..0.019 rows=421.00 loops=2)
+                                     Buffers: shared hit=10
+                               ->  Hash  (cost=0.60..0.60 rows=30 width=8) (actual time=0.002..0.002 rows=10.50 loops=2)
+                                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                     ->  WorkTable Scan on vis  (cost=0.00..0.60 rows=30 width=8) (actual time=0.000..0.001 rows=10.50 loops=2)
+ Planning Time: 0.077 ms
+ Execution Time: 0.173 ms
+(29 rows)
+
+Time: 0.417 ms
+EXPLAIN (ANALYZE)
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20;
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=304.87..307.34 rows=20 width=27) (actual time=0.135..0.166 rows=20.00 loops=1)
+   Buffers: shared hit=98
+   ->  Index Scan using documents_created_at on documents d  (cost=304.87..6494.85 rows=50000 width=27) (actual time=0.135..0.165 rows=20.00 loops=1)
+         Filter: (ANY (project_id = (hashed SubPlan 2).col1))
+         Rows Removed by Filter: 63
+         Index Searches: 1
+         Buffers: shared hit=98
+         SubPlan 2
+           ->  CTE Scan on vis vis_1  (cost=210.01..294.07 rows=4203 width=8) (actual time=0.003..0.102 rows=21.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+                 Buffers: shared hit=13
+                 CTE vis
+                   ->  Recursive Union  (cost=0.29..210.01 rows=4203 width=8) (actual time=0.003..0.100 rows=21.00 loops=1)
+                         Storage: Memory  Maximum Storage: 33kB
+                         Buffers: shared hit=13
+                         ->  Index Scan using memberships_user on memberships m  (cost=0.29..8.34 rows=3 width=8) (actual time=0.002..0.003 rows=1.00 loops=1)
+                               Index Cond: (user_id = (current_setting('app.user_id'::text))::bigint)
+                               Index Searches: 1
+                               Buffers: shared hit=3
+                         ->  Hash Join  (cost=0.97..15.96 rows=420 width=8) (actual time=0.026..0.046 rows=10.00 loops=2)
+                               Hash Cond: (s.parent_id = vis.id)
+                               Buffers: shared hit=10
+                               ->  Seq Scan on scopes s  (cost=0.00..9.21 rows=421 width=16) (actual time=0.001..0.020 rows=421.00 loops=2)
+                                     Buffers: shared hit=10
+                               ->  Hash  (cost=0.60..0.60 rows=30 width=8) (actual time=0.004..0.004 rows=10.50 loops=2)
+                                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                     ->  WorkTable Scan on vis  (cost=0.00..0.60 rows=30 width=8) (actual time=0.000..0.001 rows=10.50 loops=2)
+ Planning Time: 0.053 ms
+ Execution Time: 0.179 ms
+(29 rows)
+
+Time: 0.395 ms
+EXPLAIN (ANALYZE)
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20;
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=304.87..307.34 rows=20 width=27) (actual time=0.116..0.139 rows=20.00 loops=1)
+   Buffers: shared hit=98
+   ->  Index Scan using documents_created_at on documents d  (cost=304.87..6494.85 rows=50000 width=27) (actual time=0.116..0.137 rows=20.00 loops=1)
+         Filter: (ANY (project_id = (hashed SubPlan 2).col1))
+         Rows Removed by Filter: 63
+         Index Searches: 1
+         Buffers: shared hit=98
+         SubPlan 2
+           ->  CTE Scan on vis vis_1  (cost=210.01..294.07 rows=4203 width=8) (actual time=0.003..0.088 rows=21.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+                 Buffers: shared hit=13
+                 CTE vis
+                   ->  Recursive Union  (cost=0.29..210.01 rows=4203 width=8) (actual time=0.003..0.085 rows=21.00 loops=1)
+                         Storage: Memory  Maximum Storage: 33kB
+                         Buffers: shared hit=13
+                         ->  Index Scan using memberships_user on memberships m  (cost=0.29..8.34 rows=3 width=8) (actual time=0.002..0.002 rows=1.00 loops=1)
+                               Index Cond: (user_id = (current_setting('app.user_id'::text))::bigint)
+                               Index Searches: 1
+                               Buffers: shared hit=3
+                         ->  Hash Join  (cost=0.97..15.96 rows=420 width=8) (actual time=0.022..0.040 rows=10.00 loops=2)
+                               Hash Cond: (s.parent_id = vis.id)
+                               Buffers: shared hit=10
+                               ->  Seq Scan on scopes s  (cost=0.00..9.21 rows=421 width=16) (actual time=0.001..0.017 rows=421.00 loops=2)
+                                     Buffers: shared hit=10
+                               ->  Hash  (cost=0.60..0.60 rows=30 width=8) (actual time=0.001..0.001 rows=10.50 loops=2)
+                                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                     ->  WorkTable Scan on vis  (cost=0.00..0.60 rows=30 width=8) (actual time=0.000..0.000 rows=10.50 loops=2)
+ Planning Time: 0.059 ms
+ Execution Time: 0.152 ms
+(29 rows)
+
+Time: 0.323 ms
+\echo '=== 利用者42 素の実行 5 回（実行時間は下の Time: を読む） ==='
+=== 利用者42 素の実行 5 回（実行時間は下の Time: を読む） ===
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.216 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.189 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.249 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.229 ms
+SELECT d.id, d.title FROM ch12_a.documents d ORDER BY d.created_at DESC LIMIT 20 \g /dev/null
+Time: 0.226 ms
+SELECT count(*) AS visible_documents_for_user42 FROM ch12_a.documents;
+ visible_documents_for_user42 
+------------------------------
+                        22147
+(1 row)
+
+Time: 5.744 ms
+\echo '=== 🔴 ポリシーの結果が、明示的に書いた集合と同じであること（先頭列が 0） ==='
+=== 🔴 ポリシーの結果が、明示的に書いた集合と同じであること（先頭列が 0） ===
+-- ポリシーが返す集合と、a_traverse/21_read_set.sql の集合が一致することを確かめる。
+-- 一致しなければ、ポリシーは「別の絞り込み」をしていることになる。
+SET app.user_id = '7';
+SET
+Time: 0.056 ms
+WITH RECURSIVE vis AS (
+  SELECT m.scope_id AS id FROM ch12_a.memberships m WHERE m.user_id = 7
+  UNION SELECT s.id FROM ch12_a.scopes s JOIN vis ON s.parent_id = vis.id),
+by_query AS (
+  -- 🔴 ポリシーが効いている表を読むので、ここも絞られた結果になる。
+  --    絞られた集合の中で、明示的な条件をさらに掛けても同じ件数であるはず。
+  SELECT d.id FROM ch12_a.documents d JOIN vis ON vis.id = d.project_id),
+by_policy AS (
+  SELECT d.id FROM ch12_a.documents d)
+SELECT count(*) AS policy_vs_query_diff,
+       (SELECT count(*) FROM by_policy) AS policy_rows,
+       (SELECT count(*) FROM by_query)  AS query_rows
+  FROM ((SELECT id FROM by_policy EXCEPT SELECT id FROM by_query)
+        UNION ALL
+        (SELECT id FROM by_query  EXCEPT SELECT id FROM by_policy)) t;
+ policy_vs_query_diff | policy_rows | query_rows 
+----------------------+-------------+------------
+                    0 |         673 |        673
+(1 row)
+
+Time: 36.768 ms
+\echo '=== 🔴 一意制約の検査は RLS を迂回する（公式が covert channel と呼ぶ経路） ==='
+=== 🔴 一意制約の検査は RLS を迂回する（公式が covert channel と呼ぶ経路） ===
+-- 公式（ddl-rowsecurity）:
+--   「Referential integrity checks, such as unique or primary key constraints and foreign key
+--    references, always bypass row security」
+-- 利用者7 が**書ける**プロジェクト（自分が所属しているプロジェクト）に、
+-- 利用者7 に**見えない**文書の id で INSERT する。
+-- 書き込みのポリシーは通るが、主キーの検査に当たる。
+-- 「見えないのに主キー違反」= その id の文書が存在することが分かってしまう。
+--
+-- 🔴 期待するエラー: 23505 duplicate key value violates unique constraint "documents_pkey"
+DO $$
+DECLARE v_hidden bigint; v_writable bigint; v_free bigint;
+BEGIN
+  -- 利用者7 が書けるプロジェクト（ポリシーの WITH CHECK を通る先）
+  SELECT m.scope_id INTO v_writable
+    FROM ch12_a.memberships m
+    JOIN ch12_a.scopes s ON s.id = m.scope_id
+   WHERE m.user_id = 7 AND s.kind = 'project' ORDER BY m.scope_id LIMIT 1;
+
+  -- 利用者7 に見えない文書の id。攻撃者は id を総当たりするだけでよい。
+  -- ここでは「自分に見えない id」を 1 件選ぶ（自分の SELECT からは空に見える id）。
+  SELECT g INTO v_hidden FROM generate_series(1, 100000) AS g
+   WHERE NOT EXISTS (SELECT 1 FROM ch12_a.documents d WHERE d.id = g)
+   ORDER BY g LIMIT 1;
+
+  -- 比較のため、本当に存在しない id も 1 つ用意する
+  SELECT max(id) + 1000000 INTO v_free FROM ch12_r.src_document;
+
+  RAISE NOTICE '書けるプロジェクト: % / 自分には見えない id: % / 存在しない id: %',
+               v_writable, v_hidden, v_free;
+
+  -- (a) 存在しない id → 挿入できる（= 「空き」だと分かる）
+  --
+  -- 🔴 挿入した行は必ず消す。ここで消し漏らすと、この表の件数が 1 件増えたまま残り、
+  --    あとの検査（案A と案C の一覧の突き合わせ）が 674 対 673 の差を出す（実際に踏んだ）。
+  --    しかも **DELETE のポリシーが無いと、DELETE はエラーにならず 0 行消して終わる**
+  --    （公式 sql-createpolicy: 「Typically, such rows are silently suppressed;
+  --    no error is reported」）。消えたつもりで残るので、消えたことを検査する。
+  BEGIN
+    INSERT INTO ch12_a.documents (id, project_id, title, created_at)
+    VALUES (v_free, v_writable, 'probe-free', now());
+    RAISE NOTICE '(a) 存在しない id % → 挿入できた（空きだと分かる）', v_free;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE '(a) 想定外: % (SQLSTATE %)', SQLERRM, SQLSTATE;
+  END;
+
+  -- (b) 自分には見えないが存在する id → 主キー違反（= 「使用済み」だと分かる）
+  BEGIN
+    INSERT INTO ch12_a.documents (id, project_id, title, created_at)
+    VALUES (v_hidden, v_writable, 'probe-hidden', now());
+    RAISE NOTICE '(b) 🔴 想定外: 挿入できた（主キーの検査が働いていない）';
+    DELETE FROM ch12_a.documents WHERE id = v_hidden;
+  EXCEPTION WHEN unique_violation THEN
+    RAISE NOTICE '(b) 想定どおり: % (SQLSTATE %)', SQLERRM, SQLSTATE;
+    RAISE NOTICE '(b) 🔴 (a) と (b) でエラーが違う = 見えない行の存在が分かってしまう';
+  WHEN OTHERS THEN
+    RAISE NOTICE '(b) 別のエラー: % (SQLSTATE %)', SQLERRM, SQLSTATE;
+  END;
+END $$;
+psql:/tmp/run-sql.sql:137: NOTICE:  書けるプロジェクト: 83 / 自分には見えない id: 1 / 存在しない id: 1100000
+psql:/tmp/run-sql.sql:137: NOTICE:  (a) 存在しない id 1100000 → 挿入できた（空きだと分かる）
+psql:/tmp/run-sql.sql:137: NOTICE:  (b) 想定どおり: duplicate key value violates unique constraint "documents_pkey" (SQLSTATE 23505)
+psql:/tmp/run-sql.sql:137: NOTICE:  (b) 🔴 (a) と (b) でエラーが違う = 見えない行の存在が分かってしまう
+DO
+Time: 13.593 ms
+
+-- run-as: book_app
+-- ポリシーを付けた表を、一括処理（全件を読む処理）から使うとどうなるか。
+--
+-- 案C の初期構築のように、**全利用者ぶんの判定表を作る**処理は、
+-- 「ログイン中の利用者」を持たない。ポリシーは current_setting('app.user_id') を要求するので、
+-- ここで失敗する。確認記録 §6 で踏んだ問題である。
+--
+-- 🔴 対処を 2 つ比べる。
+--    (a) FORCE を外す / ポリシーを無効にする … 迂回できるが、**黙って迂回する**
+--    (b) SET row_security = off … 公式が勧める形で、**黙って欠けるのではなくエラーになる**
+--
+--    公式（ddl-rowsecurity）:
+--      「it could be disastrous if row security silently caused some rows to be omitted from
+--       the backup. In such a situation, you can set the row_security configuration parameter
+--       to off. This does not in itself bypass row security; what it does is throw an error
+--       if any query's results would get filtered by a policy.」
+\timing on
+Timing is on.
+\echo '=== (1) app.user_id が未設定のセッションで全件を読もうとする ==='
+=== (1) app.user_id が未設定のセッションで全件を読もうとする ===
+-- 🔴 期待するエラー: 42704 unrecognized configuration parameter "app.user_id"
+DO $$
+BEGIN
+  PERFORM count(*) FROM ch12_a.documents;
+  RAISE NOTICE '🔴 想定外: 読めた';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE '想定どおりエラー: % (SQLSTATE %)', SQLERRM, SQLSTATE;
+END $$;
+psql:/tmp/run-sql.sql:27: NOTICE:  想定どおりエラー: unrecognized configuration parameter "app.user_id" (SQLSTATE 42704)
+DO
+Time: 1.408 ms
+\echo '=== (2) app.user_id を設定すると読めるが、その 1 人ぶんに絞られる ==='
+=== (2) app.user_id を設定すると読めるが、その 1 人ぶんに絞られる ===
+-- 🔴 ここが危ない。一括処理が「エラーにならずに、少ない行で完走する」。
+--    案C の判定表が 22,147 行しか入らず、しかも成功して見える。
+SET app.user_id = '42';
+SET
+Time: 0.102 ms
+SELECT count(*) AS rows_visible_to_user42 FROM ch12_a.documents;
+ rows_visible_to_user42 
+------------------------
+                  22147
+(1 row)
+
+Time: 8.088 ms
+\echo '=== (3) row_security = off にすると、絞られる問い合わせはエラーになる ==='
+=== (3) row_security = off にすると、絞られる問い合わせはエラーになる ===
+-- 🔴 期待するエラー: query would be affected by row-level security policy for table "documents"
+--    黙って欠けるのではなく確実に止まるので、一括処理はこれを付ける。
+SET row_security = off;
+SET
+Time: 0.085 ms
+DO $$
+BEGIN
+  PERFORM count(*) FROM ch12_a.documents;
+  RAISE NOTICE '🔴 想定外: row_security = off でも読めた';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE '想定どおりエラー: % (SQLSTATE %)', SQLERRM, SQLSTATE;
+END $$;
+psql:/tmp/run-sql.sql:45: NOTICE:  想定どおりエラー: query would be affected by row-level security policy for table "documents" (SQLSTATE 42501)
+DO
+Time: 0.246 ms
+RESET row_security;
+RESET
+Time: 0.075 ms
+\echo '=== (4) まとめ: 3 つの経路の違い ==='
+=== (4) まとめ: 3 つの経路の違い ===
+-- (1) 設定を忘れる          → エラー（気づける）
+-- (2) 1 人ぶんを設定する    → 成功するが行が足りない（🔴 気づけない）
+-- (3) row_security = off    → エラー（気づける・公式が勧める形）
+SELECT 'app.user_id 未設定'          AS path, 'エラー'          AS result,
+       '気づける'                     AS safety
+UNION ALL
+SELECT '1 人ぶんを設定',  '成功するが行が足りない', '🔴 気づけない'
+UNION ALL
+SELECT 'row_security = off', 'エラー',              '気づける（公式が勧める）';
+        path        |         result         |          safety          
+--------------------+------------------------+--------------------------
+ app.user_id 未設定 | エラー                 | 気づける
+ 1 人ぶんを設定     | 成功するが行が足りない | 🔴 気づけない
+ row_security = off | エラー                 | 気づける（公式が勧める）
+(3 rows)
+
+Time: 0.161 ms
+
+-- run-as: book_owner
+-- ポリシーを外して、案A を元の状態に戻す。
+--
+-- 🔴 これを忘れると、次に案A を測ったときに「ポリシーが絞ったあとの行」を測ることになり、
+--    比較が壊れる（確認記録 §6 で 235 ms が 4 ms に見えた事故の再現）。
+--    run_measure.sh は測定の最後にこれを実行し、20_read_func.sql の冒頭の検査
+--    （relrowsecurity が 0 件）で戻っていることを確かめる。
+\timing on
+Timing is on.
+DROP POLICY IF EXISTS doc_visible ON ch12_a.documents;
+DROP POLICY
+Time: 1.045 ms
+DROP POLICY IF EXISTS doc_insertable ON ch12_a.documents;
+DROP POLICY
+Time: 0.301 ms
+ALTER TABLE ch12_a.documents NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+Time: 0.370 ms
+ALTER TABLE ch12_a.documents DISABLE ROW LEVEL SECURITY;
+ALTER TABLE
+Time: 0.329 ms
+\echo '=== 🔴 ポリシーが外れたこと（すべて 0 / false であること） ==='
+=== 🔴 ポリシーが外れたこと（すべて 0 / false であること） ===
+SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'ch12_a' AND (c.relrowsecurity OR c.relforcerowsecurity))
+       AS rls_enabled_tables,
+       (SELECT count(*) FROM pg_policy p
+          JOIN pg_class c ON c.oid = p.polrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'ch12_a') AS policies;
+ rls_enabled_tables | policies 
+--------------------+----------
+                  0 |        0
+(1 row)
+
+Time: 1.018 ms
+-- 🔴 31_rls_read.sql の covert channel の実演で挿入した行を消す。
+--    実演の中で消そうとしても、DELETE のポリシーが無いので
+--    **エラーにならず 0 行消して終わる**（公式が言う silently suppressed）。
+--    ポリシーを外したこの時点で、所有者として消す。
+DELETE FROM ch12_a.documents
+ WHERE title IN ('probe-free', 'probe-hidden');
+DELETE 1
+Time: 6.083 ms
+\echo '=== 🔴 実演で挿入した行が残っていないこと（先頭列が 0 であること） ==='
+=== 🔴 実演で挿入した行が残っていないこと（先頭列が 0 であること） ===
+SELECT count(*) AS probe_rows_left
+  FROM ch12_a.documents WHERE title IN ('probe-free', 'probe-hidden');
+ probe_rows_left 
+-----------------
+               0
+(1 row)
+
+Time: 4.979 ms
+\echo '=== 🔴 案A の文書が元データと同じ件数であること（先頭列が 0 であること） ==='
+=== 🔴 案A の文書が元データと同じ件数であること（先頭列が 0 であること） ===
+-- 実演で 1 件でも増えたまま残ると、あとの一覧の突き合わせが 674 対 673 の差を出す。
+SELECT count(*) AS documents_diff FROM (
+  (SELECT id FROM ch12_r.src_document EXCEPT SELECT id FROM ch12_a.documents)
+  UNION ALL
+  (SELECT id FROM ch12_a.documents EXCEPT SELECT id FROM ch12_r.src_document)
+) t;
+ documents_diff 
+----------------
+              0
+(1 row)
+
+Time: 49.370 ms
+\echo '=== 🔴 book_app から全件が見えるようになったこと（先頭列が 0 であること） ==='
+=== 🔴 book_app から全件が見えるようになったこと（先頭列が 0 であること） ===
+SELECT count(*) AS documents_missing_after_disable
+  FROM (SELECT id FROM ch12_r.src_document
+        EXCEPT SELECT id FROM ch12_a.documents) t;
+ documents_missing_after_disable 
+---------------------------------
+                               0
+(1 row)
+
+Time: 19.776 ms
