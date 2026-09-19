@@ -1,0 +1,574 @@
+# 採取日時: 2026-09-19 11:49:40 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_app
+-- 案A: 画面を開くたびに明細から数える。日別の売上 30 日ぶん。
+--
+-- 🔴 3 回流して中央値を取る（docs/measurement-rules.yml）。
+\timing on
+Timing is on.
+\echo '=== 案A 日別 30 日分（3 回） ==='
+=== 案A 日別 30 日分（3 回） ===
+EXPLAIN (ANALYZE)
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date AS sales_date,
+       sum(l.amount_yen) - coalesce(sum(r.refund_yen), 0) AS net_yen
+  FROM ch11_a.order_lines l
+  LEFT JOIN ch11_a.returns r ON r.order_line_id = l.id
+ WHERE (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+       > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                                QUERY PLAN                                                                                 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=14936.82..15058.28 rows=366 width=36) (actual time=46.120..49.674 rows=30.00 loops=1)
+   Group Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+   Buffers: shared hit=295 read=10024 written=4885
+   ->  Gather Merge  (cost=14936.82..15039.07 rows=878 width=68) (actual time=46.113..49.649 rows=90.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=295 read=10024 written=4885
+         ->  Sort  (cost=13936.79..13937.71 rows=366 width=68) (actual time=44.433..44.436 rows=30.00 loops=3)
+               Sort Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+               Sort Method: quicksort  Memory: 27kB
+               Buffers: shared hit=295 read=10024 written=4885
+               Worker 0:  Sort Method: quicksort  Memory: 27kB
+               Worker 1:  Sort Method: quicksort  Memory: 27kB
+               ->  Partial HashAggregate  (cost=13913.89..13921.21 rows=366 width=68) (actual time=44.410..44.418 rows=30.00 loops=3)
+                     Group Key: ((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date
+                     Batches: 1  Memory Usage: 48kB
+                     Buffers: shared hit=277 read=10024 written=4885
+                     Worker 0:  Batches: 1  Memory Usage: 48kB
+                     Worker 1:  Batches: 1  Memory Usage: 48kB
+                     ->  Hash Left Join  (cost=3138.41..13669.95 rows=32525 width=20) (actual time=12.519..41.642 rows=27042.33 loops=3)
+                           Hash Cond: (l.id = r.order_line_id)
+                           Buffers: shared hit=277 read=10024 written=4885
+                           ->  Parallel Bitmap Heap Scan on order_lines l  (cost=2501.41..12741.86 rows=32525 width=24) (actual time=6.548..24.347 rows=27042.33 loops=3)
+                                 Recheck Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                 Heap Blocks: exact=3046
+                                 Buffers: shared hit=43 read=9837 written=4760
+                                 Worker 0:  Heap Blocks: exact=3040
+                                 Worker 1:  Heap Blocks: exact=3260
+                                 ->  Bitmap Index Scan on order_lines_sales_date  (cost=0.00..2481.89 rows=78061 width=0) (actual time=6.863..6.863 rows=81127.00 loops=1)
+                                       Index Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                       Index Searches: 1
+                                       Buffers: shared read=492 written=115
+                           ->  Hash  (cost=387.00..387.00 rows=20000 width=16) (actual time=5.845..5.845 rows=20000.00 loops=3)
+                                 Buckets: 32768  Batches: 1  Memory Usage: 1194kB
+                                 Buffers: shared hit=234 read=187 written=125
+                                 ->  Seq Scan on returns r  (cost=0.00..387.00 rows=20000 width=16) (actual time=0.041..2.959 rows=20000.00 loops=3)
+                                       Buffers: shared hit=234 read=187 written=125
+ Planning:
+   Buffers: shared hit=274 read=10 dirtied=2
+ Planning Time: 0.776 ms
+ Execution Time: 49.808 ms
+(41 rows)
+
+Time: 51.698 ms
+EXPLAIN (ANALYZE)
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date AS sales_date,
+       sum(l.amount_yen) - coalesce(sum(r.refund_yen), 0) AS net_yen
+  FROM ch11_a.order_lines l
+  LEFT JOIN ch11_a.returns r ON r.order_line_id = l.id
+ WHERE (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+       > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                                QUERY PLAN                                                                                 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=14936.82..15058.28 rows=366 width=36) (actual time=30.435..32.807 rows=30.00 loops=1)
+   Group Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+   Buffers: shared hit=7291 read=3168 written=222
+   ->  Gather Merge  (cost=14936.82..15039.07 rows=878 width=68) (actual time=30.426..32.778 rows=90.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=7291 read=3168 written=222
+         ->  Sort  (cost=13936.79..13937.71 rows=366 width=68) (actual time=28.981..28.983 rows=30.00 loops=3)
+               Sort Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+               Sort Method: quicksort  Memory: 27kB
+               Buffers: shared hit=7291 read=3168 written=222
+               Worker 0:  Sort Method: quicksort  Memory: 27kB
+               Worker 1:  Sort Method: quicksort  Memory: 27kB
+               ->  Partial HashAggregate  (cost=13913.89..13921.21 rows=366 width=68) (actual time=28.964..28.970 rows=30.00 loops=3)
+                     Group Key: ((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date
+                     Batches: 1  Memory Usage: 48kB
+                     Buffers: shared hit=7273 read=3168 written=222
+                     Worker 0:  Batches: 1  Memory Usage: 48kB
+                     Worker 1:  Batches: 1  Memory Usage: 48kB
+                     ->  Hash Left Join  (cost=3138.41..13669.95 rows=32525 width=20) (actual time=8.443..26.471 rows=27042.33 loops=3)
+                           Hash Cond: (l.id = r.order_line_id)
+                           Buffers: shared hit=7273 read=3168 written=222
+                           ->  Parallel Bitmap Heap Scan on order_lines l  (cost=2501.41..12741.86 rows=32525 width=24) (actual time=4.958..13.010 rows=27042.33 loops=3)
+                                 Recheck Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                 Heap Blocks: exact=3438
+                                 Buffers: shared hit=6712 read=3168 written=222
+                                 Worker 0:  Heap Blocks: exact=2936
+                                 Worker 1:  Heap Blocks: exact=2972
+                                 ->  Bitmap Index Scan on order_lines_sales_date  (cost=0.00..2481.89 rows=78061 width=0) (actual time=5.265..5.265 rows=81127.00 loops=1)
+                                       Index Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                       Index Searches: 1
+                                       Buffers: shared read=492 written=56
+                           ->  Hash  (cost=387.00..387.00 rows=20000 width=16) (actual time=3.392..3.392 rows=20000.00 loops=3)
+                                 Buckets: 32768  Batches: 1  Memory Usage: 1194kB
+                                 Buffers: shared hit=561
+                                 ->  Seq Scan on returns r  (cost=0.00..387.00 rows=20000 width=16) (actual time=0.007..1.303 rows=20000.00 loops=3)
+                                       Buffers: shared hit=561
+ Planning:
+   Buffers: shared hit=4 read=4 written=3
+ Planning Time: 0.170 ms
+ Execution Time: 32.844 ms
+(41 rows)
+
+Time: 33.310 ms
+EXPLAIN (ANALYZE)
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date AS sales_date,
+       sum(l.amount_yen) - coalesce(sum(r.refund_yen), 0) AS net_yen
+  FROM ch11_a.order_lines l
+  LEFT JOIN ch11_a.returns r ON r.order_line_id = l.id
+ WHERE (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+       > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                                QUERY PLAN                                                                                 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=14936.82..15058.28 rows=366 width=36) (actual time=26.382..28.915 rows=30.00 loops=1)
+   Group Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+   Buffers: shared hit=10459
+   ->  Gather Merge  (cost=14936.82..15039.07 rows=878 width=68) (actual time=26.375..28.888 rows=90.00 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=10459
+         ->  Sort  (cost=13936.79..13937.71 rows=366 width=68) (actual time=25.100..25.103 rows=30.00 loops=3)
+               Sort Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+               Sort Method: quicksort  Memory: 27kB
+               Buffers: shared hit=10459
+               Worker 0:  Sort Method: quicksort  Memory: 27kB
+               Worker 1:  Sort Method: quicksort  Memory: 27kB
+               ->  Partial HashAggregate  (cost=13913.89..13921.21 rows=366 width=68) (actual time=25.083..25.090 rows=30.00 loops=3)
+                     Group Key: ((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date
+                     Batches: 1  Memory Usage: 48kB
+                     Buffers: shared hit=10441
+                     Worker 0:  Batches: 1  Memory Usage: 48kB
+                     Worker 1:  Batches: 1  Memory Usage: 48kB
+                     ->  Hash Left Join  (cost=3138.41..13669.95 rows=32525 width=20) (actual time=6.583..22.676 rows=27042.33 loops=3)
+                           Hash Cond: (l.id = r.order_line_id)
+                           Buffers: shared hit=10441
+                           ->  Parallel Bitmap Heap Scan on order_lines l  (cost=2501.41..12741.86 rows=32525 width=24) (actual time=3.179..9.837 rows=27042.33 loops=3)
+                                 Recheck Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                 Heap Blocks: exact=3568
+                                 Buffers: shared hit=9880
+                                 Worker 0:  Heap Blocks: exact=2878
+                                 Worker 1:  Heap Blocks: exact=2900
+                                 ->  Bitmap Index Scan on order_lines_sales_date  (cost=0.00..2481.89 rows=78061 width=0) (actual time=3.441..3.442 rows=81127.00 loops=1)
+                                       Index Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                       Index Searches: 1
+                                       Buffers: shared hit=492
+                           ->  Hash  (cost=387.00..387.00 rows=20000 width=16) (actual time=3.318..3.318 rows=20000.00 loops=3)
+                                 Buckets: 32768  Batches: 1  Memory Usage: 1194kB
+                                 Buffers: shared hit=561
+                                 ->  Seq Scan on returns r  (cost=0.00..387.00 rows=20000 width=16) (actual time=0.005..1.250 rows=20000.00 loops=3)
+                                       Buffers: shared hit=561
+ Planning:
+   Buffers: shared hit=8
+ Planning Time: 0.110 ms
+ Execution Time: 28.949 ms
+(41 rows)
+
+Time: 29.337 ms
+
+-- run-as: book_app
+-- 案B: 日別の売上 30 日ぶん。
+--
+-- 🔴 3 回流して中央値を取る（docs/measurement-rules.yml）。
+\timing on
+Timing is on.
+\echo '=== 案B 日別 30 日分（3 回） ==='
+=== 案B 日別 30 日分（3 回） ===
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_b.daily_sales
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4577.28..4578.20 rows=366 width=36) (actual time=15.771..15.776 rows=30.00 loops=1)
+   Sort Key: sales_date
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=3 read=3313 written=1577
+   ->  HashAggregate  (cost=4557.12..4561.70 rows=366 width=36) (actual time=15.750..15.756 rows=30.00 loops=1)
+         Group Key: sales_date
+         Batches: 1  Memory Usage: 56kB
+         Buffers: shared read=3313 written=1577
+         ->  Bitmap Heap Scan on daily_sales  (cost=593.58..4429.93 rows=25438 width=10) (actual time=1.992..12.530 rows=25430.00 loops=1)
+               Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+               Heap Blocks: exact=3213
+               Buffers: shared read=3313 written=1577
+               ->  Bitmap Index Scan on daily_sales_pk  (cost=0.00..587.22 rows=25438 width=0) (actual time=1.658..1.658 rows=25430.00 loops=1)
+                     Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                     Index Searches: 1
+                     Buffers: shared read=100
+ Planning:
+   Buffers: shared hit=130 read=6 dirtied=1
+ Planning Time: 0.439 ms
+ Execution Time: 15.855 ms
+(20 rows)
+
+Time: 17.254 ms
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_b.daily_sales
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4577.28..4578.20 rows=366 width=36) (actual time=8.864..8.866 rows=30.00 loops=1)
+   Sort Key: sales_date
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=3313
+   ->  HashAggregate  (cost=4557.12..4561.70 rows=366 width=36) (actual time=8.853..8.858 rows=30.00 loops=1)
+         Group Key: sales_date
+         Batches: 1  Memory Usage: 56kB
+         Buffers: shared hit=3313
+         ->  Bitmap Heap Scan on daily_sales  (cost=593.58..4429.93 rows=25438 width=10) (actual time=1.358..5.840 rows=25430.00 loops=1)
+               Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+               Heap Blocks: exact=3213
+               Buffers: shared hit=3313
+               ->  Bitmap Index Scan on daily_sales_pk  (cost=0.00..587.22 rows=25438 width=0) (actual time=1.112..1.112 rows=25430.00 loops=1)
+                     Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                     Index Searches: 1
+                     Buffers: shared hit=100
+ Planning Time: 0.078 ms
+ Execution Time: 8.905 ms
+(18 rows)
+
+Time: 9.221 ms
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_b.daily_sales
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                   QUERY PLAN                                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4577.28..4578.20 rows=366 width=36) (actual time=7.648..7.650 rows=30.00 loops=1)
+   Sort Key: sales_date
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=3313
+   ->  HashAggregate  (cost=4557.12..4561.70 rows=366 width=36) (actual time=7.639..7.644 rows=30.00 loops=1)
+         Group Key: sales_date
+         Batches: 1  Memory Usage: 56kB
+         Buffers: shared hit=3313
+         ->  Bitmap Heap Scan on daily_sales  (cost=593.58..4429.93 rows=25438 width=10) (actual time=1.245..4.860 rows=25430.00 loops=1)
+               Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+               Heap Blocks: exact=3213
+               Buffers: shared hit=3313
+               ->  Bitmap Index Scan on daily_sales_pk  (cost=0.00..587.22 rows=25438 width=0) (actual time=1.011..1.011 rows=25430.00 loops=1)
+                     Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                     Index Searches: 1
+                     Buffers: shared hit=100
+ Planning Time: 0.057 ms
+ Execution Time: 7.687 ms
+(18 rows)
+
+Time: 7.909 ms
+
+-- run-as: book_app
+-- 案C: 日別の売上 30 日ぶん。
+--
+-- 🔴 3 回流して中央値を取る（docs/measurement-rules.yml）。
+\timing on
+Timing is on.
+\echo '=== 案C 日別 30 日分（3 回） ==='
+=== 案C 日別 30 日分（3 回） ===
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_c.daily_sales
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4533.58..4534.49 rows=366 width=36) (actual time=5.876..5.881 rows=30.00 loops=1)
+   Sort Key: sales_date
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=3 read=363 written=168
+   ->  HashAggregate  (cost=4513.42..4517.99 rows=366 width=36) (actual time=5.858..5.864 rows=30.00 loops=1)
+         Group Key: sales_date
+         Batches: 1  Memory Usage: 48kB
+         Buffers: shared read=363 written=168
+         ->  Bitmap Heap Scan on daily_sales  (cost=595.18..4385.19 rows=25645 width=12) (actual time=1.128..3.660 rows=25430.00 loops=1)
+               Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+               Heap Blocks: exact=263
+               Buffers: shared read=363 written=168
+               ->  Bitmap Index Scan on daily_sales_pkey  (cost=0.00..588.77 rows=25645 width=0) (actual time=0.993..0.994 rows=25430.00 loops=1)
+                     Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                     Index Searches: 1
+                     Buffers: shared read=100
+ Planning:
+   Buffers: shared hit=118 read=4 dirtied=1
+ Planning Time: 0.486 ms
+ Execution Time: 5.939 ms
+(20 rows)
+
+Time: 7.229 ms
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_c.daily_sales
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4533.58..4534.49 rows=366 width=36) (actual time=4.013..4.014 rows=30.00 loops=1)
+   Sort Key: sales_date
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=363
+   ->  HashAggregate  (cost=4513.42..4517.99 rows=366 width=36) (actual time=4.002..4.007 rows=30.00 loops=1)
+         Group Key: sales_date
+         Batches: 1  Memory Usage: 48kB
+         Buffers: shared hit=363
+         ->  Bitmap Heap Scan on daily_sales  (cost=595.18..4385.19 rows=25645 width=12) (actual time=0.498..1.848 rows=25430.00 loops=1)
+               Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+               Heap Blocks: exact=263
+               Buffers: shared hit=363
+               ->  Bitmap Index Scan on daily_sales_pkey  (cost=0.00..588.77 rows=25645 width=0) (actual time=0.479..0.479 rows=25430.00 loops=1)
+                     Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                     Index Searches: 1
+                     Buffers: shared hit=100
+ Planning Time: 0.053 ms
+ Execution Time: 4.031 ms
+(18 rows)
+
+Time: 4.256 ms
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_c.daily_sales
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1 ORDER BY 1;
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4533.58..4534.49 rows=366 width=36) (actual time=3.939..3.940 rows=30.00 loops=1)
+   Sort Key: sales_date
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=363
+   ->  HashAggregate  (cost=4513.42..4517.99 rows=366 width=36) (actual time=3.931..3.936 rows=30.00 loops=1)
+         Group Key: sales_date
+         Batches: 1  Memory Usage: 48kB
+         Buffers: shared hit=363
+         ->  Bitmap Heap Scan on daily_sales  (cost=595.18..4385.19 rows=25645 width=12) (actual time=0.446..1.733 rows=25430.00 loops=1)
+               Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+               Heap Blocks: exact=263
+               Buffers: shared hit=363
+               ->  Bitmap Index Scan on daily_sales_pkey  (cost=0.00..588.77 rows=25645 width=0) (actual time=0.430..0.430 rows=25430.00 loops=1)
+                     Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                     Index Searches: 1
+                     Buffers: shared hit=100
+ Planning Time: 0.034 ms
+ Execution Time: 3.951 ms
+(18 rows)
+
+Time: 4.233 ms
+
+-- run-as: book_app
+-- 案D: 日別の売上 30 日ぶん。
+--
+-- 🔴 3 回流して中央値を取る（docs/measurement-rules.yml）。
+\timing on
+Timing is on.
+\echo '=== 案D 日別 30 日分（3 回） ==='
+=== 案D 日別 30 日分（3 回） ===
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_d.daily_sales_final
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1
+UNION ALL
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date,
+       sum(l.amount_yen) - coalesce(sum(r.refund_yen), 0)
+  FROM ch11_d.order_lines l
+  LEFT JOIN ch11_d.returns r ON r.order_line_id = l.id
+ WHERE (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+     = (now() AT TIME ZONE 'Asia/Tokyo')::date
+ GROUP BY 1
+ ORDER BY 1;
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather Merge  (cost=7539.47..7582.09 rows=366 width=36) (actual time=18.212..19.944 rows=30.00 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=393 read=1470 written=1394
+   ->  Sort  (cost=6539.44..6539.82 rows=153 width=36) (actual time=6.741..6.744 rows=10.00 loops=3)
+         Sort Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=393 read=1470 written=1394
+         Worker 0:  Sort Method: quicksort  Memory: 25kB
+         Worker 1:  Sort Method: quicksort  Memory: 25kB
+         ->  Parallel Append  (cost=4532.50..6533.89 rows=153 width=36) (actual time=6.727..6.733 rows=10.00 loops=3)
+               Buffers: shared hit=375 read=1470 written=1394
+               ->  GroupAggregate  (cost=6080.07..6533.12 rows=1 width=36) (actual time=15.659..15.661 rows=1.00 loops=1)
+                     Buffers: shared hit=22 read=1469 written=1394
+                     ->  Hash Right Join  (cost=6080.07..6519.57 rows=2706 width=24) (actual time=12.665..15.581 rows=1373.00 loops=1)
+                           Hash Cond: (r.order_line_id = l.id)
+                           Buffers: shared hit=22 read=1469 written=1394
+                           ->  Seq Scan on returns r  (cost=0.00..387.00 rows=20000 width=16) (actual time=0.126..1.872 rows=20000.00 loops=1)
+                                 Buffers: shared read=187 written=187
+                           ->  Hash  (cost=6046.25..6046.25 rows=2706 width=24) (actual time=12.420..12.420 rows=1373.00 loops=1)
+                                 Buckets: 4096  Batches: 1  Memory Usage: 108kB
+                                 Buffers: shared hit=22 read=1282 written=1207
+                                 ->  Bitmap Heap Scan on order_lines l  (cost=89.40..6046.25 rows=2706 width=24) (actual time=0.553..12.174 rows=1373.00 loops=1)
+                                       Recheck Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date = ((now() AT TIME ZONE 'Asia/Tokyo'::text))::date)
+                                       Buffers: shared hit=22 read=1282 written=1207
+                                       ->  Bitmap Index Scan on d_order_lines_sales_date  (cost=0.00..88.73 rows=2706 width=0) (actual time=0.315..0.315 rows=1373.00 loops=1)
+                                             Index Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date = ((now() AT TIME ZONE 'Asia/Tokyo'::text))::date)
+                                             Index Searches: 1
+                                             Buffers: shared hit=1 read=12
+               ->  HashAggregate  (cost=4532.50..4537.06 rows=365 width=36) (actual time=4.519..4.525 rows=29.00 loops=1)
+                     Group Key: daily_sales_final.sales_date
+                     Batches: 1  Memory Usage: 48kB
+                     Buffers: shared hit=353 read=1
+                     ->  Bitmap Heap Scan on daily_sales_final  (cost=607.16..4401.71 rows=26158 width=12) (actual time=0.738..2.275 rows=24798.00 loops=1)
+                           Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                           Heap Blocks: exact=256
+                           Buffers: shared hit=353 read=1
+                           ->  Bitmap Index Scan on daily_sales_final_pkey  (cost=0.00..600.62 rows=26158 width=0) (actual time=0.712..0.712 rows=24798.00 loops=1)
+                                 Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                 Index Searches: 1
+                                 Buffers: shared hit=97 read=1
+ Planning:
+   Buffers: shared hit=303 read=16 dirtied=1
+ Planning Time: 0.793 ms
+ Execution Time: 20.021 ms
+(45 rows)
+
+Time: 21.954 ms
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_d.daily_sales_final
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1
+UNION ALL
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date,
+       sum(l.amount_yen) - coalesce(sum(r.refund_yen), 0)
+  FROM ch11_d.order_lines l
+  LEFT JOIN ch11_d.returns r ON r.order_line_id = l.id
+ WHERE (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+     = (now() AT TIME ZONE 'Asia/Tokyo')::date
+ GROUP BY 1
+ ORDER BY 1;
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather Merge  (cost=7539.47..7582.09 rows=366 width=36) (actual time=6.049..6.925 rows=30.00 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=1863
+   ->  Sort  (cost=6539.44..6539.82 rows=153 width=36) (actual time=2.649..2.651 rows=10.00 loops=3)
+         Sort Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=1863
+         Worker 0:  Sort Method: quicksort  Memory: 25kB
+         Worker 1:  Sort Method: quicksort  Memory: 25kB
+         ->  Parallel Append  (cost=4532.50..6533.89 rows=153 width=36) (actual time=2.639..2.642 rows=10.00 loops=3)
+               Buffers: shared hit=1845
+               ->  GroupAggregate  (cost=6080.07..6533.12 rows=1 width=36) (actual time=3.862..3.862 rows=1.00 loops=1)
+                     Buffers: shared hit=1491
+                     ->  Hash Right Join  (cost=6080.07..6519.57 rows=2706 width=24) (actual time=1.771..3.799 rows=1373.00 loops=1)
+                           Hash Cond: (r.order_line_id = l.id)
+                           Buffers: shared hit=1491
+                           ->  Seq Scan on returns r  (cost=0.00..387.00 rows=20000 width=16) (actual time=0.008..0.996 rows=20000.00 loops=1)
+                                 Buffers: shared hit=187
+                           ->  Hash  (cost=6046.25..6046.25 rows=2706 width=24) (actual time=1.698..1.698 rows=1373.00 loops=1)
+                                 Buckets: 4096  Batches: 1  Memory Usage: 108kB
+                                 Buffers: shared hit=1304
+                                 ->  Bitmap Heap Scan on order_lines l  (cost=89.40..6046.25 rows=2706 width=24) (actual time=0.338..1.541 rows=1373.00 loops=1)
+                                       Recheck Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date = ((now() AT TIME ZONE 'Asia/Tokyo'::text))::date)
+                                       Buffers: shared hit=1304
+                                       ->  Bitmap Index Scan on d_order_lines_sales_date  (cost=0.00..88.73 rows=2706 width=0) (actual time=0.212..0.212 rows=1373.00 loops=1)
+                                             Index Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date = ((now() AT TIME ZONE 'Asia/Tokyo'::text))::date)
+                                             Index Searches: 1
+                                             Buffers: shared hit=13
+               ->  HashAggregate  (cost=4532.50..4537.06 rows=365 width=36) (actual time=4.053..4.058 rows=29.00 loops=1)
+                     Group Key: daily_sales_final.sales_date
+                     Batches: 1  Memory Usage: 48kB
+                     Buffers: shared hit=354
+                     ->  Bitmap Heap Scan on daily_sales_final  (cost=607.16..4401.71 rows=26158 width=12) (actual time=0.561..1.934 rows=24798.00 loops=1)
+                           Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                           Heap Blocks: exact=256
+                           Buffers: shared hit=354
+                           ->  Bitmap Index Scan on daily_sales_final_pkey  (cost=0.00..600.62 rows=26158 width=0) (actual time=0.539..0.539 rows=24798.00 loops=1)
+                                 Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                 Index Searches: 1
+                                 Buffers: shared hit=98
+ Planning:
+   Buffers: shared hit=8
+ Planning Time: 0.185 ms
+ Execution Time: 6.973 ms
+(45 rows)
+
+Time: 7.480 ms
+EXPLAIN (ANALYZE)
+SELECT sales_date, sum(net_yen) AS net_yen
+  FROM ch11_d.daily_sales_final
+ WHERE sales_date > (now() AT TIME ZONE 'Asia/Tokyo')::date - 30
+ GROUP BY 1
+UNION ALL
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date,
+       sum(l.amount_yen) - coalesce(sum(r.refund_yen), 0)
+  FROM ch11_d.order_lines l
+  LEFT JOIN ch11_d.returns r ON r.order_line_id = l.id
+ WHERE (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+     = (now() AT TIME ZONE 'Asia/Tokyo')::date
+ GROUP BY 1
+ ORDER BY 1;
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather Merge  (cost=7539.47..7582.09 rows=366 width=36) (actual time=5.084..6.243 rows=30.00 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   Buffers: shared hit=1863
+   ->  Sort  (cost=6539.44..6539.82 rows=153 width=36) (actual time=2.374..2.375 rows=10.00 loops=3)
+         Sort Key: (((l.ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date)
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=1863
+         Worker 0:  Sort Method: quicksort  Memory: 25kB
+         Worker 1:  Sort Method: quicksort  Memory: 25kB
+         ->  Parallel Append  (cost=4532.50..6533.89 rows=153 width=36) (actual time=2.364..2.367 rows=10.00 loops=3)
+               Buffers: shared hit=1845
+               ->  GroupAggregate  (cost=6080.07..6533.12 rows=1 width=36) (actual time=3.096..3.096 rows=1.00 loops=1)
+                     Buffers: shared hit=1491
+                     ->  Hash Right Join  (cost=6080.07..6519.57 rows=2706 width=24) (actual time=1.130..3.033 rows=1373.00 loops=1)
+                           Hash Cond: (r.order_line_id = l.id)
+                           Buffers: shared hit=1491
+                           ->  Seq Scan on returns r  (cost=0.00..387.00 rows=20000 width=16) (actual time=0.007..0.924 rows=20000.00 loops=1)
+                                 Buffers: shared hit=187
+                           ->  Hash  (cost=6046.25..6046.25 rows=2706 width=24) (actual time=1.081..1.081 rows=1373.00 loops=1)
+                                 Buckets: 4096  Batches: 1  Memory Usage: 108kB
+                                 Buffers: shared hit=1304
+                                 ->  Bitmap Heap Scan on order_lines l  (cost=89.40..6046.25 rows=2706 width=24) (actual time=0.268..0.940 rows=1373.00 loops=1)
+                                       Recheck Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date = ((now() AT TIME ZONE 'Asia/Tokyo'::text))::date)
+                                       Buffers: shared hit=1304
+                                       ->  Bitmap Index Scan on d_order_lines_sales_date  (cost=0.00..88.73 rows=2706 width=0) (actual time=0.156..0.157 rows=1373.00 loops=1)
+                                             Index Cond: (((ordered_at AT TIME ZONE 'Asia/Tokyo'::text))::date = ((now() AT TIME ZONE 'Asia/Tokyo'::text))::date)
+                                             Index Searches: 1
+                                             Buffers: shared hit=13
+               ->  HashAggregate  (cost=4532.50..4537.06 rows=365 width=36) (actual time=3.995..3.999 rows=29.00 loops=1)
+                     Group Key: daily_sales_final.sales_date
+                     Batches: 1  Memory Usage: 48kB
+                     Buffers: shared hit=354
+                     ->  Bitmap Heap Scan on daily_sales_final  (cost=607.16..4401.71 rows=26158 width=12) (actual time=0.481..1.858 rows=24798.00 loops=1)
+                           Recheck Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                           Heap Blocks: exact=256
+                           Buffers: shared hit=354
+                           ->  Bitmap Index Scan on daily_sales_final_pkey  (cost=0.00..600.62 rows=26158 width=0) (actual time=0.461..0.461 rows=24798.00 loops=1)
+                                 Index Cond: (sales_date > (((now() AT TIME ZONE 'Asia/Tokyo'::text))::date - 30))
+                                 Index Searches: 1
+                                 Buffers: shared hit=98
+ Planning:
+   Buffers: shared hit=8
+ Planning Time: 0.141 ms
+ Execution Time: 6.272 ms
+(45 rows)
+
+Time: 6.710 ms

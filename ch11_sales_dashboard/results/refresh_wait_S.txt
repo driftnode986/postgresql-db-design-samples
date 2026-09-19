@@ -1,0 +1,24 @@
+# 採取日時: 2026-09-19 11:49:52 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+# REFRESH 中の読み取りの待ち時間
+# 各パターン 4 回。背景で REFRESH を流し、0.25 秒後に SELECT count(*) を投げる。
+
+plain          1  SELECT   854 ms  REFRESH   1110 ms
+plain          2  SELECT   790 ms  REFRESH   1037 ms
+plain          3  SELECT   760 ms  REFRESH   1011 ms
+plain          4  SELECT   816 ms  REFRESH   1069 ms
+concurrently   1  SELECT    82 ms  REFRESH   3815 ms
+concurrently   2  SELECT    79 ms  REFRESH   3727 ms
+concurrently   3  SELECT    79 ms  REFRESH   3712 ms
+concurrently   4  SELECT    79 ms  REFRESH   3717 ms

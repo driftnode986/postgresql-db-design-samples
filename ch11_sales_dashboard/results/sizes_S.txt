@@ -1,0 +1,93 @@
+# 採取日時: 2026-09-19 11:49:40 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_app
+-- 4 案が使うテーブルの合計を比べる。
+--
+-- 🔴 案ごとにテーブルの顔ぶれが違うので、案が使うものをすべて数える。
+--    集計だけを比べると、元データの写しを持つ案を不当に有利に見せる。
+--
+-- 🔴 サイズは実験の前に測る。pgbench や drift の実験で行が増えたあとに測ると、
+--    別のものを測ることになる（第10章で案A が 64 MB でなく 156 MB になった）。
+WITH t AS (
+  SELECT '案A: 都度集計'               AS plan, c.oid
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'ch11_a' AND c.relkind IN ('r', 'm')
+     AND c.relname IN ('order_lines', 'returns')
+  UNION ALL
+  SELECT '案B: マテリアライズドビュー', c.oid
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'ch11_b' AND c.relkind IN ('r', 'm')
+     AND c.relname IN ('order_lines', 'returns', 'daily_sales')
+  UNION ALL
+  SELECT '案C: 集計テーブル', c.oid
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'ch11_c' AND c.relkind IN ('r', 'm')
+     AND c.relname IN ('order_lines', 'returns', 'daily_sales')
+  UNION ALL
+  SELECT '案D: 確定日 + 当日', c.oid
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'ch11_d' AND c.relkind IN ('r', 'm')
+     AND c.relname IN ('order_lines', 'returns', 'daily_sales_final')
+)
+SELECT plan,
+       pg_size_pretty(sum(pg_relation_size(oid)))        AS heap,
+       pg_size_pretty(sum(pg_indexes_size(oid)))         AS indexes,
+       pg_size_pretty(sum(pg_total_relation_size(oid)))  AS total,
+       sum(pg_total_relation_size(oid))                  AS total_bytes
+  FROM t GROUP BY plan ORDER BY total_bytes;
+            plan             |  heap  | indexes | total  | total_bytes 
+-----------------------------+--------+---------+--------+-------------
+ 案A: 都度集計               | 74 MB  | 69 MB   | 144 MB |   150945792
+ 案C: 集計テーブル           | 100 MB | 46 MB   | 146 MB |   153042944
+ 案B: マテリアライズドビュー | 100 MB | 46 MB   | 146 MB |   153452544
+ 案D: 確定日 + 当日          | 100 MB | 79 MB   | 178 MB |   187064320
+(4 rows)
+
+\echo '=== 内訳（テーブルごと） ==='
+=== 内訳（テーブルごと） ===
+SELECT n.nspname || '.' || c.relname AS tbl,
+       pg_size_pretty(pg_relation_size(c.oid))       AS heap,
+       pg_size_pretty(pg_indexes_size(c.oid))        AS indexes,
+       pg_size_pretty(pg_total_relation_size(c.oid)) AS total,
+       c.reltuples::bigint                           AS est_rows
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname IN ('ch11_a','ch11_b','ch11_c','ch11_d')
+   AND c.relkind IN ('r', 'm')
+ ORDER BY 1;
+           tbl            |  heap   | indexes |  total  | est_rows 
+--------------------------+---------+---------+---------+----------
+ ch11_a.order_lines       | 73 MB   | 69 MB   | 142 MB  |  1000000
+ ch11_a.returns           | 1496 kB | 616 kB  | 2136 kB |    20000
+ ch11_b.daily_sales       | 26 MB   | 9616 kB | 35 MB   |   311602
+ ch11_b.order_lines       | 73 MB   | 36 MB   | 109 MB  |  1000000
+ ch11_b.returns           | 1496 kB | 616 kB  | 2136 kB |    20000
+ ch11_c.daily_sales       | 25 MB   | 9616 kB | 35 MB   |   311602
+ ch11_c.order_lines       | 73 MB   | 36 MB   | 109 MB  |  1000000
+ ch11_c.returns           | 1496 kB | 616 kB  | 2136 kB |    20000
+ ch11_d.daily_sales_final | 25 MB   | 9600 kB | 34 MB   |   310970
+ ch11_d.order_lines       | 73 MB   | 69 MB   | 142 MB  |  1000000
+ ch11_d.returns           | 1496 kB | 616 kB  | 2136 kB |    20000
+(11 rows)
+
+\echo '=== 集計はどれだけ畳めるか（粒度ごとの行数） ==='
+=== 集計はどれだけ畳めるか（粒度ごとの行数） ===
+-- 🔴 集計表の効き目は「元データの行数」ではなく「粒度の組み合わせの数」で決まる。
+SELECT (SELECT count(*) FROM ch11_a.order_lines)  AS src_rows,
+       (SELECT count(*) FROM ch11_c.daily_sales)  AS by_date_product,
+       (SELECT count(DISTINCT sales_date) FROM ch11_c.daily_sales) AS by_date;
+ src_rows | by_date_product | by_date 
+----------+-----------------+---------
+  1000000 |          311602 |     366
+(1 row)
+

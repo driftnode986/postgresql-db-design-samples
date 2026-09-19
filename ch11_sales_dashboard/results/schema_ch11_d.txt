@@ -1,0 +1,139 @@
+# 採取日時: 2026-09-19 11:49:36 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案D: 確定した日は集計テーブルから読み、当日だけ明細を都度集計して足す。
+--
+-- 案C との違いは「当日の行を集計テーブルに持たない」こと。
+-- 当日は元データを数えるので、常に最新の値が出る。
+-- そのかわり、読むたびに当日ぶんの明細を走査する。
+CREATE SCHEMA IF NOT EXISTS ch11_d;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch11_d.daily_sales_final;
+psql:/tmp/run-sql.sql:8: NOTICE:  table "daily_sales_final" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch11_d.returns;
+psql:/tmp/run-sql.sql:9: NOTICE:  table "returns" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch11_d.order_lines;
+psql:/tmp/run-sql.sql:10: NOTICE:  table "order_lines" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch11_d.order_lines (
+  id          bigint      PRIMARY KEY,
+  order_id    bigint      NOT NULL,
+  product_id  bigint      NOT NULL,
+  category_id int         NOT NULL,
+  qty         int         NOT NULL,
+  amount_yen  bigint      NOT NULL,
+  ordered_at  timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch11_d.returns (
+  id            bigint      PRIMARY KEY,
+  order_line_id bigint      NOT NULL,
+  sales_date    date        NOT NULL,
+  returned_at   timestamptz NOT NULL,
+  qty           int         NOT NULL,
+  refund_yen    bigint      NOT NULL
+);
+CREATE TABLE
+-- 確定した日だけを持つ集計テーブル。当日の行は入れない。
+CREATE TABLE ch11_d.daily_sales_final (
+  sales_date  date   NOT NULL,
+  product_id  bigint NOT NULL,
+  category_id int    NOT NULL,
+  qty         bigint NOT NULL DEFAULT 0,
+  gross_yen   bigint NOT NULL DEFAULT 0,
+  refund_yen  bigint NOT NULL DEFAULT 0,
+  net_yen     bigint GENERATED ALWAYS AS (gross_yen - refund_yen) STORED,
+  PRIMARY KEY (sales_date, product_id)
+);
+CREATE TABLE
+
+-- 案D に元データを写し、確定した日だけの集計テーブルを作る。
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM ch11_r.src_order_line) THEN
+    RAISE EXCEPTION '元データが空。先に r_source/schema_20_generate.sql を実行する';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+TRUNCATE ch11_d.daily_sales_final;
+TRUNCATE TABLE
+Time: 1.582 ms
+TRUNCATE ch11_d.returns;
+TRUNCATE TABLE
+Time: 0.621 ms
+TRUNCATE ch11_d.order_lines;
+TRUNCATE TABLE
+Time: 0.654 ms
+INSERT INTO ch11_d.order_lines
+       (id, order_id, product_id, category_id, qty, amount_yen, ordered_at)
+SELECT id, order_id, product_id, category_id, qty, amount_yen, ordered_at
+  FROM ch11_r.src_order_line ORDER BY id;
+INSERT 0 1000000
+Time: 1089.793 ms (00:01.090)
+INSERT INTO ch11_d.returns
+       (id, order_line_id, sales_date, returned_at, qty, refund_yen)
+SELECT id, order_line_id, sales_date, returned_at, qty, refund_yen
+  FROM ch11_r.src_return ORDER BY id;
+INSERT 0 20000
+Time: 22.224 ms
+-- 🔴 当日ぶんを都度集計するので、集計キーの式インデックスを張る。
+--    案A と同じ形のインデックスだが、読む範囲が当日の 1 日だけになる。
+CREATE INDEX d_order_lines_sales_date
+  ON ch11_d.order_lines (((ordered_at AT TIME ZONE 'Asia/Tokyo')::date), product_id)
+  INCLUDE (qty, amount_yen);
+CREATE INDEX
+Time: 436.343 ms
+CREATE INDEX d_returns_sales_date ON ch11_d.returns (sales_date);
+CREATE INDEX
+Time: 5.870 ms
+-- 確定した日（当日より前）だけを集計テーブルに入れる。
+INSERT INTO ch11_d.daily_sales_final
+       (sales_date, product_id, category_id, qty, gross_yen, refund_yen)
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date,
+       l.product_id, l.category_id,
+       sum(l.qty), sum(l.amount_yen),
+       coalesce(sum(r.refund_yen), 0)
+  FROM ch11_d.order_lines l
+  LEFT JOIN ch11_d.returns r ON r.order_line_id = l.id
+ WHERE (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+     < (now() AT TIME ZONE 'Asia/Tokyo')::date
+ GROUP BY 1, 2, 3
+ ORDER BY 1, 2;
+INSERT 0 310970
+Time: 1469.455 ms (00:01.469)
+ANALYZE ch11_d.order_lines;
+ANALYZE
+Time: 63.094 ms
+ANALYZE ch11_d.returns;
+ANALYZE
+Time: 10.636 ms
+ANALYZE ch11_d.daily_sales_final;
+ANALYZE
+Time: 43.333 ms
+\echo '=== 案D の件数（当日の行は集計テーブルに入れない） ==='
+=== 案D の件数（当日の行は集計テーブルに入れない） ===
+SELECT (SELECT count(*) FROM ch11_d.order_lines)        AS lines,
+       (SELECT count(*) FROM ch11_d.daily_sales_final)  AS final_rows,
+       (SELECT count(*) FROM ch11_d.order_lines
+         WHERE (ordered_at AT TIME ZONE 'Asia/Tokyo')::date
+             = (now() AT TIME ZONE 'Asia/Tokyo')::date) AS today_lines;
+  lines  | final_rows | today_lines 
+---------+------------+-------------
+ 1000000 |     310970 |        1373
+(1 row)
+
+Time: 22.644 ms

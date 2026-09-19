@@ -1,0 +1,117 @@
+# 採取日時: 2026-09-19 11:50:16 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- 変更シナリオ: 集計の軸を 1 つ足す（地域別）。
+--
+-- 🔴 「あとで変えるのが大変な点」を実測する。記録するのは 4 つ:
+--    SQL 文の数 / テーブルの書き換えの有無 / 取るロック / 所要時間。
+\timing on
+Timing is on.
+\echo '=== 変更前のファイルノード（書き換えが起きたかを見る） ==='
+=== 変更前のファイルノード（書き換えが起きたかを見る） ===
+SELECT pg_relation_filenode('ch11_c.daily_sales') AS filenode_before;
+ filenode_before 
+-----------------
+           57138
+(1 row)
+
+Time: 0.466 ms
+\echo '=== (1) 案C: 集計テーブルに列を足す ==='
+=== (1) 案C: 集計テーブルに列を足す ===
+-- 既定値が無いので、18 ではテーブルを書き換えない（メタデータだけ）
+ALTER TABLE ch11_c.daily_sales ADD COLUMN region_id int;
+ALTER TABLE
+Time: 0.760 ms
+\echo '=== 列を足した直後のファイルノード ==='
+=== 列を足した直後のファイルノード ===
+SELECT pg_relation_filenode('ch11_c.daily_sales') AS filenode_after_add;
+ filenode_after_add 
+--------------------
+              57138
+(1 row)
+
+Time: 0.184 ms
+\echo '=== (2) 取るロック（トランザクションの中で見る） ==='
+=== (2) 取るロック（トランザクションの中で見る） ===
+BEGIN;
+BEGIN
+Time: 0.071 ms
+ALTER TABLE ch11_c.daily_sales ADD COLUMN region_id2 int;
+ALTER TABLE
+Time: 0.146 ms
+SELECT c.relname, l.mode
+  FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'ch11_c' AND c.relname = 'daily_sales'
+ ORDER BY l.mode;
+   relname   |        mode         
+-------------+---------------------
+ daily_sales | AccessExclusiveLock
+(1 row)
+
+Time: 0.978 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.085 ms
+\echo '=== (3) 🔴 本当の問題は、粒度が変わると過去のぶんを作り直すこと ==='
+=== (3) 🔴 本当の問題は、粒度が変わると過去のぶんを作り直すこと ===
+-- 地域別の値は、既存の集計行からは復元できない。
+-- 日別 × 商品別に畳んだ時点で、地域の情報は失われているためである。
+-- したがって元データから全部作り直すことになる。
+SELECT count(*) AS rows_to_rebuild FROM ch11_c.daily_sales;
+ rows_to_rebuild 
+-----------------
+          311602
+(1 row)
+
+Time: 6.595 ms
+\echo '=== (4) 主キーを張り替える（粒度を変えるとはこういうこと） ==='
+=== (4) 主キーを張り替える（粒度を変えるとはこういうこと） ===
+-- 日別 × 商品別 → 日別 × 商品別 × 地域別
+ALTER TABLE ch11_c.daily_sales DROP CONSTRAINT daily_sales_pkey;
+ALTER TABLE
+Time: 1.789 ms
+UPDATE ch11_c.daily_sales SET region_id = 1 WHERE region_id IS NULL;
+UPDATE 311602
+Time: 694.596 ms
+ALTER TABLE ch11_c.daily_sales ALTER COLUMN region_id SET NOT NULL;
+ALTER TABLE
+Time: 37.214 ms
+ALTER TABLE ch11_c.daily_sales
+  ADD CONSTRAINT daily_sales_pkey PRIMARY KEY (sales_date, product_id, region_id);
+ALTER TABLE
+Time: 76.806 ms
+\echo '=== 張り替えた後のファイルノード（UPDATE で全行が書き換わる） ==='
+=== 張り替えた後のファイルノード（UPDATE で全行が書き換わる） ===
+SELECT pg_relation_filenode('ch11_c.daily_sales') AS filenode_after_repk;
+ filenode_after_repk 
+---------------------
+               57138
+(1 row)
+
+Time: 0.193 ms
+\echo '=== 後片付け（次の実行のために元に戻す） ==='
+=== 後片付け（次の実行のために元に戻す） ===
+-- 🔴 region_id2 は ROLLBACK したトランザクションの中で足したので、
+--    ここには存在しない。DROP しようとするとエラーになる（実際に踏んだ）。
+ALTER TABLE ch11_c.daily_sales DROP CONSTRAINT daily_sales_pkey;
+ALTER TABLE
+Time: 1.374 ms
+ALTER TABLE ch11_c.daily_sales DROP COLUMN region_id;
+ALTER TABLE
+Time: 0.456 ms
+ALTER TABLE ch11_c.daily_sales
+  ADD CONSTRAINT daily_sales_pkey PRIMARY KEY (sales_date, product_id);
+ALTER TABLE
+Time: 69.344 ms

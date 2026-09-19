@@ -1,0 +1,137 @@
+# 採取日時: 2026-09-19 11:49:32 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案C: 集計テーブルを持ち、注文と同じトランザクションで差分更新する。
+--
+-- マテリアライズドビューと違い、ふつうのテーブルなので
+-- 「その日その商品の行だけ」を書き換えられる。全体を作り直す必要がない。
+CREATE SCHEMA IF NOT EXISTS ch11_c;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch11_c.daily_sales;
+psql:/tmp/run-sql.sql:7: NOTICE:  table "daily_sales" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch11_c.returns;
+psql:/tmp/run-sql.sql:8: NOTICE:  table "returns" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch11_c.order_lines;
+psql:/tmp/run-sql.sql:9: NOTICE:  table "order_lines" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch11_c.order_lines (
+  id          bigint      PRIMARY KEY,
+  order_id    bigint      NOT NULL,
+  product_id  bigint      NOT NULL,
+  category_id int         NOT NULL,
+  qty         int         NOT NULL,
+  amount_yen  bigint      NOT NULL,
+  ordered_at  timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch11_c.returns (
+  id            bigint      PRIMARY KEY,
+  order_line_id bigint      NOT NULL,
+  sales_date    date        NOT NULL,
+  returned_at   timestamptz NOT NULL,
+  qty           int         NOT NULL,
+  refund_yen    bigint      NOT NULL
+);
+CREATE TABLE
+-- 集計テーブル。
+--
+-- 🔴 粒度（日別 × 商品別）を主キーにする。
+--    あとから粒度を細かくするには元データからの再集計が要るので、
+--    ここが「あとで変えるのが大変な点」になる。
+CREATE TABLE ch11_c.daily_sales (
+  sales_date  date   NOT NULL,
+  product_id  bigint NOT NULL,
+  category_id int    NOT NULL,
+  qty         bigint NOT NULL DEFAULT 0,
+  gross_yen   bigint NOT NULL DEFAULT 0,
+  refund_yen  bigint NOT NULL DEFAULT 0,
+  -- 🔴 net は保存生成列にする。gross と refund から必ず導けるので、
+  --    別々に書き換えて食い違う余地をなくす（第10章の read_at と同じ原則）。
+  --    18 では STORED / VIRTUAL を必ず書く（省くと VIRTUAL になる）。
+  net_yen     bigint GENERATED ALWAYS AS (gross_yen - refund_yen) STORED,
+  PRIMARY KEY (sales_date, product_id)
+);
+CREATE TABLE
+
+-- 案C に元データを写し、集計テーブルを作る。
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM ch11_r.src_order_line) THEN
+    RAISE EXCEPTION '元データが空。先に r_source/schema_20_generate.sql を実行する';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+TRUNCATE ch11_c.daily_sales;
+TRUNCATE TABLE
+Time: 0.848 ms
+TRUNCATE ch11_c.returns;
+TRUNCATE TABLE
+Time: 0.612 ms
+TRUNCATE ch11_c.order_lines;
+TRUNCATE TABLE
+Time: 0.446 ms
+INSERT INTO ch11_c.order_lines
+       (id, order_id, product_id, category_id, qty, amount_yen, ordered_at)
+SELECT id, order_id, product_id, category_id, qty, amount_yen, ordered_at
+  FROM ch11_r.src_order_line ORDER BY id;
+INSERT 0 1000000
+Time: 1147.808 ms (00:01.148)
+INSERT INTO ch11_c.returns
+       (id, order_line_id, sales_date, returned_at, qty, refund_yen)
+SELECT id, order_line_id, sales_date, returned_at, qty, refund_yen
+  FROM ch11_r.src_return ORDER BY id;
+INSERT 0 20000
+Time: 21.434 ms
+CREATE INDEX c_order_lines_ordered_at ON ch11_c.order_lines (ordered_at);
+CREATE INDEX
+Time: 236.073 ms
+CREATE INDEX c_returns_sales_date     ON ch11_c.returns (sales_date);
+CREATE INDEX
+Time: 5.787 ms
+-- 集計テーブルの初期値を、元データから 1 回だけ作る。
+-- 以降は注文が入るたびに差分更新する（30_incremental.sql）。
+INSERT INTO ch11_c.daily_sales
+       (sales_date, product_id, category_id, qty, gross_yen, refund_yen)
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date,
+       l.product_id, l.category_id,
+       sum(l.qty), sum(l.amount_yen),
+       coalesce(sum(r.refund_yen), 0)
+  FROM ch11_c.order_lines l
+  LEFT JOIN ch11_c.returns r ON r.order_line_id = l.id
+ GROUP BY 1, 2, 3
+ ORDER BY 1, 2;
+INSERT 0 311602
+Time: 1389.646 ms (00:01.390)
+ANALYZE ch11_c.order_lines;
+ANALYZE
+Time: 51.314 ms
+ANALYZE ch11_c.returns;
+ANALYZE
+Time: 10.922 ms
+ANALYZE ch11_c.daily_sales;
+ANALYZE
+Time: 44.227 ms
+\echo '=== 案C の件数 ==='
+=== 案C の件数 ===
+SELECT (SELECT count(*) FROM ch11_c.order_lines) AS lines,
+       (SELECT count(*) FROM ch11_c.daily_sales) AS summary_rows;
+  lines  | summary_rows 
+---------+--------------
+ 1000000 |       311602
+(1 row)
+
+Time: 32.407 ms

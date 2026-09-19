@@ -1,0 +1,132 @@
+# 採取日時: 2026-09-19 11:49:29 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案B: マテリアライズドビューに集計を保存し、REFRESH で作り直す。
+--
+-- 元データの写しは案A と同じ。その上にマテリアライズドビューを載せる。
+CREATE SCHEMA IF NOT EXISTS ch11_b;
+CREATE SCHEMA
+DROP MATERIALIZED VIEW IF EXISTS ch11_b.daily_sales;
+psql:/tmp/run-sql.sql:6: NOTICE:  materialized view "daily_sales" does not exist, skipping
+DROP MATERIALIZED VIEW
+DROP TABLE IF EXISTS ch11_b.returns;
+psql:/tmp/run-sql.sql:7: NOTICE:  table "returns" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch11_b.order_lines;
+psql:/tmp/run-sql.sql:8: NOTICE:  table "order_lines" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch11_b.order_lines (
+  id          bigint      PRIMARY KEY,
+  order_id    bigint      NOT NULL,
+  product_id  bigint      NOT NULL,
+  category_id int         NOT NULL,
+  qty         int         NOT NULL,
+  amount_yen  bigint      NOT NULL,
+  ordered_at  timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch11_b.returns (
+  id            bigint      PRIMARY KEY,
+  order_line_id bigint      NOT NULL,
+  sales_date    date        NOT NULL,
+  returned_at   timestamptz NOT NULL,
+  qty           int         NOT NULL,
+  refund_yen    bigint      NOT NULL
+);
+CREATE TABLE
+
+-- 案B に元データを写し、マテリアライズドビューを作る。
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM ch11_r.src_order_line) THEN
+    RAISE EXCEPTION '元データが空。先に r_source/schema_20_generate.sql を実行する';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+TRUNCATE ch11_b.returns;
+TRUNCATE TABLE
+Time: 1.540 ms
+TRUNCATE ch11_b.order_lines;
+TRUNCATE TABLE
+Time: 0.651 ms
+INSERT INTO ch11_b.order_lines
+       (id, order_id, product_id, category_id, qty, amount_yen, ordered_at)
+SELECT id, order_id, product_id, category_id, qty, amount_yen, ordered_at
+  FROM ch11_r.src_order_line ORDER BY id;
+INSERT 0 1000000
+Time: 1121.871 ms (00:01.122)
+INSERT INTO ch11_b.returns
+       (id, order_line_id, sales_date, returned_at, qty, refund_yen)
+SELECT id, order_line_id, sales_date, returned_at, qty, refund_yen
+  FROM ch11_r.src_return ORDER BY id;
+INSERT 0 20000
+Time: 21.943 ms
+CREATE INDEX b_order_lines_ordered_at ON ch11_b.order_lines (ordered_at);
+CREATE INDEX
+Time: 236.638 ms
+CREATE INDEX b_returns_sales_date     ON ch11_b.returns (sales_date);
+CREATE INDEX
+Time: 5.472 ms
+ANALYZE ch11_b.order_lines;
+ANALYZE
+Time: 54.716 ms
+ANALYZE ch11_b.returns;
+ANALYZE
+Time: 10.690 ms
+-- 集計をマテリアライズドビューに保存する。
+--
+-- 🔴 返品を引いた金額まで持たせる。画面が出すのは返品後の売上なので、
+--    ここで引いておかないと読み取り時に返品テーブルを見に行くことになり、
+--    保存した意味が薄れる。
+-- 🔴 GROUP BY に category_id を入れない。
+--    カテゴリは商品に従属するので、集計キーは (sales_date, product_id) だけでよい。
+--    入れてしまうと、同じ商品に違うカテゴリの行が 1 件でも混ざったときに
+--    同じ (sales_date, product_id) の行が 2 つでき、**一意インデックスが作れなくなる**。
+--    実際にこれを踏んだ（明細に誤ったカテゴリを 1 行入れたら REFRESH が
+--    「Key (sales_date, product_id)=(...) is duplicated」で落ちた）。
+--    カテゴリは min() で 1 つに決める（商品ごとに 1 つしかない前提を、ここで固定する）。
+CREATE MATERIALIZED VIEW ch11_b.daily_sales AS
+SELECT (l.ordered_at AT TIME ZONE 'Asia/Tokyo')::date AS sales_date,
+       l.product_id,
+       min(l.category_id)                             AS category_id,
+       sum(l.qty)                                     AS qty,
+       sum(l.amount_yen)                              AS gross_yen,
+       coalesce(sum(r.refund_yen), 0)                 AS refund_yen,
+       sum(l.amount_yen) - coalesce(sum(r.refund_yen), 0) AS net_yen
+  FROM ch11_b.order_lines l
+  LEFT JOIN ch11_b.returns r ON r.order_line_id = l.id
+ GROUP BY 1, 2;
+SELECT 311602
+Time: 858.749 ms
+-- 🔴 REFRESH ... CONCURRENTLY には「素の一意インデックス」が要る。
+--    WHERE 付き・式・非一意のどれでも失敗し、**エラー文は 3 つとも同じ**なので
+--    原因が分からない（ch11_verification.md §3 で 5 通りを実機確認）。
+CREATE UNIQUE INDEX daily_sales_pk
+  ON ch11_b.daily_sales (sales_date, product_id);
+CREATE INDEX
+Time: 91.843 ms
+ANALYZE ch11_b.daily_sales;
+ANALYZE
+Time: 53.446 ms
+\echo '=== 案B の件数 ==='
+=== 案B の件数 ===
+SELECT (SELECT count(*) FROM ch11_b.order_lines) AS lines,
+       (SELECT count(*) FROM ch11_b.daily_sales) AS summary_rows;
+  lines  | summary_rows 
+---------+--------------
+ 1000000 |       311602
+(1 row)
+
+Time: 33.026 ms
