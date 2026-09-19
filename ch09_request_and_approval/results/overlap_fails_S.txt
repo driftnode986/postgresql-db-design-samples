@@ -1,0 +1,42 @@
+# 採取日時: 2026-09-19 09:09:22 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- expect-error: 23P01
+--
+-- 採取した案で通ってしまった INSERT を、WITHOUT OVERLAPS の表に入れると拒否されることを示す。
+-- x_first_idea/load.sql で入れたのと同じ 3 行を、同じ順で入れる。
+CREATE SCHEMA IF NOT EXISTS ch09_d;
+psql:/tmp/run-sql.sql:7: NOTICE:  schema "ch09_d" already exists, skipping
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch09_d.overlap_demo;
+psql:/tmp/run-sql.sql:9: NOTICE:  table "overlap_demo" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch09_d.overlap_demo (
+  request_id int       NOT NULL,
+  valid      tstzrange NOT NULL,
+  rev        int       NOT NULL,
+  amount_yen int       NOT NULL,
+  PRIMARY KEY (request_id, valid WITHOUT OVERLAPS)
+);
+CREATE TABLE
+-- 正しい 2 版（採取した案と同じ）
+INSERT INTO ch09_d.overlap_demo VALUES
+  (1, tstzrange('2026-01-01 00:00+09', '2026-01-10 00:00+09', '[)'), 1, 1000),
+  (1, tstzrange('2026-01-10 00:00+09', NULL,                  '[)'), 2, 1500);
+INSERT 0 2
+-- 重なる版。採取した案では通ったが、ここでは拒否される
+INSERT INTO ch09_d.overlap_demo VALUES
+  (1, tstzrange('2026-01-05 00:00+09', '2026-01-20 00:00+09', '[)'), 3, 9999);
+psql:/tmp/run-sql.sql:26: ERROR:  conflicting key value violates exclusion constraint "overlap_demo_pkey"
+DETAIL:  Key (request_id, valid)=(1, ["2026-01-04 15:00:00+00","2026-01-19 15:00:00+00")) conflicts with existing key (request_id, valid)=(1, ["2025-12-31 15:00:00+00","2026-01-09 15:00:00+00")).

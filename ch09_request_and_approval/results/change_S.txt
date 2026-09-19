@@ -1,0 +1,143 @@
+# 採取日時: 2026-09-19 09:09:28 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 変更の手数: 案C（本体 + 履歴）から案D（範囲型 + WITHOUT OVERLAPS）へ移す。
+--
+-- 測るのは 4 点（measurement-rules.yml）。
+--   SQL 文の数 / 既存テーブルを書き換えるか / 取るロック / 所要時間
+--
+-- 🔴 BEGIN … ROLLBACK で囲む。確定させると、後続の測定のサイズが変わる
+--    （第1章で、足して消す操作を 3 回確定させたら本体が 50 MB → 57 MB に増えた）。
+\timing on
+Timing is on.
+\echo '=== 移す前の行数 ==='
+=== 移す前の行数 ===
+SELECT (SELECT count(*) FROM ch09_c.requests)        AS c_body,
+       (SELECT count(*) FROM ch09_c.request_history) AS c_history,
+       (SELECT count(*) FROM ch09_d.revisions)       AS d_revisions;
+ c_body | c_history | d_revisions 
+--------+-----------+-------------
+ 100000 |    159952 |      259952
+(1 row)
+
+Time: 19.274 ms
+\echo '=== 移す前の検査: 本体と履歴に同じ版が二重に無いこと（先頭列が 0 なら正常） ==='
+=== 移す前の検査: 本体と履歴に同じ版が二重に無いこと（先頭列が 0 なら正常） ===
+-- 🔴 二重にあると、次の版の開始時刻が自分と同じになって空の範囲ができ、
+--    WITHOUT OVERLAPS が「empty WITHOUT OVERLAPS value found」で弾く。
+--    移す前にここで気づけるようにしておく。
+SELECT count(*) AS dup_rev FROM (
+  SELECT request_id, rev FROM (
+    SELECT request_id, rev FROM ch09_c.request_history
+    UNION ALL SELECT id, rev FROM ch09_c.requests
+  ) a GROUP BY 1, 2 HAVING count(*) > 1
+) d;
+ dup_rev 
+---------
+       0
+(1 row)
+
+Time: 87.856 ms
+\echo '=== 移行（3 文）と、そのあいだに取っているロック ==='
+=== 移行（3 文）と、そのあいだに取っているロック ===
+BEGIN;
+BEGIN
+Time: 0.096 ms
+-- 文 1: 移行先の表を作る
+CREATE TABLE ch09_d.revisions_new (
+  request_id   bigint    NOT NULL,
+  valid        tstzrange NOT NULL,
+  rev          int       NOT NULL,
+  amount_yen   int       NOT NULL,
+  category_id  int       NOT NULL,
+  reason       text      NOT NULL,
+  edited_by    bigint    NOT NULL,
+  PRIMARY KEY (request_id, valid WITHOUT OVERLAPS)
+);
+CREATE TABLE
+Time: 2.076 ms
+-- 文 2: 本体と履歴を合わせ、次の版の開始時刻を終わりにして 1 つのテーブルにまとめる
+INSERT INTO ch09_d.revisions_new
+  (request_id, valid, rev, amount_yen, category_id, reason, edited_by)
+SELECT request_id,
+       tstzrange(valid_from,
+                 lead(valid_from) OVER (PARTITION BY request_id ORDER BY rev),
+                 '[)'),
+       rev, amount_yen, category_id, reason, edited_by
+FROM (
+  SELECT request_id, rev, amount_yen, category_id, reason, edited_by, valid_from
+  FROM ch09_c.request_history
+  UNION ALL
+  SELECT id, rev, amount_yen, category_id, reason, edited_by, updated_at
+  FROM ch09_c.requests
+) all_versions
+ORDER BY request_id, rev;
+INSERT 0 259952
+Time: 3706.945 ms (00:03.707)
+-- 文 3: 検査（先頭列が 0 なら正常）
+SELECT count(*) AS migrated_diff FROM (
+  SELECT request_id, rev, amount_yen FROM ch09_r.src_revision
+  EXCEPT
+  SELECT request_id, rev, amount_yen FROM ch09_d.revisions_new
+) d;
+ migrated_diff 
+---------------
+             0
+(1 row)
+
+Time: 99.439 ms
+\echo '--- この時点で取っているロック（移行元の表を止めていないか） ---'
+--- この時点で取っているロック（移行元の表を止めていないか） ---
+SELECT c.relname, l.mode
+FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE l.pid = pg_backend_pid() AND n.nspname IN ('ch09_c','ch09_d') AND c.relkind = 'r'
+ORDER BY c.relname, l.mode;
+     relname     |        mode         
+-----------------+---------------------
+ request_history | AccessShareLock
+ requests        | AccessShareLock
+ revisions_new   | AccessExclusiveLock
+ revisions_new   | AccessShareLock
+ revisions_new   | RowExclusiveLock
+ revisions_new   | ShareLock
+(6 rows)
+
+Time: 1.059 ms
+\echo '--- 移行元のテーブルが書き換わっていないこと（filenode が同じ） ---'
+--- 移行元のテーブルが書き換わっていないこと（filenode が同じ） ---
+SELECT 'ch09_c.requests' AS t, pg_relation_filenode('ch09_c.requests') AS filenode
+UNION ALL
+SELECT 'ch09_c.request_history', pg_relation_filenode('ch09_c.request_history');
+           t            | filenode 
+------------------------+----------
+ ch09_c.requests        |    52692
+ ch09_c.request_history |    52696
+(2 rows)
+
+Time: 0.133 ms
+ROLLBACK;
+ROLLBACK
+Time: 4.974 ms
+\echo '=== 戻っていること（revisions_new が無い） ==='
+=== 戻っていること（revisions_new が無い） ===
+SELECT count(*) AS leftover FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'ch09_d' AND c.relname = 'revisions_new';
+ leftover 
+----------
+        0
+(1 row)
+
+Time: 0.280 ms
+\timing off
+Timing is off.

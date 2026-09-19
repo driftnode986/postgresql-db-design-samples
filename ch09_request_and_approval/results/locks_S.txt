@@ -1,0 +1,156 @@
+# 採取日時: 2026-09-19 09:09:27 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- 状態の型を 3 通り作り、「値を 1 つ足す」ときに取るロックを比べる。
+--
+-- 🔴 この節の軸は手数（ミリ秒）ではなくロックである。
+--    10 万行では 0.4〜8.7 ミリ秒の差しか出ず、その数字では設計を選べない。
+--    行数が増えると差が出るのは、止まる時間のほうである（ch09_verification.md §3-2）。
+\echo '=== 準備: 3 通りの表を作る ==='
+=== 準備: 3 通りの表を作る ===
+DROP TABLE IF EXISTS ch09_a.t_check;
+psql:/tmp/run-sql.sql:9: NOTICE:  table "t_check" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch09_a.t_enum;
+psql:/tmp/run-sql.sql:10: NOTICE:  table "t_enum" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch09_a.t_lookup;
+psql:/tmp/run-sql.sql:11: NOTICE:  table "t_lookup" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch09_a.lookup_statuses;
+psql:/tmp/run-sql.sql:12: NOTICE:  table "lookup_statuses" does not exist, skipping
+DROP TABLE
+DROP TYPE  IF EXISTS ch09_a.status_enum;
+psql:/tmp/run-sql.sql:13: NOTICE:  type "ch09_a.status_enum" does not exist, skipping
+DROP TYPE
+CREATE TYPE ch09_a.status_enum AS ENUM ('draft','submitted','approved','rejected','paid');
+CREATE TYPE
+CREATE TABLE ch09_a.t_enum (
+  id bigint PRIMARY KEY, status ch09_a.status_enum NOT NULL);
+CREATE TABLE
+CREATE TABLE ch09_a.t_check (
+  id bigint PRIMARY KEY, status text NOT NULL,
+  CONSTRAINT t_check_status CHECK (status IN ('draft','submitted','approved','rejected','paid')));
+CREATE TABLE
+CREATE TABLE ch09_a.lookup_statuses (code text PRIMARY KEY, label text NOT NULL);
+CREATE TABLE
+INSERT INTO ch09_a.lookup_statuses VALUES
+  ('draft','下書き'),('submitted','申請中'),('approved','承認'),
+  ('rejected','差戻し'),('paid','支払済み');
+INSERT 0 5
+CREATE TABLE ch09_a.t_lookup (
+  id bigint PRIMARY KEY, status text NOT NULL REFERENCES ch09_a.lookup_statuses(code));
+CREATE TABLE
+-- 同じ行数を入れる
+INSERT INTO ch09_a.t_enum SELECT id, status::ch09_a.status_enum FROM ch09_a.requests;
+INSERT 0 100000
+INSERT INTO ch09_a.t_check SELECT id, status FROM ch09_a.requests;
+INSERT 0 100000
+INSERT INTO ch09_a.t_lookup SELECT id, status FROM ch09_a.requests;
+INSERT 0 100000
+SELECT 'enum' AS t, count(*) FROM ch09_a.t_enum
+UNION ALL SELECT 'check', count(*) FROM ch09_a.t_check
+UNION ALL SELECT 'lookup', count(*) FROM ch09_a.t_lookup
+ORDER BY 1;
+   t    | count  
+--------+--------
+ check  | 100000
+ enum   | 100000
+ lookup | 100000
+(3 rows)
+
+\timing on
+Timing is on.
+\echo '=== ENUM に値を足す: 取るロック ==='
+=== ENUM に値を足す: 取るロック ===
+BEGIN;
+BEGIN
+Time: 0.099 ms
+ALTER TYPE ch09_a.status_enum ADD VALUE 'cancelled' AFTER 'paid';
+ALTER TYPE
+Time: 0.117 ms
+SELECT c.relname, l.locktype, l.mode
+FROM pg_locks l LEFT JOIN pg_class c ON c.oid = l.relation
+WHERE l.pid = pg_backend_pid() AND (c.relname IS NULL OR c.relname LIKE 't\_%')
+ORDER BY c.relname NULLS LAST, l.mode;
+ relname |   locktype    |     mode      
+---------+---------------+---------------
+         | object        | ExclusiveLock
+         | transactionid | ExclusiveLock
+         | virtualxid    | ExclusiveLock
+(3 rows)
+
+Time: 1.428 ms
+COMMIT;
+COMMIT
+Time: 0.307 ms
+\echo '=== CHECK 制約を作り直す: 取るロック ==='
+=== CHECK 制約を作り直す: 取るロック ===
+BEGIN;
+BEGIN
+Time: 0.055 ms
+ALTER TABLE ch09_a.t_check DROP CONSTRAINT t_check_status;
+ALTER TABLE
+Time: 0.378 ms
+ALTER TABLE ch09_a.t_check ADD CONSTRAINT t_check_status
+  CHECK (status IN ('draft','submitted','approved','rejected','paid','cancelled'));
+ALTER TABLE
+Time: 7.963 ms
+SELECT c.relname, l.mode
+FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+WHERE l.pid = pg_backend_pid() AND c.relname = 't_check'
+ORDER BY l.mode;
+ relname |        mode         
+---------+---------------------
+ t_check | AccessExclusiveLock
+(1 row)
+
+Time: 0.325 ms
+COMMIT;
+COMMIT
+Time: 0.291 ms
+\echo '=== 参照テーブルに 1 行入れる: 取るロック ==='
+=== 参照テーブルに 1 行入れる: 取るロック ===
+BEGIN;
+BEGIN
+Time: 0.060 ms
+INSERT INTO ch09_a.lookup_statuses VALUES ('cancelled','取消');
+INSERT 0 1
+Time: 0.087 ms
+SELECT c.relname, l.mode
+FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+WHERE l.pid = pg_backend_pid() AND c.relname = 'lookup_statuses'
+ORDER BY l.mode;
+     relname     |       mode       
+-----------------+------------------
+ lookup_statuses | RowExclusiveLock
+(1 row)
+
+Time: 0.188 ms
+COMMIT;
+COMMIT
+Time: 0.205 ms
+\echo '=== 値を廃止する: ENUM は未実装（エラーになる: 0A000） ==='
+=== 値を廃止する: ENUM は未実装（エラーになる: 0A000） ===
+DO $$
+BEGIN
+  EXECUTE 'ALTER TYPE ch09_a.status_enum DROP VALUE ''rejected''';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'SQLSTATE=%  MESSAGE=%', SQLSTATE, SQLERRM;
+END $$;
+psql:/tmp/run-sql.sql:79: NOTICE:  SQLSTATE=0A000  MESSAGE=dropping an enum value is not implemented
+DO
+Time: 0.477 ms
+\timing off
+Timing is off.

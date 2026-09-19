@@ -1,0 +1,163 @@
+# 採取日時: 2026-09-19 09:09:28 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 4 案の保存サイズ。本体とインデックスを分けて出す。
+--
+-- 状態の 2 案（案A・案B）と、履歴の 2 案（案C・案D）は別の比較なので、合計も分けて出す。
+\echo '=== 表ごとの内訳 ==='
+=== 表ごとの内訳 ===
+SELECT n.nspname || '.' || c.relname                        AS "表",
+       pg_size_pretty(pg_relation_size(c.oid))              AS "本体",
+       pg_size_pretty(pg_indexes_size(c.oid))               AS "インデックス",
+       pg_size_pretty(pg_total_relation_size(c.oid))        AS "合計",
+       pg_relation_size(c.oid)                              AS body_bytes,
+       pg_indexes_size(c.oid)                               AS index_bytes,
+       pg_total_relation_size(c.oid)                        AS total_bytes
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname IN ('ch09_a','ch09_b','ch09_c','ch09_d')
+  AND c.relkind = 'r'
+  AND c.relname IN ('requests','transitions','request_history','revisions')
+ORDER BY n.nspname, c.relname;
+           表           |   本体   | インデックス |  合計   | body_bytes | index_bytes | total_bytes 
+------------------------+----------+--------------+---------+------------+-------------+-------------
+ ch09_a.requests        | 6728 kB  | 2256 kB      | 9016 kB |    6889472 |     2310144 |     9232384
+ ch09_a.transitions     | 32 MB    | 26 MB        | 58 MB   |   33136640 |    27271168 |    60440576
+ ch09_b.requests        | 5096 kB  | 2208 kB      | 7328 kB |    5218304 |     2260992 |     7503872
+ ch09_b.transitions     | 35 MB    | 43 MB        | 78 MB   |   36470784 |    45359104 |    81870848
+ ch09_c.request_history | 14 MB    | 9888 kB      | 23 MB   |   14213120 |    10125312 |    24371200
+ ch09_c.requests        | 10008 kB | 2208 kB      | 12 MB   |   10248192 |     2260992 |    12541952
+ ch09_d.requests        | 5096 kB  | 2208 kB      | 7328 kB |    5218304 |     2260992 |     7503872
+ ch09_d.revisions       | 25 MB    | 39 MB        | 65 MB   |   26296320 |    41312256 |    67641344
+(8 rows)
+
+\echo '=== 状態の 2 案の合計（案A: 本体+遷移 / 案B: 本体+遷移） ==='
+=== 状態の 2 案の合計（案A: 本体+遷移 / 案B: 本体+遷移） ===
+SELECT '案A: 状態の列 + 遷移履歴' AS "案",
+       pg_size_pretty(pg_total_relation_size('ch09_a.requests')
+                    + pg_total_relation_size('ch09_a.transitions')) AS "合計",
+       pg_total_relation_size('ch09_a.requests')
+     + pg_total_relation_size('ch09_a.transitions')                 AS total_bytes
+UNION ALL
+SELECT '案B: 遷移の追記のみ',
+       pg_size_pretty(pg_total_relation_size('ch09_b.requests')
+                    + pg_total_relation_size('ch09_b.transitions')),
+       pg_total_relation_size('ch09_b.requests')
+     + pg_total_relation_size('ch09_b.transitions')
+ORDER BY total_bytes;
+            案            | 合計  | total_bytes 
+--------------------------+-------+-------------
+ 案A: 状態の列 + 遷移履歴 | 66 MB |    69672960
+ 案B: 遷移の追記のみ      | 85 MB |    89374720
+(2 rows)
+
+\echo '=== 状態の 2 案を、印つきの構成で比べる ==='
+=== 状態の 2 案を、印つきの構成で比べる ===
+-- 🔴 案B の idx_b_to_status は「印を使わない書き方」のための索引である。
+--    本書は印つきを勧めるので、それを除いた合計も出す。
+--    除かずに比べると、勧めない構成の索引を案B の代償として示すことになる。
+SELECT '案A: 状態の列 + 遷移履歴' AS "案",
+       pg_size_pretty(pg_total_relation_size('ch09_a.requests')
+                    + pg_total_relation_size('ch09_a.transitions')) AS "合計",
+       pg_total_relation_size('ch09_a.requests')
+     + pg_total_relation_size('ch09_a.transitions')                 AS total_bytes
+UNION ALL
+SELECT '案B: 印つき（to_status の索引を除く）',
+       pg_size_pretty(pg_total_relation_size('ch09_b.requests')
+                    + pg_total_relation_size('ch09_b.transitions')
+                    - pg_relation_size('ch09_b.idx_b_to_status')),
+       pg_total_relation_size('ch09_b.requests')
+     + pg_total_relation_size('ch09_b.transitions')
+     - pg_relation_size('ch09_b.idx_b_to_status')
+UNION ALL
+SELECT '案B: 印を使わない（to_status の索引を含む）',
+       pg_size_pretty(pg_total_relation_size('ch09_b.requests')
+                    + pg_total_relation_size('ch09_b.transitions')),
+       pg_total_relation_size('ch09_b.requests')
+     + pg_total_relation_size('ch09_b.transitions')
+ORDER BY total_bytes;
+                     案                      | 合計  | total_bytes 
+---------------------------------------------+-------+-------------
+ 案A: 状態の列 + 遷移履歴                    | 66 MB |    69672960
+ 案B: 印つき（to_status の索引を除く）       | 70 MB |    73588736
+ 案B: 印を使わない（to_status の索引を含む） | 85 MB |    89374720
+(3 rows)
+
+\echo '=== 履歴の 2 案の合計（案C: 本体+履歴 / 案D: 版のみ） ==='
+=== 履歴の 2 案の合計（案C: 本体+履歴 / 案D: 版のみ） ===
+SELECT '案C: 本体 + 履歴' AS "案",
+       pg_size_pretty(pg_total_relation_size('ch09_c.requests')
+                    + pg_total_relation_size('ch09_c.request_history')) AS "合計",
+       pg_total_relation_size('ch09_c.requests')
+     + pg_total_relation_size('ch09_c.request_history')                 AS total_bytes
+UNION ALL
+SELECT '案D: 範囲型 + WITHOUT OVERLAPS',
+       pg_size_pretty(pg_total_relation_size('ch09_d.requests')
+                    + pg_total_relation_size('ch09_d.revisions')),
+       pg_total_relation_size('ch09_d.requests')
+     + pg_total_relation_size('ch09_d.revisions')
+ORDER BY total_bytes;
+               案               | 合計  | total_bytes 
+--------------------------------+-------+-------------
+ 案C: 本体 + 履歴               | 35 MB |    36913152
+ 案D: 範囲型 + WITHOUT OVERLAPS | 72 MB |    75145216
+(2 rows)
+
+\echo '=== インデックスごとのサイズ ==='
+=== インデックスごとのサイズ ===
+SELECT n.nspname || '.' || c.relname          AS "インデックス",
+       pg_size_pretty(pg_relation_size(c.oid)) AS "サイズ",
+       pg_relation_size(c.oid)                 AS bytes
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname IN ('ch09_a','ch09_b','ch09_c','ch09_d') AND c.relkind = 'i'
+ORDER BY pg_relation_size(c.oid) DESC;
+          インデックス          |   サイズ   |  bytes   
+--------------------------------+------------+----------
+ ch09_d.revisions_pkey          | 25 MB      | 26001408
+ ch09_b.idx_b_to_status         | 15 MB      | 15785984
+ ch09_a.transitions_pkey        | 13 MB      | 13639680
+ ch09_b.transitions_pkey        | 13 MB      | 13639680
+ ch09_b.idx_b_transitions       | 13 MB      | 13631488
+ ch09_a.idx_a_transitions       | 13 MB      | 13631488
+ ch09_d.idx_d_valid_gist        | 12 MB      | 13049856
+ ch09_c.idx_c_hist_asof         | 4944 kB    |  5062656
+ ch09_c.request_history_pkey    | 4944 kB    |  5062656
+ ch09_c.requests_pkey           | 2208 kB    |  2260992
+ ch09_a.requests_pkey           | 2208 kB    |  2260992
+ ch09_d.requests_pkey           | 2208 kB    |  2260992
+ ch09_a.t_enum_pkey             | 2208 kB    |  2260992
+ ch09_a.t_lookup_pkey           | 2208 kB    |  2260992
+ ch09_a.t_check_pkey            | 2208 kB    |  2260992
+ ch09_b.requests_pkey           | 2208 kB    |  2260992
+ ch09_b.idx_b_one_current       | 2208 kB    |  2260992
+ ch09_d.idx_d_current           | 2208 kB    |  2260992
+ ch09_a.idx_a_submitted         | 48 kB      |    49152
+ ch09_b.employees_pkey          | 40 kB      |    40960
+ ch09_a.employees_pkey          | 40 kB      |    40960
+ ch09_b.idx_b_current_submitted | 40 kB      |    40960
+ ch09_c.employees_pkey          | 40 kB      |    40960
+ ch09_d.employees_pkey          | 40 kB      |    40960
+ ch09_a.lookup_statuses_pkey    | 16 kB      |    16384
+ ch09_a.statuses_pkey           | 16 kB      |    16384
+ ch09_a.categories_pkey         | 16 kB      |    16384
+ ch09_a.categories_code_key     | 16 kB      |    16384
+ ch09_c.categories_code_key     | 16 kB      |    16384
+ ch09_b.statuses_pkey           | 16 kB      |    16384
+ ch09_c.categories_pkey         | 16 kB      |    16384
+ ch09_d.categories_pkey         | 16 kB      |    16384
+ ch09_d.categories_code_key     | 16 kB      |    16384
+ ch09_b.categories_code_key     | 16 kB      |    16384
+ ch09_b.categories_pkey         | 16 kB      |    16384
+ ch09_d.empty_range_demo_pkey   | 8192 bytes |     8192
+ ch09_d.overlap_demo_pkey       | 8192 bytes |     8192
+(37 rows)
+

@@ -1,0 +1,48 @@
+# 採取日時: 2026-09-19 09:09:23 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- expect-error: empty WITHOUT OVERLAPS value found
+--
+-- 案C から案D へ移すとき、本体と履歴に同じ版が二重にあると何が起きるかを示す。
+-- 二重にあると次の版の開始時刻が自分と同じになり、空の範囲ができる。
+--
+-- 実際に踏んだ（40_returning_old.sql の後片付けが rev の番号で消していたため、
+-- 元から履歴にあった版が残って二重になった）。
+CREATE SCHEMA IF NOT EXISTS ch09_d;
+psql:/tmp/run-sql.sql:10: NOTICE:  schema "ch09_d" already exists, skipping
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch09_d.empty_range_demo;
+psql:/tmp/run-sql.sql:12: NOTICE:  table "empty_range_demo" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch09_d.empty_range_demo (
+  request_id int       NOT NULL,
+  valid      tstzrange NOT NULL,
+  rev        int       NOT NULL,
+  PRIMARY KEY (request_id, valid WITHOUT OVERLAPS)
+);
+CREATE TABLE
+-- 同じ時刻の版が 2 つある（＝本体と履歴に同じ版が入っている状態）。
+-- lead で次の版の開始時刻を取ると、2 つ目は自分と同じ時刻になり、範囲が空になる。
+INSERT INTO ch09_d.empty_range_demo (request_id, valid, rev)
+SELECT request_id,
+       tstzrange(valid_from,
+                 lead(valid_from) OVER (PARTITION BY request_id ORDER BY rev),
+                 '[)'),
+       rev
+FROM (VALUES
+        (1, 1, timestamptz '2026-01-01 00:00+09'),
+        (1, 2, timestamptz '2026-01-10 00:00+09'),
+        (1, 3, timestamptz '2026-01-10 00:00+09')   -- 版 2 と同じ時刻（二重に入っている）
+     ) AS v(request_id, rev, valid_from);
+psql:/tmp/run-sql.sql:33: ERROR:  empty WITHOUT OVERLAPS value found in column "valid" in relation "empty_range_demo"

@@ -1,0 +1,122 @@
+# 採取日時: 2026-09-19 09:09:15 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案D に元データを写す。
+-- 案C と同じ事実を、2 列ではなく範囲型 1 列に入れる。半開区間 '[)' にする
+-- （終わりの時刻はその版に含めない。境目の時刻がどちらの版に属するかが一意に決まる）。
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM ch09_r.src_revision) = 0 THEN
+    RAISE EXCEPTION '元データが空です。先に r_source/schema_20_generate.sql を実行してください';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+-- 主キー（GiST）は落とせないが、後から足した 2 つは落としてから入れる
+DROP INDEX IF EXISTS ch09_d.idx_d_current;
+DROP INDEX
+Time: 2.828 ms
+DROP INDEX IF EXISTS ch09_d.idx_d_valid_gist;
+DROP INDEX
+Time: 0.507 ms
+TRUNCATE ch09_d.revisions;
+TRUNCATE TABLE
+Time: 1.408 ms
+TRUNCATE ch09_d.requests CASCADE;
+psql:/tmp/run-sql.sql:19: NOTICE:  truncate cascades to table "revisions"
+TRUNCATE TABLE
+Time: 1.201 ms
+TRUNCATE ch09_d.employees CASCADE;
+psql:/tmp/run-sql.sql:20: NOTICE:  truncate cascades to table "requests"
+psql:/tmp/run-sql.sql:20: NOTICE:  truncate cascades to table "revisions"
+TRUNCATE TABLE
+Time: 1.349 ms
+TRUNCATE ch09_d.categories CASCADE;
+psql:/tmp/run-sql.sql:21: NOTICE:  truncate cascades to table "revisions"
+TRUNCATE TABLE
+Time: 1.148 ms
+INSERT INTO ch09_d.employees (id, name, dept)
+SELECT id, name, dept FROM ch09_r.src_employee ORDER BY id;
+INSERT 0 1000
+Time: 2.150 ms
+INSERT INTO ch09_d.categories (id, code, name)
+SELECT id, code, name FROM ch09_r.src_category ORDER BY id;
+INSERT 0 5
+Time: 0.610 ms
+INSERT INTO ch09_d.requests (id, applicant_id, created_at)
+SELECT id, applicant_id, created_at FROM ch09_r.src_request ORDER BY id;
+INSERT 0 100000
+Time: 388.168 ms
+-- 主キーが GiST インデックスなので、ここではインデックスを落とせない（主キーの一部）。
+INSERT INTO ch09_d.revisions
+  (request_id, valid, rev, amount_yen, category_id, reason, edited_by)
+SELECT request_id,
+       tstzrange(valid_from,
+                 lead(valid_from) OVER (PARTITION BY request_id ORDER BY rev),
+                 '[)'),
+       rev, amount_yen, category_id, reason, edited_by
+FROM ch09_r.src_revision
+ORDER BY request_id, rev;
+INSERT 0 259952
+Time: 5874.524 ms (00:05.875)
+-- インデックスはデータを入れ終えてから作る
+CREATE INDEX idx_d_current ON ch09_d.revisions (request_id) WHERE upper_inf(valid);
+CREATE INDEX
+Time: 32.628 ms
+CREATE INDEX idx_d_valid_gist ON ch09_d.revisions USING gist (valid);
+CREATE INDEX
+Time: 272.725 ms
+ANALYZE ch09_d.requests;
+ANALYZE
+Time: 16.669 ms
+ANALYZE ch09_d.revisions;
+ANALYZE
+Time: 49.269 ms
+\timing off
+Timing is off.
+-- 検査（すべて先頭列が 0 なら正常）
+SELECT count(*) AS revisions_diff FROM (
+  (SELECT request_id, rev FROM ch09_r.src_revision
+   EXCEPT SELECT request_id, rev FROM ch09_d.revisions)
+  UNION ALL
+  (SELECT request_id, rev FROM ch09_d.revisions
+   EXCEPT SELECT request_id, rev FROM ch09_r.src_revision)
+) d;
+ revisions_diff 
+----------------
+              0
+(1 row)
+
+-- 案C（本体 + 履歴）と同じ内容が入っていること（金額・科目・理由まで突き合わせる）
+SELECT count(*) AS content_diff FROM (
+  (
+    SELECT id AS request_id, rev, amount_yen, category_id, reason FROM ch09_c.requests
+    UNION ALL
+    SELECT request_id, rev, amount_yen, category_id, reason FROM ch09_c.request_history
+  )
+  EXCEPT
+  SELECT request_id, rev, amount_yen, category_id, reason FROM ch09_d.revisions
+) d;
+ content_diff 
+--------------
+            0
+(1 row)
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_is_empty
+FROM ch09_r.src_revision;
+ source_is_empty 
+-----------------
+               0
+(1 row)
+

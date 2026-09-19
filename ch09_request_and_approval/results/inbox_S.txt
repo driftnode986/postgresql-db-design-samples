@@ -1,0 +1,508 @@
+# 採取日時: 2026-09-19 09:09:23 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+## 10_inbox.sql run 1
+-- 一覧「申請中を新しい順に 20 件」を、状態の 2 案で測る。
+--
+-- 案A: 状態の列 + 部分インデックス
+-- 案B: 遷移の追記のみ。最新行を導出する素朴な書き方と、印を使う書き方の 2 通り
+--
+-- 🔴 3 回ずつ取り、Execution Time は中央値を使う（measurement-rules.yml）。
+--    主張は時間ではなく、読んだバッファ数と実行計画の形に置く。
+\echo '=== 案A: 状態の列 + 部分インデックス ==='
+=== 案A: 状態の列 + 部分インデックス ===
+EXPLAIN (ANALYZE) SELECT r.id, r.applicant_id, r.created_at
+FROM ch09_a.requests r
+WHERE r.status = 'submitted'
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..52.92 rows=20 width=24) (actual time=0.040..0.175 rows=20.00 loops=1)
+   Buffers: shared hit=1 read=21
+   ->  Index Scan using idx_a_submitted on requests r  (cost=0.28..2413.97 rows=917 width=24) (actual time=0.039..0.171 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=1 read=21
+ Planning:
+   Buffers: shared hit=122 read=4 dirtied=1
+ Planning Time: 0.328 ms
+ Execution Time: 0.190 ms
+(9 rows)
+
+\echo '=== 案B-0: 採取した案の書き方（申請ごとに LATERAL で最新行を引く） ==='
+=== 案B-0: 採取した案の書き方（申請ごとに LATERAL で最新行を引く） ===
+EXPLAIN (ANALYZE) SELECT r.id, s.changed_at
+FROM ch09_b.requests r
+JOIN LATERAL (
+  SELECT to_status, changed_at FROM ch09_b.transitions
+  WHERE request_id = r.id ORDER BY changed_at DESC LIMIT 1
+) s ON true
+WHERE s.to_status = 'submitted'
+ORDER BY s.changed_at DESC
+LIMIT 20;
+                                                                                 QUERY PLAN                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1383047.96..1383048.01 rows=20 width=16) (actual time=329.118..329.121 rows=20.00 loops=1)
+   Buffers: shared hit=398743 read=6752 written=3998
+   ->  Sort  (cost=1383047.96..1383297.96 rows=100000 width=16) (actual time=260.555..260.556 rows=20.00 loops=1)
+         Sort Key: s.changed_at DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=398743 read=6752 written=3998
+         ->  Nested Loop  (cost=13.76..1380387.00 rows=100000 width=16) (actual time=0.336..260.386 rows=974.00 loops=1)
+               Buffers: shared hit=398740 read=6752 written=3998
+               ->  Seq Scan on requests r  (cost=0.00..1637.00 rows=100000 width=8) (actual time=0.178..7.026 rows=100000.00 loops=1)
+                     Buffers: shared read=637 written=321
+               ->  Subquery Scan on s  (cost=13.76..13.78 rows=1 width=8) (actual time=0.002..0.002 rows=0.01 loops=100000)
+                     Filter: (s.to_status = 'submitted'::text)
+                     Rows Removed by Filter: 1
+                     Buffers: shared hit=398740 read=6115 written=3677
+                     ->  Limit  (cost=13.76..13.76 rows=1 width=15) (actual time=0.002..0.002 rows=1.00 loops=100000)
+                           Buffers: shared hit=398740 read=6115 written=3677
+                           ->  Sort  (cost=13.76..13.77 rows=4 width=15) (actual time=0.002..0.002 rows=1.00 loops=100000)
+                                 Sort Key: transitions.changed_at DESC
+                                 Sort Method: top-N heapsort  Memory: 25kB
+                                 Buffers: shared hit=398740 read=6115 written=3677
+                                 ->  Index Scan using idx_b_transitions on transitions  (cost=0.42..13.74 rows=4 width=15) (actual time=0.001..0.002 rows=4.32 loops=100000)
+                                       Index Cond: (request_id = r.id)
+                                       Index Searches: 100000
+                                       Buffers: shared hit=398740 read=6115 written=3677
+ Planning:
+   Buffers: shared hit=127 read=9 dirtied=1
+ Planning Time: 0.354 ms
+ JIT:
+   Functions: 12
+   Options: Inlining true, Optimization true, Expressions true, Deforming true
+   Timing: Generation 0.258 ms (Deform 0.110 ms), Inlining 45.277 ms, Optimization 12.400 ms, Emission 10.896 ms, Total 68.831 ms
+ Execution Time: 338.344 ms
+(32 rows)
+
+\echo '=== 案B-1: 遷移の最新行を導出する（印を使わない） ==='
+=== 案B-1: 遷移の最新行を導出する（印を使わない） ===
+EXPLAIN (ANALYZE) SELECT s.request_id, s.changed_at
+FROM (
+  SELECT DISTINCT ON (request_id) request_id, to_status, changed_at
+  FROM ch09_b.transitions
+  ORDER BY request_id, seq DESC
+) s
+WHERE s.to_status = 'submitted'
+ORDER BY s.changed_at DESC
+LIMIT 20;
+                                                                                QUERY PLAN                                                                                
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=25723.38..25723.43 rows=20 width=16) (actual time=80.542..80.545 rows=20.00 loops=1)
+   Buffers: shared hit=13263
+   ->  Sort  (cost=25723.38..25724.58 rows=482 width=16) (actual time=80.541..80.543 rows=20.00 loops=1)
+         Sort Key: s.changed_at DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=13263
+         ->  Subquery Scan on s  (cost=0.42..25710.55 rows=482 width=16) (actual time=0.038..80.454 rows=974.00 loops=1)
+               Filter: (s.to_status = 'submitted'::text)
+               Rows Removed by Filter: 99026
+               Buffers: shared hit=13263
+               ->  Unique  (cost=0.42..24506.24 rows=96345 width=27) (actual time=0.005..75.641 rows=100000.00 loops=1)
+                     Buffers: shared hit=13263
+                     ->  Index Scan using idx_b_transitions on transitions  (cost=0.42..23427.26 rows=431593 width=27) (actual time=0.005..52.167 rows=431593.00 loops=1)
+                           Index Searches: 1
+                           Buffers: shared hit=13263
+ Planning:
+   Buffers: shared hit=12 read=2
+ Planning Time: 0.119 ms
+ Execution Time: 80.560 ms
+(19 rows)
+
+\echo '=== 案B-2: 最新行の印を使う ==='
+=== 案B-2: 最新行の印を使う ===
+EXPLAIN (ANALYZE) SELECT t.request_id, t.changed_at
+FROM ch09_b.transitions t
+WHERE t.is_current AND t.to_status = 'submitted'
+ORDER BY t.changed_at DESC
+LIMIT 20;
+                                                                        QUERY PLAN                                                                        
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..13.58 rows=20 width=16) (actual time=0.016..0.033 rows=20.00 loops=1)
+   Buffers: shared hit=20 read=2
+   ->  Index Scan using idx_b_current_submitted on transitions t  (cost=0.28..18104.56 rows=27205 width=16) (actual time=0.015..0.031 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=20 read=2
+ Planning:
+   Buffers: shared hit=8 read=1
+ Planning Time: 0.085 ms
+ Execution Time: 0.038 ms
+(9 rows)
+
+\echo '=== 一覧のインデックスサイズ ==='
+=== 一覧のインデックスサイズ ===
+SELECT 'A: idx_a_submitted'        AS idx, pg_size_pretty(pg_relation_size('ch09_a.idx_a_submitted')) AS size
+UNION ALL
+SELECT 'B: idx_b_current_submitted',     pg_size_pretty(pg_relation_size('ch09_b.idx_b_current_submitted'))
+UNION ALL
+SELECT 'B: idx_b_to_status',             pg_size_pretty(pg_relation_size('ch09_b.idx_b_to_status'))
+ORDER BY 1;
+            idx             | size  
+----------------------------+-------
+ A: idx_a_submitted         | 48 kB
+ B: idx_b_current_submitted | 40 kB
+ B: idx_b_to_status         | 15 MB
+(3 rows)
+
+\echo '=== 3 案とも同じ 20 件を返すこと（先頭列が 0 なら正常） ==='
+=== 3 案とも同じ 20 件を返すこと（先頭列が 0 なら正常） ===
+WITH a AS (
+  SELECT r.id FROM ch09_a.requests r WHERE r.status = 'submitted'
+  ORDER BY r.created_at DESC, r.id DESC LIMIT 20
+),
+b AS (
+  SELECT t.request_id AS id FROM ch09_b.transitions t
+  WHERE t.is_current AND t.to_status = 'submitted'
+  ORDER BY t.changed_at DESC LIMIT 20
+)
+SELECT count(*) AS inbox_diff FROM (
+  (SELECT id FROM a EXCEPT SELECT id FROM b)
+  UNION ALL
+  (SELECT id FROM b EXCEPT SELECT id FROM a)
+) d;
+ inbox_diff 
+------------
+          0
+(1 row)
+
+## 10_inbox.sql run 2
+-- 一覧「申請中を新しい順に 20 件」を、状態の 2 案で測る。
+--
+-- 案A: 状態の列 + 部分インデックス
+-- 案B: 遷移の追記のみ。最新行を導出する素朴な書き方と、印を使う書き方の 2 通り
+--
+-- 🔴 3 回ずつ取り、Execution Time は中央値を使う（measurement-rules.yml）。
+--    主張は時間ではなく、読んだバッファ数と実行計画の形に置く。
+\echo '=== 案A: 状態の列 + 部分インデックス ==='
+=== 案A: 状態の列 + 部分インデックス ===
+EXPLAIN (ANALYZE) SELECT r.id, r.applicant_id, r.created_at
+FROM ch09_a.requests r
+WHERE r.status = 'submitted'
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..52.92 rows=20 width=24) (actual time=0.010..0.036 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using idx_a_submitted on requests r  (cost=0.28..2413.97 rows=917 width=24) (actual time=0.010..0.031 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=118 read=8
+ Planning Time: 0.289 ms
+ Execution Time: 0.046 ms
+(9 rows)
+
+\echo '=== 案B-0: 採取した案の書き方（申請ごとに LATERAL で最新行を引く） ==='
+=== 案B-0: 採取した案の書き方（申請ごとに LATERAL で最新行を引く） ===
+EXPLAIN (ANALYZE) SELECT r.id, s.changed_at
+FROM ch09_b.requests r
+JOIN LATERAL (
+  SELECT to_status, changed_at FROM ch09_b.transitions
+  WHERE request_id = r.id ORDER BY changed_at DESC LIMIT 1
+) s ON true
+WHERE s.to_status = 'submitted'
+ORDER BY s.changed_at DESC
+LIMIT 20;
+                                                                                 QUERY PLAN                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1383047.96..1383048.01 rows=20 width=16) (actual time=280.607..280.610 rows=20.00 loops=1)
+   Buffers: shared hit=405247 read=248
+   ->  Sort  (cost=1383047.96..1383297.96 rows=100000 width=16) (actual time=216.507..216.509 rows=20.00 loops=1)
+         Sort Key: s.changed_at DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=405247 read=248
+         ->  Nested Loop  (cost=13.76..1380387.00 rows=100000 width=16) (actual time=0.240..216.366 rows=974.00 loops=1)
+               Buffers: shared hit=405244 read=248
+               ->  Seq Scan on requests r  (cost=0.00..1637.00 rows=100000 width=8) (actual time=0.135..5.522 rows=100000.00 loops=1)
+                     Buffers: shared hit=389 read=248
+               ->  Subquery Scan on s  (cost=13.76..13.78 rows=1 width=8) (actual time=0.002..0.002 rows=0.01 loops=100000)
+                     Filter: (s.to_status = 'submitted'::text)
+                     Rows Removed by Filter: 1
+                     Buffers: shared hit=404855
+                     ->  Limit  (cost=13.76..13.76 rows=1 width=15) (actual time=0.002..0.002 rows=1.00 loops=100000)
+                           Buffers: shared hit=404855
+                           ->  Sort  (cost=13.76..13.77 rows=4 width=15) (actual time=0.002..0.002 rows=1.00 loops=100000)
+                                 Sort Key: transitions.changed_at DESC
+                                 Sort Method: top-N heapsort  Memory: 25kB
+                                 Buffers: shared hit=404855
+                                 ->  Index Scan using idx_b_transitions on transitions  (cost=0.42..13.74 rows=4 width=15) (actual time=0.001..0.001 rows=4.32 loops=100000)
+                                       Index Cond: (request_id = r.id)
+                                       Index Searches: 100000
+                                       Buffers: shared hit=404855
+ Planning:
+   Buffers: shared hit=129 read=7
+ Planning Time: 0.312 ms
+ JIT:
+   Functions: 12
+   Options: Inlining true, Optimization true, Expressions true, Deforming true
+   Timing: Generation 0.231 ms (Deform 0.100 ms), Inlining 41.052 ms, Optimization 12.765 ms, Emission 10.286 ms, Total 64.334 ms
+ Execution Time: 290.292 ms
+(32 rows)
+
+\echo '=== 案B-1: 遷移の最新行を導出する（印を使わない） ==='
+=== 案B-1: 遷移の最新行を導出する（印を使わない） ===
+EXPLAIN (ANALYZE) SELECT s.request_id, s.changed_at
+FROM (
+  SELECT DISTINCT ON (request_id) request_id, to_status, changed_at
+  FROM ch09_b.transitions
+  ORDER BY request_id, seq DESC
+) s
+WHERE s.to_status = 'submitted'
+ORDER BY s.changed_at DESC
+LIMIT 20;
+                                                                                QUERY PLAN                                                                                
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=25723.38..25723.43 rows=20 width=16) (actual time=82.247..82.249 rows=20.00 loops=1)
+   Buffers: shared hit=13263
+   ->  Sort  (cost=25723.38..25724.58 rows=482 width=16) (actual time=82.246..82.247 rows=20.00 loops=1)
+         Sort Key: s.changed_at DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=13263
+         ->  Subquery Scan on s  (cost=0.42..25710.55 rows=482 width=16) (actual time=0.034..82.152 rows=974.00 loops=1)
+               Filter: (s.to_status = 'submitted'::text)
+               Rows Removed by Filter: 99026
+               Buffers: shared hit=13263
+               ->  Unique  (cost=0.42..24506.24 rows=96345 width=27) (actual time=0.007..77.315 rows=100000.00 loops=1)
+                     Buffers: shared hit=13263
+                     ->  Index Scan using idx_b_transitions on transitions  (cost=0.42..23427.26 rows=431593 width=27) (actual time=0.006..53.550 rows=431593.00 loops=1)
+                           Index Searches: 1
+                           Buffers: shared hit=13263
+ Planning:
+   Buffers: shared hit=14
+ Planning Time: 0.095 ms
+ Execution Time: 82.265 ms
+(19 rows)
+
+\echo '=== 案B-2: 最新行の印を使う ==='
+=== 案B-2: 最新行の印を使う ===
+EXPLAIN (ANALYZE) SELECT t.request_id, t.changed_at
+FROM ch09_b.transitions t
+WHERE t.is_current AND t.to_status = 'submitted'
+ORDER BY t.changed_at DESC
+LIMIT 20;
+                                                                        QUERY PLAN                                                                        
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..13.58 rows=20 width=16) (actual time=0.007..0.024 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using idx_b_current_submitted on transitions t  (cost=0.28..18104.56 rows=27205 width=16) (actual time=0.006..0.022 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=9
+ Planning Time: 0.108 ms
+ Execution Time: 0.030 ms
+(9 rows)
+
+\echo '=== 一覧のインデックスサイズ ==='
+=== 一覧のインデックスサイズ ===
+SELECT 'A: idx_a_submitted'        AS idx, pg_size_pretty(pg_relation_size('ch09_a.idx_a_submitted')) AS size
+UNION ALL
+SELECT 'B: idx_b_current_submitted',     pg_size_pretty(pg_relation_size('ch09_b.idx_b_current_submitted'))
+UNION ALL
+SELECT 'B: idx_b_to_status',             pg_size_pretty(pg_relation_size('ch09_b.idx_b_to_status'))
+ORDER BY 1;
+            idx             | size  
+----------------------------+-------
+ A: idx_a_submitted         | 48 kB
+ B: idx_b_current_submitted | 40 kB
+ B: idx_b_to_status         | 15 MB
+(3 rows)
+
+\echo '=== 3 案とも同じ 20 件を返すこと（先頭列が 0 なら正常） ==='
+=== 3 案とも同じ 20 件を返すこと（先頭列が 0 なら正常） ===
+WITH a AS (
+  SELECT r.id FROM ch09_a.requests r WHERE r.status = 'submitted'
+  ORDER BY r.created_at DESC, r.id DESC LIMIT 20
+),
+b AS (
+  SELECT t.request_id AS id FROM ch09_b.transitions t
+  WHERE t.is_current AND t.to_status = 'submitted'
+  ORDER BY t.changed_at DESC LIMIT 20
+)
+SELECT count(*) AS inbox_diff FROM (
+  (SELECT id FROM a EXCEPT SELECT id FROM b)
+  UNION ALL
+  (SELECT id FROM b EXCEPT SELECT id FROM a)
+) d;
+ inbox_diff 
+------------
+          0
+(1 row)
+
+## 10_inbox.sql run 3
+-- 一覧「申請中を新しい順に 20 件」を、状態の 2 案で測る。
+--
+-- 案A: 状態の列 + 部分インデックス
+-- 案B: 遷移の追記のみ。最新行を導出する素朴な書き方と、印を使う書き方の 2 通り
+--
+-- 🔴 3 回ずつ取り、Execution Time は中央値を使う（measurement-rules.yml）。
+--    主張は時間ではなく、読んだバッファ数と実行計画の形に置く。
+\echo '=== 案A: 状態の列 + 部分インデックス ==='
+=== 案A: 状態の列 + 部分インデックス ===
+EXPLAIN (ANALYZE) SELECT r.id, r.applicant_id, r.created_at
+FROM ch09_a.requests r
+WHERE r.status = 'submitted'
+ORDER BY r.created_at DESC, r.id DESC
+LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..52.92 rows=20 width=24) (actual time=0.011..0.036 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using idx_a_submitted on requests r  (cost=0.28..2413.97 rows=917 width=24) (actual time=0.010..0.032 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=126
+ Planning Time: 0.283 ms
+ Execution Time: 0.047 ms
+(9 rows)
+
+\echo '=== 案B-0: 採取した案の書き方（申請ごとに LATERAL で最新行を引く） ==='
+=== 案B-0: 採取した案の書き方（申請ごとに LATERAL で最新行を引く） ===
+EXPLAIN (ANALYZE) SELECT r.id, s.changed_at
+FROM ch09_b.requests r
+JOIN LATERAL (
+  SELECT to_status, changed_at FROM ch09_b.transitions
+  WHERE request_id = r.id ORDER BY changed_at DESC LIMIT 1
+) s ON true
+WHERE s.to_status = 'submitted'
+ORDER BY s.changed_at DESC
+LIMIT 20;
+                                                                                 QUERY PLAN                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1383047.96..1383048.01 rows=20 width=16) (actual time=278.789..278.792 rows=20.00 loops=1)
+   Buffers: shared hit=405495
+   ->  Sort  (cost=1383047.96..1383297.96 rows=100000 width=16) (actual time=217.704..217.706 rows=20.00 loops=1)
+         Sort Key: s.changed_at DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=405495
+         ->  Nested Loop  (cost=13.76..1380387.00 rows=100000 width=16) (actual time=0.113..217.564 rows=974.00 loops=1)
+               Buffers: shared hit=405492
+               ->  Seq Scan on requests r  (cost=0.00..1637.00 rows=100000 width=8) (actual time=0.011..5.105 rows=100000.00 loops=1)
+                     Buffers: shared hit=637
+               ->  Subquery Scan on s  (cost=13.76..13.78 rows=1 width=8) (actual time=0.002..0.002 rows=0.01 loops=100000)
+                     Filter: (s.to_status = 'submitted'::text)
+                     Rows Removed by Filter: 1
+                     Buffers: shared hit=404855
+                     ->  Limit  (cost=13.76..13.76 rows=1 width=15) (actual time=0.002..0.002 rows=1.00 loops=100000)
+                           Buffers: shared hit=404855
+                           ->  Sort  (cost=13.76..13.77 rows=4 width=15) (actual time=0.002..0.002 rows=1.00 loops=100000)
+                                 Sort Key: transitions.changed_at DESC
+                                 Sort Method: top-N heapsort  Memory: 25kB
+                                 Buffers: shared hit=404855
+                                 ->  Index Scan using idx_b_transitions on transitions  (cost=0.42..13.74 rows=4 width=15) (actual time=0.001..0.001 rows=4.32 loops=100000)
+                                       Index Cond: (request_id = r.id)
+                                       Index Searches: 100000
+                                       Buffers: shared hit=404855
+ Planning:
+   Buffers: shared hit=136
+ Planning Time: 0.279 ms
+ JIT:
+   Functions: 12
+   Options: Inlining true, Optimization true, Expressions true, Deforming true
+   Timing: Generation 0.246 ms (Deform 0.106 ms), Inlining 39.141 ms, Optimization 11.964 ms, Emission 9.981 ms, Total 61.332 ms
+ Execution Time: 288.537 ms
+(32 rows)
+
+\echo '=== 案B-1: 遷移の最新行を導出する（印を使わない） ==='
+=== 案B-1: 遷移の最新行を導出する（印を使わない） ===
+EXPLAIN (ANALYZE) SELECT s.request_id, s.changed_at
+FROM (
+  SELECT DISTINCT ON (request_id) request_id, to_status, changed_at
+  FROM ch09_b.transitions
+  ORDER BY request_id, seq DESC
+) s
+WHERE s.to_status = 'submitted'
+ORDER BY s.changed_at DESC
+LIMIT 20;
+                                                                                QUERY PLAN                                                                                
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=25723.38..25723.43 rows=20 width=16) (actual time=83.871..83.874 rows=20.00 loops=1)
+   Buffers: shared hit=13263
+   ->  Sort  (cost=25723.38..25724.58 rows=482 width=16) (actual time=83.871..83.872 rows=20.00 loops=1)
+         Sort Key: s.changed_at DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=13263
+         ->  Subquery Scan on s  (cost=0.42..25710.55 rows=482 width=16) (actual time=0.030..83.778 rows=974.00 loops=1)
+               Filter: (s.to_status = 'submitted'::text)
+               Rows Removed by Filter: 99026
+               Buffers: shared hit=13263
+               ->  Unique  (cost=0.42..24506.24 rows=96345 width=27) (actual time=0.005..78.921 rows=100000.00 loops=1)
+                     Buffers: shared hit=13263
+                     ->  Index Scan using idx_b_transitions on transitions  (cost=0.42..23427.26 rows=431593 width=27) (actual time=0.005..55.483 rows=431593.00 loops=1)
+                           Index Searches: 1
+                           Buffers: shared hit=13263
+ Planning:
+   Buffers: shared hit=14
+ Planning Time: 0.074 ms
+ Execution Time: 83.887 ms
+(19 rows)
+
+\echo '=== 案B-2: 最新行の印を使う ==='
+=== 案B-2: 最新行の印を使う ===
+EXPLAIN (ANALYZE) SELECT t.request_id, t.changed_at
+FROM ch09_b.transitions t
+WHERE t.is_current AND t.to_status = 'submitted'
+ORDER BY t.changed_at DESC
+LIMIT 20;
+                                                                        QUERY PLAN                                                                        
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..13.58 rows=20 width=16) (actual time=0.005..0.018 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using idx_b_current_submitted on transitions t  (cost=0.28..18104.56 rows=27205 width=16) (actual time=0.005..0.017 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=9
+ Planning Time: 0.105 ms
+ Execution Time: 0.024 ms
+(9 rows)
+
+\echo '=== 一覧のインデックスサイズ ==='
+=== 一覧のインデックスサイズ ===
+SELECT 'A: idx_a_submitted'        AS idx, pg_size_pretty(pg_relation_size('ch09_a.idx_a_submitted')) AS size
+UNION ALL
+SELECT 'B: idx_b_current_submitted',     pg_size_pretty(pg_relation_size('ch09_b.idx_b_current_submitted'))
+UNION ALL
+SELECT 'B: idx_b_to_status',             pg_size_pretty(pg_relation_size('ch09_b.idx_b_to_status'))
+ORDER BY 1;
+            idx             | size  
+----------------------------+-------
+ A: idx_a_submitted         | 48 kB
+ B: idx_b_current_submitted | 40 kB
+ B: idx_b_to_status         | 15 MB
+(3 rows)
+
+\echo '=== 3 案とも同じ 20 件を返すこと（先頭列が 0 なら正常） ==='
+=== 3 案とも同じ 20 件を返すこと（先頭列が 0 なら正常） ===
+WITH a AS (
+  SELECT r.id FROM ch09_a.requests r WHERE r.status = 'submitted'
+  ORDER BY r.created_at DESC, r.id DESC LIMIT 20
+),
+b AS (
+  SELECT t.request_id AS id FROM ch09_b.transitions t
+  WHERE t.is_current AND t.to_status = 'submitted'
+  ORDER BY t.changed_at DESC LIMIT 20
+)
+SELECT count(*) AS inbox_diff FROM (
+  (SELECT id FROM a EXCEPT SELECT id FROM b)
+  UNION ALL
+  (SELECT id FROM b EXCEPT SELECT id FROM a)
+) d;
+ inbox_diff 
+------------
+          0
+(1 row)
+

@@ -1,0 +1,93 @@
+-- 第9章の検査。すべて先頭列が 0 で正常。
+--
+-- 🔴 検査が 0 を返しても正しさの証明ではない（第8章 C1）。
+--    「何と何を比べているか」を毎回確かめる。ここでは元データとの突き合わせを軸にしている。
+
+\echo '=== 1. 案A の状態の列と、遷移の最新行が食い違っている申請 ==='
+SELECT count(*) AS a_status_mismatch
+FROM ch09_a.requests r
+JOIN LATERAL (
+  SELECT to_status FROM ch09_a.transitions
+  WHERE request_id = r.id ORDER BY seq DESC LIMIT 1
+) t ON true
+WHERE r.status <> t.to_status;
+
+\echo '=== 2. 案B の印が、最新行だけに付いているか ==='
+SELECT count(*) AS b_current_not_max FROM ch09_b.transitions t
+WHERE t.is_current
+  AND t.seq <> (SELECT max(seq) FROM ch09_b.transitions u WHERE u.request_id = t.request_id);
+
+\echo '=== 3. 案A と案B が、同じ現在の状態を表しているか ==='
+-- 🔴 EXCEPT は片方向。両側を囲んで双方向にする
+--    （囲まないと UNION ALL と同じ優先順位で左結合になり、片方向のままになる）。
+SELECT count(*) AS ab_status_diff FROM (
+  (SELECT id, status FROM ch09_a.requests
+   EXCEPT
+   SELECT request_id, to_status FROM ch09_b.transitions WHERE is_current)
+  UNION ALL
+  (SELECT request_id, to_status FROM ch09_b.transitions WHERE is_current
+   EXCEPT
+   SELECT id, status FROM ch09_a.requests)
+) d;
+
+\echo '=== 4. 案C の本体 + 履歴が、元データの全版と一致するか ==='
+SELECT count(*) AS c_versions_diff FROM (
+  (SELECT request_id, rev, amount_yen FROM ch09_r.src_revision
+   EXCEPT (
+     SELECT id, rev, amount_yen FROM ch09_c.requests
+     UNION ALL SELECT request_id, rev, amount_yen FROM ch09_c.request_history
+   ))
+  UNION ALL
+  ((SELECT id, rev, amount_yen FROM ch09_c.requests
+    UNION ALL SELECT request_id, rev, amount_yen FROM ch09_c.request_history)
+   EXCEPT
+   SELECT request_id, rev, amount_yen FROM ch09_r.src_revision)
+) d;
+
+\echo '=== 5. 案D の版が、元データの全版と一致するか ==='
+SELECT count(*) AS d_versions_diff FROM (
+  (SELECT request_id, rev, amount_yen FROM ch09_r.src_revision
+   EXCEPT
+   SELECT request_id, rev, amount_yen FROM ch09_d.revisions)
+  UNION ALL
+  (SELECT request_id, rev, amount_yen FROM ch09_d.revisions
+   EXCEPT
+   SELECT request_id, rev, amount_yen FROM ch09_r.src_revision)
+) d;
+
+\echo '=== 6. 案D の期間に重なりが無いこと（主キーが保証するが、念のため数える） ==='
+SELECT count(*) AS d_overlapping FROM ch09_d.revisions a
+JOIN ch09_d.revisions b
+  ON a.request_id = b.request_id AND a.rev < b.rev AND a.valid && b.valid;
+
+\echo '=== 7. 案D の期間にすき間が無いこと（🔴 これは主キーが保証しない） ==='
+SELECT count(*) AS d_gapped FROM (
+  SELECT request_id, upper(valid) AS ends,
+         lead(lower(valid)) OVER (PARTITION BY request_id ORDER BY rev) AS next_from
+  FROM ch09_d.revisions
+) s
+WHERE next_from IS NOT NULL AND ends IS DISTINCT FROM next_from;
+
+\echo '=== 8. 案C と案D が、ある時点について同じ答えを返すか ==='
+WITH allver AS (
+  SELECT id AS request_id, amount_yen, updated_at AS t FROM ch09_c.requests
+  UNION ALL
+  SELECT request_id, amount_yen, valid_from FROM ch09_c.request_history
+),
+c AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s FROM (
+    SELECT DISTINCT ON (request_id) request_id, amount_yen
+    FROM allver WHERE t <= timestamptz '2025-01-01 00:00:00+09'
+    ORDER BY request_id, t DESC) x
+),
+d AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s
+  FROM ch09_d.revisions WHERE valid @> timestamptz '2025-01-01 00:00:00+09'
+)
+SELECT (SELECT n FROM c) - (SELECT n FROM d) AS asof_count_diff,
+       (SELECT s FROM c) - (SELECT s FROM d) AS asof_sum_diff;
+
+\echo '=== 9. 検査が空振りでないこと（比べる対象が 0 件でない） ==='
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_is_empty FROM ch09_r.src_revision;
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS asof_is_empty
+FROM ch09_d.revisions WHERE valid @> timestamptz '2025-01-01 00:00:00+09';

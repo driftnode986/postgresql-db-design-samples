@@ -1,0 +1,127 @@
+# 採取日時: 2026-09-19 09:08:56 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案A に元データを写す。
+--
+-- 🔴 先頭で元データが空でないことを確かめ、空なら何も消す前に止める
+--    （検証の実行順のせいで元データより先に走ると、空を写したまま全件 OK になる。CLAUDE.md の規約）。
+-- 🔴 入れ直しても同じ結果になるように TRUNCATE ... RESTART IDENTITY してから入れる。
+-- 🔴 データを入れてからインデックスを作る（付けたまま入れると充填率が変わり、サイズが実行のたびに変わる）。
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM ch09_r.src_request) = 0 THEN
+    RAISE EXCEPTION '元データが空です。先に r_source/schema_20_generate.sql を実行してください';
+  END IF;
+END $$;
+DO
+\timing on
+Timing is on.
+-- インデックスを落としてから入れる（再実行できるように）
+DROP INDEX IF EXISTS ch09_a.idx_a_submitted;
+DROP INDEX
+Time: 0.961 ms
+DROP INDEX IF EXISTS ch09_a.idx_a_transitions;
+DROP INDEX
+Time: 0.522 ms
+TRUNCATE ch09_a.transitions;
+TRUNCATE TABLE
+Time: 1.175 ms
+TRUNCATE ch09_a.requests CASCADE;
+psql:/tmp/run-sql.sql:22: NOTICE:  truncate cascades to table "transitions"
+TRUNCATE TABLE
+Time: 1.093 ms
+TRUNCATE ch09_a.employees CASCADE;
+psql:/tmp/run-sql.sql:23: NOTICE:  truncate cascades to table "requests"
+psql:/tmp/run-sql.sql:23: NOTICE:  truncate cascades to table "transitions"
+TRUNCATE TABLE
+Time: 1.358 ms
+TRUNCATE ch09_a.categories CASCADE;
+TRUNCATE TABLE
+Time: 0.865 ms
+INSERT INTO ch09_a.employees (id, name, dept)
+SELECT id, name, dept FROM ch09_r.src_employee ORDER BY id;
+INSERT 0 1000
+Time: 1.514 ms
+INSERT INTO ch09_a.categories (id, code, name)
+SELECT id, code, name FROM ch09_r.src_category ORDER BY id;
+INSERT 0 5
+Time: 0.527 ms
+-- 申請。状態は「最新の遷移の to_status」を写す。
+-- updated_at は最新の遷移の時刻。
+INSERT INTO ch09_a.requests (id, applicant_id, status, created_at, updated_at)
+SELECT r.id, r.applicant_id, t.to_status, r.created_at, t.changed_at
+FROM ch09_r.src_request r
+JOIN LATERAL (
+  SELECT to_status, changed_at
+  FROM ch09_r.src_transition
+  WHERE request_id = r.id
+  ORDER BY seq DESC
+  LIMIT 1
+) t ON true
+ORDER BY r.id;
+INSERT 0 100000
+Time: 805.133 ms
+INSERT INTO ch09_a.transitions
+  (request_id, seq, from_status, to_status, changed_by, changed_at, note)
+SELECT request_id, seq, from_status, to_status, changed_by, changed_at, note
+FROM ch09_r.src_transition
+ORDER BY request_id, seq;
+INSERT 0 431593
+Time: 5102.432 ms (00:05.102)
+-- インデックスはデータを入れ終えてから作る
+CREATE INDEX idx_a_submitted ON ch09_a.requests (created_at DESC, id DESC)
+  WHERE status = 'submitted';
+CREATE INDEX
+Time: 11.602 ms
+CREATE INDEX idx_a_transitions ON ch09_a.transitions (request_id, changed_at);
+CREATE INDEX
+Time: 130.981 ms
+ANALYZE ch09_a.requests;
+ANALYZE
+Time: 25.542 ms
+ANALYZE ch09_a.transitions;
+ANALYZE
+Time: 42.114 ms
+\timing off
+Timing is off.
+-- 検査: 元データと件数が一致していること（先頭列が 0 なら正常）
+SELECT count(*) AS requests_diff FROM (
+  (SELECT id FROM ch09_r.src_request EXCEPT SELECT id FROM ch09_a.requests)
+  UNION ALL
+  (SELECT id FROM ch09_a.requests EXCEPT SELECT id FROM ch09_r.src_request)
+) d;
+ requests_diff 
+---------------
+             0
+(1 row)
+
+SELECT count(*) AS transitions_diff FROM (
+  (SELECT request_id, seq FROM ch09_r.src_transition
+   EXCEPT SELECT request_id, seq FROM ch09_a.transitions)
+  UNION ALL
+  (SELECT request_id, seq FROM ch09_a.transitions
+   EXCEPT SELECT request_id, seq FROM ch09_r.src_transition)
+) d;
+ transitions_diff 
+------------------
+                0
+(1 row)
+
+-- 元データが空でないことも同時に見る（0 件どうしの比較は常に 0 になるため）
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END AS source_is_empty
+FROM ch09_r.src_request;
+ source_is_empty 
+-----------------
+               0
+(1 row)
+

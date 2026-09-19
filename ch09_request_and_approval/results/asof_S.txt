@@ -1,0 +1,448 @@
+# 採取日時: 2026-09-19 09:09:25 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+## 20_asof.sql run 1
+-- 内容の履歴を、案C（本体 + 履歴）と案D（範囲型 + WITHOUT OVERLAPS）で測る。
+--
+-- 測るのは 2 つ。
+--   (1) 現在の内容 1 件の取得
+--   (2) ある時点の全件の取得（「先月末時点で、その申請の内容がどうだったか」）
+--
+-- 🔴 案D には公平にインデックスを与えてある（idx_d_current と idx_d_valid_gist）。
+--    与えないと現在値の取得が全体走査になり、案の性質ではなくインデックスの有無を測ってしまう
+--    （ch09_verification.md §7-1）。与えたインデックスは本文に明記する。
+\echo '=== (1) 現在の内容 1 件: 案C（本体を主キーで引く） ==='
+=== (1) 現在の内容 1 件: 案C（本体を主キーで引く） ===
+EXPLAIN (ANALYZE) SELECT amount_yen, category_id, reason
+FROM ch09_c.requests
+WHERE id = 50000;
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
+ Index Scan using requests_pkey on requests  (cost=0.29..8.31 rows=1 width=26) (actual time=0.041..0.043 rows=1.00 loops=1)
+   Index Cond: (id = 50000)
+   Index Searches: 1
+   Buffers: shared hit=3 read=3
+ Planning:
+   Buffers: shared hit=71 read=3
+ Planning Time: 0.232 ms
+ Execution Time: 0.074 ms
+(8 rows)
+
+\echo '=== (1) 現在の内容 1 件: 案D（上限が無限の版を部分インデックスで引く） ==='
+=== (1) 現在の内容 1 件: 案D（上限が無限の版を部分インデックスで引く） ===
+EXPLAIN (ANALYZE) SELECT amount_yen, category_id, reason
+FROM ch09_d.revisions
+WHERE request_id = 50000 AND upper_inf(valid);
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_d_current on revisions  (cost=0.29..8.31 rows=1 width=28) (actual time=0.024..0.024 rows=1.00 loops=1)
+   Index Cond: (request_id = 50000)
+   Index Searches: 1
+   Buffers: shared hit=1 read=2
+ Planning:
+   Buffers: shared hit=70 read=3
+ Planning Time: 0.182 ms
+ Execution Time: 0.030 ms
+(8 rows)
+
+\echo '=== (2) ある時点の全件: 案C（本体と履歴を合わせて最新の版を選び直す） ==='
+=== (2) ある時点の全件: 案C（本体と履歴を合わせて最新の版を選び直す） ===
+EXPLAIN (ANALYZE)
+WITH allver AS (
+  SELECT id AS request_id, amount_yen, updated_at AS t FROM ch09_c.requests
+  UNION ALL
+  SELECT request_id, amount_yen, valid_from FROM ch09_c.request_history
+)
+SELECT count(*), sum(amount_yen) FROM (
+  SELECT DISTINCT ON (request_id) request_id, amount_yen
+  FROM allver
+  WHERE t <= timestamptz '2025-01-01 00:00:00+09'
+  ORDER BY request_id, t DESC
+) s;
+                                                                            QUERY PLAN                                                                             
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=16181.03..16181.04 rows=1 width=16) (actual time=59.195..59.196 rows=1.00 loops=1)
+   Buffers: shared hit=778 read=3600 written=602
+   ->  Unique  (cost=6436.42..16178.03 rows=200 width=20) (actual time=13.037..56.851 rows=50202.00 loops=1)
+         Buffers: shared hit=778 read=3600 written=602
+         ->  Merge Append  (cost=6436.42..15853.15 rows=129951 width=20) (actual time=13.037..49.188 rows=130000.00 loops=1)
+               Sort Key: requests.id, requests.updated_at DESC
+               Buffers: shared hit=778 read=3600 written=602
+               ->  Sort  (cost=6435.99..6561.95 rows=50382 width=20) (actual time=12.952..14.576 rows=50039.00 loops=1)
+                     Sort Key: requests.id, requests.updated_at DESC
+                     Sort Method: quicksort  Memory: 3491kB
+                     Buffers: shared hit=1 read=1250
+                     ->  Seq Scan on requests  (cost=0.00..2501.00 rows=50382 width=20) (actual time=0.121..8.350 rows=50039.00 loops=1)
+                           Filter: (updated_at <= '2024-12-31 15:00:00+00'::timestamp with time zone)
+                           Rows Removed by Filter: 49961
+                           Buffers: shared hit=1 read=1250
+               ->  Index Scan using idx_c_hist_asof on request_history  (cost=0.42..7991.69 rows=79569 width=20) (actual time=0.079..25.569 rows=79961.00 loops=1)
+                     Index Cond: (valid_from <= '2024-12-31 15:00:00+00'::timestamp with time zone)
+                     Index Searches: 1
+                     Buffers: shared hit=777 read=2350 written=602
+ Planning:
+   Buffers: shared hit=110 read=4 dirtied=1
+ Planning Time: 0.276 ms
+ Execution Time: 59.401 ms
+(23 rows)
+
+\echo '=== (2) ある時点の全件: 案D（GiST インデックスで該当する版だけを拾う） ==='
+=== (2) ある時点の全件: 案D（GiST インデックスで該当する版だけを拾う） ===
+EXPLAIN (ANALYZE) SELECT count(*), sum(amount_yen)
+FROM ch09_d.revisions
+WHERE valid @> timestamptz '2025-01-01 00:00:00+09';
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5701.14..5701.15 rows=1 width=16) (actual time=18.099..18.100 rows=1.00 loops=1)
+   Buffers: shared hit=2040 read=1440 written=1284
+   ->  Bitmap Heap Scan on revisions  (cost=1615.89..5451.07 rows=50014 width=4) (actual time=4.812..15.609 rows=50202.00 loops=1)
+         Recheck Cond: (valid @> '2024-12-31 15:00:00+00'::timestamp with time zone)
+         Heap Blocks: exact=3210
+         Buffers: shared hit=2040 read=1440 written=1284
+         ->  Bitmap Index Scan on idx_d_valid_gist  (cost=0.00..1603.39 rows=50014 width=0) (actual time=4.471..4.471 rows=50202.00 loops=1)
+               Index Cond: (valid @> '2024-12-31 15:00:00+00'::timestamp with time zone)
+               Index Searches: 1
+               Buffers: shared read=270 written=265
+ Planning:
+   Buffers: shared hit=10 read=2 written=2
+ Planning Time: 0.127 ms
+ Execution Time: 18.119 ms
+(14 rows)
+
+\echo '=== 両案が同じ答えを返すこと（先頭列が 0 なら正常） ==='
+=== 両案が同じ答えを返すこと（先頭列が 0 なら正常） ===
+-- 🔴 検査は、上で測ったのと同じ形の問い合わせで書く。
+--    入れ子の CTE に書き換えると、別の計画になって別の結果を返すことがある
+--    （実際に 163 件の差が出た。原因は書き換えたこちら側にあった）。
+WITH allver AS (
+  SELECT id AS request_id, amount_yen, updated_at AS t FROM ch09_c.requests
+  UNION ALL
+  SELECT request_id, amount_yen, valid_from FROM ch09_c.request_history
+),
+c AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s FROM (
+    SELECT DISTINCT ON (request_id) request_id, amount_yen
+    FROM allver WHERE t <= timestamptz '2025-01-01 00:00:00+09'
+    ORDER BY request_id, t DESC
+  ) x
+),
+d AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s
+  FROM ch09_d.revisions WHERE valid @> timestamptz '2025-01-01 00:00:00+09'
+)
+SELECT (SELECT n FROM c) - (SELECT n FROM d) AS asof_count_diff,
+       (SELECT s FROM c) - (SELECT s FROM d) AS asof_sum_diff;
+ asof_count_diff | asof_sum_diff 
+-----------------+---------------
+               0 |             0
+(1 row)
+
+\echo '=== 時点を指定して返る件数（0 ではないこと＝空振りでないこと） ==='
+=== 時点を指定して返る件数（0 ではないこと＝空振りでないこと） ===
+SELECT count(*) AS rows_at_asof FROM ch09_d.revisions
+WHERE valid @> timestamptz '2025-01-01 00:00:00+09';
+ rows_at_asof 
+--------------
+        50202
+(1 row)
+
+## 20_asof.sql run 2
+-- 内容の履歴を、案C（本体 + 履歴）と案D（範囲型 + WITHOUT OVERLAPS）で測る。
+--
+-- 測るのは 2 つ。
+--   (1) 現在の内容 1 件の取得
+--   (2) ある時点の全件の取得（「先月末時点で、その申請の内容がどうだったか」）
+--
+-- 🔴 案D には公平にインデックスを与えてある（idx_d_current と idx_d_valid_gist）。
+--    与えないと現在値の取得が全体走査になり、案の性質ではなくインデックスの有無を測ってしまう
+--    （ch09_verification.md §7-1）。与えたインデックスは本文に明記する。
+\echo '=== (1) 現在の内容 1 件: 案C（本体を主キーで引く） ==='
+=== (1) 現在の内容 1 件: 案C（本体を主キーで引く） ===
+EXPLAIN (ANALYZE) SELECT amount_yen, category_id, reason
+FROM ch09_c.requests
+WHERE id = 50000;
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
+ Index Scan using requests_pkey on requests  (cost=0.29..8.31 rows=1 width=26) (actual time=0.013..0.015 rows=1.00 loops=1)
+   Index Cond: (id = 50000)
+   Index Searches: 1
+   Buffers: shared hit=6
+ Planning:
+   Buffers: shared hit=74
+ Planning Time: 0.168 ms
+ Execution Time: 0.040 ms
+(8 rows)
+
+\echo '=== (1) 現在の内容 1 件: 案D（上限が無限の版を部分インデックスで引く） ==='
+=== (1) 現在の内容 1 件: 案D（上限が無限の版を部分インデックスで引く） ===
+EXPLAIN (ANALYZE) SELECT amount_yen, category_id, reason
+FROM ch09_d.revisions
+WHERE request_id = 50000 AND upper_inf(valid);
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_d_current on revisions  (cost=0.29..8.31 rows=1 width=28) (actual time=0.009..0.010 rows=1.00 loops=1)
+   Index Cond: (request_id = 50000)
+   Index Searches: 1
+   Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=73
+ Planning Time: 0.143 ms
+ Execution Time: 0.014 ms
+(8 rows)
+
+\echo '=== (2) ある時点の全件: 案C（本体と履歴を合わせて最新の版を選び直す） ==='
+=== (2) ある時点の全件: 案C（本体と履歴を合わせて最新の版を選び直す） ===
+EXPLAIN (ANALYZE)
+WITH allver AS (
+  SELECT id AS request_id, amount_yen, updated_at AS t FROM ch09_c.requests
+  UNION ALL
+  SELECT request_id, amount_yen, valid_from FROM ch09_c.request_history
+)
+SELECT count(*), sum(amount_yen) FROM (
+  SELECT DISTINCT ON (request_id) request_id, amount_yen
+  FROM allver
+  WHERE t <= timestamptz '2025-01-01 00:00:00+09'
+  ORDER BY request_id, t DESC
+) s;
+                                                                            QUERY PLAN                                                                             
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=16181.03..16181.04 rows=1 width=16) (actual time=45.502..45.504 rows=1.00 loops=1)
+   Buffers: shared hit=4378
+   ->  Unique  (cost=6436.42..16178.03 rows=200 width=20) (actual time=11.725..43.278 rows=50202.00 loops=1)
+         Buffers: shared hit=4378
+         ->  Merge Append  (cost=6436.42..15853.15 rows=129951 width=20) (actual time=11.724..35.630 rows=130000.00 loops=1)
+               Sort Key: requests.id, requests.updated_at DESC
+               Buffers: shared hit=4378
+               ->  Sort  (cost=6435.99..6561.95 rows=50382 width=20) (actual time=11.694..13.282 rows=50039.00 loops=1)
+                     Sort Key: requests.id, requests.updated_at DESC
+                     Sort Method: quicksort  Memory: 3491kB
+                     Buffers: shared hit=1251
+                     ->  Seq Scan on requests  (cost=0.00..2501.00 rows=50382 width=20) (actual time=0.009..6.659 rows=50039.00 loops=1)
+                           Filter: (updated_at <= '2024-12-31 15:00:00+00'::timestamp with time zone)
+                           Rows Removed by Filter: 49961
+                           Buffers: shared hit=1251
+               ->  Index Scan using idx_c_hist_asof on request_history  (cost=0.42..7991.69 rows=79569 width=20) (actual time=0.029..13.355 rows=79961.00 loops=1)
+                     Index Cond: (valid_from <= '2024-12-31 15:00:00+00'::timestamp with time zone)
+                     Index Searches: 1
+                     Buffers: shared hit=3127
+ Planning:
+   Buffers: shared hit=114
+ Planning Time: 0.202 ms
+ Execution Time: 45.702 ms
+(23 rows)
+
+\echo '=== (2) ある時点の全件: 案D（GiST インデックスで該当する版だけを拾う） ==='
+=== (2) ある時点の全件: 案D（GiST インデックスで該当する版だけを拾う） ===
+EXPLAIN (ANALYZE) SELECT count(*), sum(amount_yen)
+FROM ch09_d.revisions
+WHERE valid @> timestamptz '2025-01-01 00:00:00+09';
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5701.14..5701.15 rows=1 width=16) (actual time=13.346..13.347 rows=1.00 loops=1)
+   Buffers: shared hit=3480
+   ->  Bitmap Heap Scan on revisions  (cost=1615.89..5451.07 rows=50014 width=4) (actual time=3.183..10.803 rows=50202.00 loops=1)
+         Recheck Cond: (valid @> '2024-12-31 15:00:00+00'::timestamp with time zone)
+         Heap Blocks: exact=3210
+         Buffers: shared hit=3480
+         ->  Bitmap Index Scan on idx_d_valid_gist  (cost=0.00..1603.39 rows=50014 width=0) (actual time=2.936..2.937 rows=50202.00 loops=1)
+               Index Cond: (valid @> '2024-12-31 15:00:00+00'::timestamp with time zone)
+               Index Searches: 1
+               Buffers: shared hit=270
+ Planning:
+   Buffers: shared hit=12
+ Planning Time: 0.094 ms
+ Execution Time: 13.363 ms
+(14 rows)
+
+\echo '=== 両案が同じ答えを返すこと（先頭列が 0 なら正常） ==='
+=== 両案が同じ答えを返すこと（先頭列が 0 なら正常） ===
+-- 🔴 検査は、上で測ったのと同じ形の問い合わせで書く。
+--    入れ子の CTE に書き換えると、別の計画になって別の結果を返すことがある
+--    （実際に 163 件の差が出た。原因は書き換えたこちら側にあった）。
+WITH allver AS (
+  SELECT id AS request_id, amount_yen, updated_at AS t FROM ch09_c.requests
+  UNION ALL
+  SELECT request_id, amount_yen, valid_from FROM ch09_c.request_history
+),
+c AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s FROM (
+    SELECT DISTINCT ON (request_id) request_id, amount_yen
+    FROM allver WHERE t <= timestamptz '2025-01-01 00:00:00+09'
+    ORDER BY request_id, t DESC
+  ) x
+),
+d AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s
+  FROM ch09_d.revisions WHERE valid @> timestamptz '2025-01-01 00:00:00+09'
+)
+SELECT (SELECT n FROM c) - (SELECT n FROM d) AS asof_count_diff,
+       (SELECT s FROM c) - (SELECT s FROM d) AS asof_sum_diff;
+ asof_count_diff | asof_sum_diff 
+-----------------+---------------
+               0 |             0
+(1 row)
+
+\echo '=== 時点を指定して返る件数（0 ではないこと＝空振りでないこと） ==='
+=== 時点を指定して返る件数（0 ではないこと＝空振りでないこと） ===
+SELECT count(*) AS rows_at_asof FROM ch09_d.revisions
+WHERE valid @> timestamptz '2025-01-01 00:00:00+09';
+ rows_at_asof 
+--------------
+        50202
+(1 row)
+
+## 20_asof.sql run 3
+-- 内容の履歴を、案C（本体 + 履歴）と案D（範囲型 + WITHOUT OVERLAPS）で測る。
+--
+-- 測るのは 2 つ。
+--   (1) 現在の内容 1 件の取得
+--   (2) ある時点の全件の取得（「先月末時点で、その申請の内容がどうだったか」）
+--
+-- 🔴 案D には公平にインデックスを与えてある（idx_d_current と idx_d_valid_gist）。
+--    与えないと現在値の取得が全体走査になり、案の性質ではなくインデックスの有無を測ってしまう
+--    （ch09_verification.md §7-1）。与えたインデックスは本文に明記する。
+\echo '=== (1) 現在の内容 1 件: 案C（本体を主キーで引く） ==='
+=== (1) 現在の内容 1 件: 案C（本体を主キーで引く） ===
+EXPLAIN (ANALYZE) SELECT amount_yen, category_id, reason
+FROM ch09_c.requests
+WHERE id = 50000;
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
+ Index Scan using requests_pkey on requests  (cost=0.29..8.31 rows=1 width=26) (actual time=0.015..0.018 rows=1.00 loops=1)
+   Index Cond: (id = 50000)
+   Index Searches: 1
+   Buffers: shared hit=6
+ Planning:
+   Buffers: shared hit=74
+ Planning Time: 0.203 ms
+ Execution Time: 0.046 ms
+(8 rows)
+
+\echo '=== (1) 現在の内容 1 件: 案D（上限が無限の版を部分インデックスで引く） ==='
+=== (1) 現在の内容 1 件: 案D（上限が無限の版を部分インデックスで引く） ===
+EXPLAIN (ANALYZE) SELECT amount_yen, category_id, reason
+FROM ch09_d.revisions
+WHERE request_id = 50000 AND upper_inf(valid);
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_d_current on revisions  (cost=0.29..8.31 rows=1 width=28) (actual time=0.017..0.017 rows=1.00 loops=1)
+   Index Cond: (request_id = 50000)
+   Index Searches: 1
+   Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=73
+ Planning Time: 0.172 ms
+ Execution Time: 0.036 ms
+(8 rows)
+
+\echo '=== (2) ある時点の全件: 案C（本体と履歴を合わせて最新の版を選び直す） ==='
+=== (2) ある時点の全件: 案C（本体と履歴を合わせて最新の版を選び直す） ===
+EXPLAIN (ANALYZE)
+WITH allver AS (
+  SELECT id AS request_id, amount_yen, updated_at AS t FROM ch09_c.requests
+  UNION ALL
+  SELECT request_id, amount_yen, valid_from FROM ch09_c.request_history
+)
+SELECT count(*), sum(amount_yen) FROM (
+  SELECT DISTINCT ON (request_id) request_id, amount_yen
+  FROM allver
+  WHERE t <= timestamptz '2025-01-01 00:00:00+09'
+  ORDER BY request_id, t DESC
+) s;
+                                                                            QUERY PLAN                                                                             
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=16181.03..16181.04 rows=1 width=16) (actual time=46.487..46.488 rows=1.00 loops=1)
+   Buffers: shared hit=4378
+   ->  Unique  (cost=6436.42..16178.03 rows=200 width=20) (actual time=12.527..44.271 rows=50202.00 loops=1)
+         Buffers: shared hit=4378
+         ->  Merge Append  (cost=6436.42..15853.15 rows=129951 width=20) (actual time=12.527..36.733 rows=130000.00 loops=1)
+               Sort Key: requests.id, requests.updated_at DESC
+               Buffers: shared hit=4378
+               ->  Sort  (cost=6435.99..6561.95 rows=50382 width=20) (actual time=12.487..14.087 rows=50039.00 loops=1)
+                     Sort Key: requests.id, requests.updated_at DESC
+                     Sort Method: quicksort  Memory: 3491kB
+                     Buffers: shared hit=1251
+                     ->  Seq Scan on requests  (cost=0.00..2501.00 rows=50382 width=20) (actual time=0.008..7.163 rows=50039.00 loops=1)
+                           Filter: (updated_at <= '2024-12-31 15:00:00+00'::timestamp with time zone)
+                           Rows Removed by Filter: 49961
+                           Buffers: shared hit=1251
+               ->  Index Scan using idx_c_hist_asof on request_history  (cost=0.42..7991.69 rows=79569 width=20) (actual time=0.037..13.788 rows=79961.00 loops=1)
+                     Index Cond: (valid_from <= '2024-12-31 15:00:00+00'::timestamp with time zone)
+                     Index Searches: 1
+                     Buffers: shared hit=3127
+ Planning:
+   Buffers: shared hit=114
+ Planning Time: 0.273 ms
+ Execution Time: 46.673 ms
+(23 rows)
+
+\echo '=== (2) ある時点の全件: 案D（GiST インデックスで該当する版だけを拾う） ==='
+=== (2) ある時点の全件: 案D（GiST インデックスで該当する版だけを拾う） ===
+EXPLAIN (ANALYZE) SELECT count(*), sum(amount_yen)
+FROM ch09_d.revisions
+WHERE valid @> timestamptz '2025-01-01 00:00:00+09';
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5701.14..5701.15 rows=1 width=16) (actual time=12.954..12.955 rows=1.00 loops=1)
+   Buffers: shared hit=3480
+   ->  Bitmap Heap Scan on revisions  (cost=1615.89..5451.07 rows=50014 width=4) (actual time=3.124..10.524 rows=50202.00 loops=1)
+         Recheck Cond: (valid @> '2024-12-31 15:00:00+00'::timestamp with time zone)
+         Heap Blocks: exact=3210
+         Buffers: shared hit=3480
+         ->  Bitmap Index Scan on idx_d_valid_gist  (cost=0.00..1603.39 rows=50014 width=0) (actual time=2.889..2.889 rows=50202.00 loops=1)
+               Index Cond: (valid @> '2024-12-31 15:00:00+00'::timestamp with time zone)
+               Index Searches: 1
+               Buffers: shared hit=270
+ Planning:
+   Buffers: shared hit=12
+ Planning Time: 0.099 ms
+ Execution Time: 12.970 ms
+(14 rows)
+
+\echo '=== 両案が同じ答えを返すこと（先頭列が 0 なら正常） ==='
+=== 両案が同じ答えを返すこと（先頭列が 0 なら正常） ===
+-- 🔴 検査は、上で測ったのと同じ形の問い合わせで書く。
+--    入れ子の CTE に書き換えると、別の計画になって別の結果を返すことがある
+--    （実際に 163 件の差が出た。原因は書き換えたこちら側にあった）。
+WITH allver AS (
+  SELECT id AS request_id, amount_yen, updated_at AS t FROM ch09_c.requests
+  UNION ALL
+  SELECT request_id, amount_yen, valid_from FROM ch09_c.request_history
+),
+c AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s FROM (
+    SELECT DISTINCT ON (request_id) request_id, amount_yen
+    FROM allver WHERE t <= timestamptz '2025-01-01 00:00:00+09'
+    ORDER BY request_id, t DESC
+  ) x
+),
+d AS (
+  SELECT count(*) AS n, sum(amount_yen) AS s
+  FROM ch09_d.revisions WHERE valid @> timestamptz '2025-01-01 00:00:00+09'
+)
+SELECT (SELECT n FROM c) - (SELECT n FROM d) AS asof_count_diff,
+       (SELECT s FROM c) - (SELECT s FROM d) AS asof_sum_diff;
+ asof_count_diff | asof_sum_diff 
+-----------------+---------------
+               0 |             0
+(1 row)
+
+\echo '=== 時点を指定して返る件数（0 ではないこと＝空振りでないこと） ==='
+=== 時点を指定して返る件数（0 ではないこと＝空振りでないこと） ===
+SELECT count(*) AS rows_at_asof FROM ch09_d.revisions
+WHERE valid @> timestamptz '2025-01-01 00:00:00+09';
+ rows_at_asof 
+--------------
+        50202
+(1 row)
+

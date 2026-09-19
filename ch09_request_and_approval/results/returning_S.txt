@@ -1,0 +1,146 @@
+# 採取日時: 2026-09-19 09:09:28 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- 18 の RETURNING old / new で、更新と履歴への保存を 1 文で書く。
+--
+-- 案C は「更新前の行を履歴へ写す」設計なので、写し忘れる経路がある。
+-- 18 では UPDATE ... RETURNING old.* を CTE で受けて履歴へ INSERT できるため、
+-- 「更新したのに履歴を書かない」が構文の上で起きにくくなる。
+\echo '=== 更新前の内容（申請 50000） ==='
+=== 更新前の内容（申請 50000） ===
+SELECT id, rev, amount_yen, reason, updated_at FROM ch09_c.requests WHERE id = 50000;
+  id   | rev | amount_yen |   reason    |       updated_at       
+-------+-----+------------+-------------+------------------------
+ 50000 |   2 |      66656 | 訂正 1 回目 | 2024-10-14 09:38:12+00
+(1 row)
+
+SELECT count(*) AS history_rows_before
+FROM ch09_c.request_history WHERE request_id = 50000;
+ history_rows_before 
+---------------------
+                   1
+(1 row)
+
+\echo '=== 1 文で「更新」と「更新前の行の保存」を行う ==='
+=== 1 文で「更新」と「更新前の行の保存」を行う ===
+WITH upd AS (
+  UPDATE ch09_c.requests
+     SET amount_yen = amount_yen + 5000,
+         reason     = '訂正（領収書の再提出）',
+         rev        = rev + 1,
+         updated_at = timestamptz '2026-03-01 10:00:00+09'
+   WHERE id = 50000
+  RETURNING old.id          AS request_id,
+            old.rev         AS rev,
+            old.amount_yen  AS amount_yen,
+            old.category_id AS category_id,
+            old.reason      AS reason,
+            old.edited_by   AS edited_by,
+            old.updated_at  AS valid_from
+)
+INSERT INTO ch09_c.request_history
+  (request_id, rev, amount_yen, category_id, reason, edited_by, valid_from)
+SELECT request_id, rev, amount_yen, category_id, reason, edited_by, valid_from
+FROM upd;
+INSERT 0 1
+\echo '=== 更新後の内容と、履歴に入った更新前の行 ==='
+=== 更新後の内容と、履歴に入った更新前の行 ===
+SELECT id, rev, amount_yen, reason, updated_at FROM ch09_c.requests WHERE id = 50000;
+  id   | rev | amount_yen |         reason         |       updated_at       
+-------+-----+------------+------------------------+------------------------
+ 50000 |   3 |      71656 | 訂正（領収書の再提出） | 2026-03-01 01:00:00+00
+(1 row)
+
+SELECT rev, amount_yen, reason, valid_from
+FROM ch09_c.request_history WHERE request_id = 50000 ORDER BY rev;
+ rev | amount_yen |       reason       |       valid_from       
+-----+------------+--------------------+------------------------
+   1 |      66306 | 取引先訪問の交通費 | 2024-10-13 15:38:12+00
+   2 |      66656 | 訂正 1 回目        | 2024-10-14 09:38:12+00
+(2 rows)
+
+\echo '=== old と new を同じ文で返す（遷移の from と to を 1 回で取る） ==='
+=== old と new を同じ文で返す（遷移の from と to を 1 回で取る） ===
+UPDATE ch09_c.requests
+   SET amount_yen = amount_yen - 5000,
+       rev        = rev + 1,
+       updated_at = timestamptz '2026-03-02 10:00:00+09'
+ WHERE id = 50000
+RETURNING old.amount_yen AS 更新前, new.amount_yen AS 更新後,
+          new.amount_yen - old.amount_yen AS 差;
+ 更新前 | 更新後 |  差   
+--------+--------+-------
+  71656 |  66656 | -5000
+(1 row)
+
+UPDATE 1
+\echo '=== 🔴 old.*, new.* は列名が重複したまま返る（INSERT ... SELECT * に渡すとずれる） ==='
+=== 🔴 old.*, new.* は列名が重複したまま返る（INSERT ... SELECT * に渡すとずれる） ===
+UPDATE ch09_c.requests SET rev = rev WHERE id = 50000
+RETURNING old.id, new.id;
+  id   |  id   
+-------+-------
+ 50000 | 50000
+(1 row)
+
+UPDATE 1
+\echo '=== 後片付け（測定を繰り返せるように元へ戻す） ==='
+=== 後片付け（測定を繰り返せるように元へ戻す） ===
+-- 🔴 履歴は「元データに無い行を消す」で戻す。rev の番号で消すと、
+--    元から履歴にあった版（この申請では rev 2）まで残したり消したりしてしまう。
+--    実際に rev >= 3 だけを消したところ、本体と履歴に同じ (request_id, rev) が
+--    二重に残り、案D への移行で空の範囲ができて WITHOUT OVERLAPS に弾かれた。
+DELETE FROM ch09_c.request_history h
+WHERE h.request_id = 50000
+  AND h.rev >= (SELECT max(rev) FROM ch09_r.src_revision WHERE request_id = 50000);
+DELETE 1
+UPDATE ch09_c.requests c
+   SET rev = v.rev, amount_yen = v.amount_yen, category_id = v.category_id,
+       reason = v.reason, edited_by = v.edited_by, updated_at = v.valid_from
+  FROM (SELECT rev, amount_yen, category_id, reason, edited_by, valid_from
+        FROM ch09_r.src_revision WHERE request_id = 50000
+        ORDER BY rev DESC LIMIT 1) v
+ WHERE c.id = 50000;
+UPDATE 1
+-- 戻ったことの検査（すべて先頭列が 0 なら正常）
+SELECT count(*) AS not_restored FROM ch09_c.requests c
+JOIN (SELECT rev, amount_yen FROM ch09_r.src_revision WHERE request_id = 50000
+      ORDER BY rev DESC LIMIT 1) v ON true
+WHERE c.id = 50000 AND (c.rev <> v.rev OR c.amount_yen <> v.amount_yen);
+ not_restored 
+--------------
+            0
+(1 row)
+
+-- 本体と履歴を合わせた版が、元データと一致していること
+SELECT count(*) AS restore_diff FROM (
+  SELECT request_id, rev, amount_yen FROM ch09_r.src_revision WHERE request_id = 50000
+  EXCEPT (
+    SELECT id, rev, amount_yen FROM ch09_c.requests WHERE id = 50000
+    UNION ALL
+    SELECT request_id, rev, amount_yen FROM ch09_c.request_history WHERE request_id = 50000
+  )
+  UNION ALL
+  (
+    SELECT id, rev, amount_yen FROM ch09_c.requests WHERE id = 50000
+    UNION ALL
+    SELECT request_id, rev, amount_yen FROM ch09_c.request_history WHERE request_id = 50000
+  )
+  EXCEPT SELECT request_id, rev, amount_yen FROM ch09_r.src_revision WHERE request_id = 50000
+) d;
+ restore_diff 
+--------------
+            0
+(1 row)
+

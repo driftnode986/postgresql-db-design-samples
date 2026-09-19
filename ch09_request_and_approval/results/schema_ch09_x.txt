@@ -1,0 +1,37 @@
+# 採取日時: 2026-09-19 09:08:55 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 採取した案の検算に使う表。
+--
+-- 採取した 3 本のうち opus と sonnet は、内容の版を「開始と終わりの 2 列」で持ち、
+-- opus は CHECK (valid_to IS NULL OR valid_from < valid_to) を付けていた。
+-- この CHECK が何を守り、何を守らないかを確かめる。
+CREATE SCHEMA IF NOT EXISTS ch09_x;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch09_x.revisions;
+psql:/tmp/run-sql.sql:9: NOTICE:  table "revisions" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch09_x.revisions (
+  request_id int         NOT NULL,
+  rev        int         NOT NULL,
+  amount_yen int         NOT NULL,
+  valid_from timestamptz NOT NULL,
+  valid_to   timestamptz,                    -- 最新の版は NULL
+  PRIMARY KEY (request_id, rev),
+  -- 採取した案が付けていた CHECK。1 行の中の前後関係だけを見る
+  CHECK (valid_to IS NULL OR valid_from < valid_to)
+);
+CREATE TABLE
+-- 最新の版は 1 件の申請に 1 つだけ（これは検査される）
+CREATE UNIQUE INDEX idx_x_current ON ch09_x.revisions (request_id) WHERE valid_to IS NULL;
+CREATE INDEX

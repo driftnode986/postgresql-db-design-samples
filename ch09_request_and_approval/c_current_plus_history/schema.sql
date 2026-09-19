@@ -1,0 +1,49 @@
+-- 案C: 申請の本体に現在の内容を持ち、修正するたびに「更新前の行」を履歴へ写す。
+--
+-- 採取した 3 本のうち、opus と sonnet がこの形だった
+-- （opus は「最新リビジョンの非正規化コピー。正は expense_revisions」と明記した）。
+-- 現在値は本体を読むだけで済む。過去は履歴を遡る。
+--
+-- 🔴 「その時点の内容」を全件について求めるには、本体と履歴を合わせて
+--    「その時点で最新の版」を選び直す必要がある（queries/20_asof.sql で実測する）。
+
+CREATE SCHEMA IF NOT EXISTS ch09_c;
+
+CREATE TABLE ch09_c.employees (
+  id   bigint PRIMARY KEY,
+  name text   NOT NULL,
+  dept text   NOT NULL
+);
+
+CREATE TABLE ch09_c.categories (
+  id   int  PRIMARY KEY,
+  code text NOT NULL UNIQUE,
+  name text NOT NULL
+);
+
+-- 申請の本体。現在の内容をそのまま持つ
+CREATE TABLE ch09_c.requests (
+  id            bigint      PRIMARY KEY,
+  applicant_id  bigint      NOT NULL REFERENCES ch09_c.employees(id),
+  rev           int         NOT NULL,
+  amount_yen    int         NOT NULL,
+  category_id   int         NOT NULL REFERENCES ch09_c.categories(id),
+  reason        text        NOT NULL,
+  edited_by     bigint      NOT NULL REFERENCES ch09_c.employees(id),
+  created_at    timestamptz NOT NULL,
+  updated_at    timestamptz NOT NULL       -- 現在の版になった時刻
+);
+
+-- 履歴。更新前の行をここへ写す。changed_at は「その内容が終わった時刻」
+CREATE TABLE ch09_c.request_history (
+  request_id   bigint      NOT NULL REFERENCES ch09_c.requests(id),
+  rev          int         NOT NULL,
+  amount_yen   int         NOT NULL,
+  category_id  int         NOT NULL REFERENCES ch09_c.categories(id),
+  reason       text        NOT NULL,
+  edited_by    bigint      NOT NULL REFERENCES ch09_c.employees(id),
+  valid_from   timestamptz NOT NULL,       -- その内容になった時刻
+  PRIMARY KEY (request_id, rev)
+);
+
+CREATE INDEX idx_c_hist_asof ON ch09_c.request_history (request_id, valid_from DESC);
