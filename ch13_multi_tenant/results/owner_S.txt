@@ -1,0 +1,56 @@
+# 採取日時: 2026-09-19 16:54:41 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- ポリシーを付けた表を、表を作った本人（所有者）で読む。
+--
+-- FORCE を外すと、所有者にはポリシーが適用されない。
+-- 「設定したのに何も制限されていない」という状態は、
+-- 所有者のまま動作確認していると気づけない。
+--
+-- run-as: book_owner
+SELECT set_config('app.tenant_id', '50', false);
+ set_config 
+------------
+ 50
+(1 row)
+
+-- (1) FORCE を外した状態。所有者にはポリシーが効かない
+ALTER TABLE ch13_b.deals NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+SELECT count(*)                                  AS rows_visible_to_owner,
+       count(*) FILTER (WHERE tenant_id <> 50)  AS other_tenant_rows
+FROM ch13_b.deals;
+ rows_visible_to_owner | other_tenant_rows 
+-----------------------+-------------------
+                999400 |            998800
+(1 row)
+
+-- (2) FORCE を戻すと、所有者にも効く
+ALTER TABLE ch13_b.deals FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+SELECT count(*)                                  AS rows_visible_to_owner,
+       count(*) FILTER (WHERE tenant_id <> 50)  AS other_tenant_rows_must_be_zero
+FROM ch13_b.deals;
+ rows_visible_to_owner | other_tenant_rows_must_be_zero 
+-----------------------+--------------------------------
+                   600 |                              0
+(1 row)
+
+-- 自分がスーパーユーザーでも BYPASSRLS でもないことを示す
+SELECT current_user, rolsuper, rolbypassrls
+FROM pg_roles WHERE rolname = current_user;
+ current_user | rolsuper | rolbypassrls 
+--------------+----------+--------------
+ book_owner   | f        | f
+(1 row)
+

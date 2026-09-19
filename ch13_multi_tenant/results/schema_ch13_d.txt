@@ -1,0 +1,82 @@
+# 採取日時: 2026-09-19 16:54:31 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案D: 案B と同じ形に、tenant_id でのパーティション分けを足す。
+--
+-- 全社に 1 つずつパーティションを作るのではなく、
+-- 大きい会社だけを専用のパーティションにし、残りをまとめる。
+-- こうするとパーティションの数が増えないので、計画の作成が遅くならない。
+--
+-- 🔴 パーティション分けの鍵（tenant_id）を主キーに含める必要がある。
+--    案A・案B も (tenant_id, id) にしてあるので、主キーの形は 4 案でそろう。
+CREATE SCHEMA ch13_d;
+CREATE SCHEMA
+CREATE TABLE ch13_d.tenants (
+  id     int  PRIMARY KEY,
+  name   text NOT NULL,
+  status text NOT NULL DEFAULT 'active'
+         CHECK (status IN ('active', 'terminated'))
+);
+CREATE TABLE
+CREATE TABLE ch13_d.deals (
+  tenant_id   int           NOT NULL,
+  id          bigint        NOT NULL,
+  customer_id bigint        NOT NULL,
+  title       text          NOT NULL,
+  amount      numeric(14,2) NOT NULL,
+  created_at  timestamptz   NOT NULL,
+  PRIMARY KEY (tenant_id, id)
+) PARTITION BY LIST (tenant_id);
+CREATE TABLE
+-- 大きい会社は専用のパーティションにする
+CREATE TABLE ch13_d.deals_t1 PARTITION OF ch13_d.deals FOR VALUES IN (1);
+CREATE TABLE
+-- 残りはまとめる
+CREATE TABLE ch13_d.deals_rest PARTITION OF ch13_d.deals DEFAULT;
+CREATE TABLE
+
+-- 案D に元データを写す。案A・案B と同じ順・同じインデックス。
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM ch13_r.src_deal) = 0 THEN
+    RAISE EXCEPTION '元データ ch13_r.src_deal が空です。先に r_source/ を実行してください';
+  END IF;
+END $$;
+DO
+TRUNCATE ch13_d.deals, ch13_d.tenants RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+INSERT INTO ch13_d.tenants (id, name, status)
+SELECT id, name, status FROM ch13_r.src_tenant ORDER BY id;
+INSERT 0 1000
+INSERT INTO ch13_d.deals (tenant_id, id, customer_id, title, amount, created_at)
+SELECT tenant_id, id, customer_id, title, amount, created_at
+FROM ch13_r.src_deal ORDER BY tenant_id, id;
+INSERT 0 999400
+CREATE INDEX deals_tenant_created_d ON ch13_d.deals (tenant_id, created_at DESC);
+CREATE INDEX
+ANALYZE ch13_d.tenants, ch13_d.deals;
+ANALYZE
+-- パーティションごとの行数
+SELECT c.relname AS partition,
+       (SELECT count(*) FROM ch13_d.deals d
+         WHERE (c.relname = 'deals_t1' AND d.tenant_id = 1)
+            OR (c.relname = 'deals_rest' AND d.tenant_id <> 1)) AS rows
+FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+WHERE i.inhparent = 'ch13_d.deals'::regclass
+ORDER BY c.relname;
+ partition  |  rows  
+------------+--------
+ deals_rest | 599400
+ deals_t1   | 400000
+(2 rows)
+

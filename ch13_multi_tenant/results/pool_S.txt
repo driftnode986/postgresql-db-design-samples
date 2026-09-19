@@ -1,0 +1,82 @@
+# 採取日時: 2026-09-19 16:54:41 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 🔴 ポリシーを正しく設定していても、設定の寿命を間違えると他社の行が見える。
+--
+-- set_config の第 3 引数（is_local）が true なら、その設定はトランザクションが
+-- 終わると消える。false にすると接続が閉じるまで残る。
+-- 接続プールは同じ接続を次の利用者に渡すので、false にすると前の利用者の
+-- テナント ID が残ったままになる。
+--
+-- run-as: book_app
+-- (1) 利用者A（テナント 50）のリクエスト。is_local = false で設定してしまった
+BEGIN;
+BEGIN
+  SELECT set_config('app.tenant_id', '50', false) AS set_with_is_local_false;
+ set_with_is_local_false 
+-------------------------
+ 50
+(1 row)
+
+  SELECT count(*) AS rows_visible_to_user_a FROM ch13_b.deals;
+ rows_visible_to_user_a 
+------------------------
+                    600
+(1 row)
+
+COMMIT;
+COMMIT
+-- (2) 接続がプールに返り、利用者B（テナント 51）が借りた。
+--     利用者B のコードは set_config を呼び忘れている。
+BEGIN;
+BEGIN
+  SELECT current_setting('app.tenant_id') AS tenant_id_still_set,
+         count(*)                         AS rows_visible_to_user_b
+  FROM ch13_b.deals;
+ tenant_id_still_set | rows_visible_to_user_b 
+---------------------+------------------------
+ 50                  |                    600
+(1 row)
+
+COMMIT;
+COMMIT
+-- (3) 正しい書き方。is_local = true なら次のトランザクションに残らない。
+BEGIN;
+BEGIN
+  SELECT set_config('app.tenant_id', '50', true) AS set_with_is_local_true;
+ set_with_is_local_true 
+------------------------
+ 50
+(1 row)
+
+  SELECT count(*) AS rows_visible_inside_tx FROM ch13_b.deals;
+ rows_visible_inside_tx 
+------------------------
+                    600
+(1 row)
+
+COMMIT;
+COMMIT
+SELECT current_setting('app.tenant_id', true) AS tenant_id_after_commit;
+ tenant_id_after_commit 
+------------------------
+ 50
+(1 row)
+
+-- 後片付け。次の測定に影響させない。
+SELECT set_config('app.tenant_id', '50', false);
+ set_config 
+------------
+ 50
+(1 row)
+

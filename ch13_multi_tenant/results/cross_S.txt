@@ -1,0 +1,163 @@
+# 採取日時: 2026-09-19 16:54:39 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 運営の管理画面。全社を横断して、期間で集計する。
+-- tenant_id の条件が無いので、(tenant_id, created_at DESC) のインデックスの
+-- 先頭列が指定されない形になる。
+--
+-- PostgreSQL 18 は、こういう問い合わせでも複合インデックスを使える（skip scan）。
+-- 使われることと、それが速いかどうかは別なので、専用のインデックスと比べる。
+--
+-- run-as: book_app
+-- (1) 複合インデックスしかない状態。各 3 回
+EXPLAIN (ANALYZE) SELECT count(*) FROM ch13_a.deals
+WHERE created_at >= now() - interval '5 days' AND created_at < now();
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=15442.86..15442.87 rows=1 width=8) (actual time=19.687..19.707 rows=1.00 loops=1)
+   Buffers: shared hit=2056 read=4489
+   ->  Bitmap Heap Scan on deals  (cost=4313.03..15350.57 rows=36913 width=0) (actual time=9.076..18.410 rows=35999.00 loops=1)
+         Recheck Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+         Heap Blocks: exact=3331
+         Buffers: shared hit=2056 read=4489
+         ->  Bitmap Index Scan on deals_tenant_created_a  (cost=0.00..4303.80 rows=36913 width=0) (actual time=8.784..8.784 rows=35999.00 loops=1)
+               Index Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+               Index Searches: 1001
+               Buffers: shared hit=2001 read=1213
+ Planning:
+   Buffers: shared hit=119
+ Planning Time: 0.278 ms
+ Execution Time: 19.753 ms
+(14 rows)
+
+EXPLAIN (ANALYZE) SELECT count(*) FROM ch13_a.deals
+WHERE created_at >= now() - interval '5 days' AND created_at < now();
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=15442.86..15442.87 rows=1 width=8) (actual time=8.132..8.133 rows=1.00 loops=1)
+   Buffers: shared hit=6536
+   ->  Bitmap Heap Scan on deals  (cost=4313.03..15350.57 rows=36913 width=0) (actual time=3.108..6.936 rows=35999.00 loops=1)
+         Recheck Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+         Heap Blocks: exact=3331
+         Buffers: shared hit=6536
+         ->  Bitmap Index Scan on deals_tenant_created_a  (cost=0.00..4303.80 rows=36913 width=0) (actual time=2.853..2.853 rows=35999.00 loops=1)
+               Index Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+               Index Searches: 1001
+               Buffers: shared hit=3205
+ Planning Time: 0.066 ms
+ Execution Time: 8.163 ms
+(12 rows)
+
+EXPLAIN (ANALYZE) SELECT count(*) FROM ch13_a.deals
+WHERE created_at >= now() - interval '5 days' AND created_at < now();
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=15442.86..15442.87 rows=1 width=8) (actual time=6.544..6.544 rows=1.00 loops=1)
+   Buffers: shared hit=6536
+   ->  Bitmap Heap Scan on deals  (cost=4313.03..15350.57 rows=36913 width=0) (actual time=2.561..5.355 rows=35999.00 loops=1)
+         Recheck Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+         Heap Blocks: exact=3331
+         Buffers: shared hit=6536
+         ->  Bitmap Index Scan on deals_tenant_created_a  (cost=0.00..4303.80 rows=36913 width=0) (actual time=2.314..2.314 rows=35999.00 loops=1)
+               Index Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+               Index Searches: 1001
+               Buffers: shared hit=3205
+ Planning Time: 0.038 ms
+ Execution Time: 6.564 ms
+(12 rows)
+
+
+-- 横断用のインデックス (created_at) を足して、同じ問い合わせを測り直す。
+-- インデックスのサイズも記録して、払う代償を示す。
+--
+-- run-as: book_owner
+CREATE INDEX deals_created_a ON ch13_a.deals (created_at);
+CREATE INDEX
+ANALYZE ch13_a.deals;
+ANALYZE
+EXPLAIN (ANALYZE) SELECT count(*) FROM ch13_a.deals
+WHERE created_at >= now() - interval '5 days' AND created_at < now();
+                                                                QUERY PLAN                                                                 
+-------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=11884.77..11884.78 rows=1 width=8) (actual time=6.413..6.417 rows=1.00 loops=1)
+   Buffers: shared hit=3334 read=79
+   ->  Bitmap Heap Scan on deals  (cost=726.47..11789.64 rows=38052 width=0) (actual time=1.569..5.227 rows=35999.00 loops=1)
+         Recheck Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+         Heap Blocks: exact=3331
+         Buffers: shared hit=3334 read=79
+         ->  Bitmap Index Scan on deals_created_a  (cost=0.00..716.95 rows=38052 width=0) (actual time=1.317..1.317 rows=35999.00 loops=1)
+               Index Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+               Index Searches: 1
+               Buffers: shared hit=3 read=79
+ Planning:
+   Buffers: shared hit=21 read=4
+ Planning Time: 0.151 ms
+ Execution Time: 6.441 ms
+(14 rows)
+
+EXPLAIN (ANALYZE) SELECT count(*) FROM ch13_a.deals
+WHERE created_at >= now() - interval '5 days' AND created_at < now();
+                                                                QUERY PLAN                                                                 
+-------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=11884.77..11884.78 rows=1 width=8) (actual time=5.277..5.277 rows=1.00 loops=1)
+   Buffers: shared hit=3413
+   ->  Bitmap Heap Scan on deals  (cost=726.47..11789.64 rows=38052 width=0) (actual time=1.295..4.119 rows=35999.00 loops=1)
+         Recheck Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+         Heap Blocks: exact=3331
+         Buffers: shared hit=3413
+         ->  Bitmap Index Scan on deals_created_a  (cost=0.00..716.95 rows=38052 width=0) (actual time=1.025..1.025 rows=35999.00 loops=1)
+               Index Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+               Index Searches: 1
+               Buffers: shared hit=82
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.041 ms
+ Execution Time: 5.285 ms
+(14 rows)
+
+EXPLAIN (ANALYZE) SELECT count(*) FROM ch13_a.deals
+WHERE created_at >= now() - interval '5 days' AND created_at < now();
+                                                                QUERY PLAN                                                                 
+-------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=11884.77..11884.78 rows=1 width=8) (actual time=5.257..5.257 rows=1.00 loops=1)
+   Buffers: shared hit=3413
+   ->  Bitmap Heap Scan on deals  (cost=726.47..11789.64 rows=38052 width=0) (actual time=1.260..4.064 rows=35999.00 loops=1)
+         Recheck Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+         Heap Blocks: exact=3331
+         Buffers: shared hit=3413
+         ->  Bitmap Index Scan on deals_created_a  (cost=0.00..716.95 rows=38052 width=0) (actual time=1.007..1.007 rows=35999.00 loops=1)
+               Index Cond: ((created_at >= (now() - '5 days'::interval)) AND (created_at < now()))
+               Index Searches: 1
+               Buffers: shared hit=82
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.045 ms
+ Execution Time: 5.267 ms
+(14 rows)
+
+-- 2 つのインデックスのサイズ
+SELECT indexrelid::regclass AS index_name,
+       pg_size_pretty(pg_relation_size(indexrelid)) AS size
+FROM pg_stat_user_indexes
+WHERE schemaname = 'ch13_a' AND relname = 'deals'
+ORDER BY index_name;
+       index_name       | size  
+------------------------+-------
+ deals_pkey             | 30 MB
+ deals_tenant_created_a | 28 MB
+ deals_created_a        | 17 MB
+(3 rows)
+
+-- 元に戻す。以降の測定に影響させない。
+DROP INDEX ch13_a.deals_created_a;
+DROP INDEX

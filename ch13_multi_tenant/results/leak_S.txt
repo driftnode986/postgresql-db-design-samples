@@ -1,0 +1,67 @@
+# 採取日時: 2026-09-19 16:54:40 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案A で、絞り込みの条件を書き忘れた問い合わせを実行する。
+-- テナント 50 のアプリのつもりで実行している。
+--
+-- run-as: book_app
+\set me 50
+-- (1) 条件を書き忘れた一覧
+SELECT count(*)                                        AS rows_returned,
+       count(*) FILTER (WHERE tenant_id <> :me)        AS leaked_rows
+FROM ch13_a.deals;
+ rows_returned | leaked_rows 
+---------------+-------------
+        999400 |      998800
+(1 row)
+
+-- (2) 条件を書いた一覧（正しい実装）
+SELECT count(*)                                        AS rows_returned,
+       count(*) FILTER (WHERE tenant_id <> :me)        AS leaked_rows_must_be_zero
+FROM ch13_a.deals
+WHERE tenant_id = :me;
+ rows_returned | leaked_rows_must_be_zero 
+---------------+--------------------------
+           600 |                        0
+(1 row)
+
+
+-- 案B で、同じ「条件を書き忘れた問い合わせ」を実行する。
+-- SQL は案A の (1) と 1 文字も変わらない。違うのはポリシーがあることだけ。
+--
+-- run-as: book_app
+\set me 50
+SELECT set_config('app.tenant_id', :'me', false);
+ set_config 
+------------
+ 50
+(1 row)
+
+-- 案A では 999,400 行が返った同じ SQL
+SELECT count(*)                                 AS rows_returned,
+       count(*) FILTER (WHERE tenant_id <> :me) AS leaked_rows_must_be_zero
+FROM ch13_b.deals;
+ rows_returned | leaked_rows_must_be_zero 
+---------------+--------------------------
+           600 |                        0
+(1 row)
+
+-- 他社の行を 1 件だけ狙って読もうとしても返らない
+SELECT count(*) AS other_tenant_rows_must_be_zero
+FROM ch13_b.deals
+WHERE tenant_id = 51;
+ other_tenant_rows_must_be_zero 
+--------------------------------
+                              0
+(1 row)
+

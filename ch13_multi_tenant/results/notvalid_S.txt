@@ -1,0 +1,43 @@
+# 採取日時: 2026-09-19 16:54:37 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- パーティションに分けた表に、あとから外部キーを足す。
+--
+-- 外部キーを普通に足すと、既存の全行を検査するあいだロックを保持する。
+-- PostgreSQL 18 からは、パーティションに分けた表にも NOT VALID を付けられる。
+-- NOT VALID で足すと既存の行を検査しないので短く済み、
+-- 検査は別のコマンドで、あとから実行できる。
+--
+-- run-as: book_owner
+\timing on
+Timing is on.
+-- (1) 検査せずに足す
+ALTER TABLE ch13_d.deals
+  ADD CONSTRAINT deals_tenant_fk FOREIGN KEY (tenant_id)
+  REFERENCES ch13_d.tenants(id) NOT VALID;
+ALTER TABLE
+Time: 2.802 ms
+-- (2) あとから検査する
+ALTER TABLE ch13_d.deals VALIDATE CONSTRAINT deals_tenant_fk;
+ALTER TABLE
+Time: 55.977 ms
+\timing off
+Timing is off.
+SELECT conname, convalidated
+FROM pg_constraint
+WHERE conrelid = 'ch13_d.deals'::regclass AND contype = 'f';
+     conname     | convalidated 
+-----------------+--------------
+ deals_tenant_fk | t
+(1 row)
+

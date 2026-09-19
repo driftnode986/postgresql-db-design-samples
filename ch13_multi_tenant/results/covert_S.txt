@@ -1,0 +1,89 @@
+# 採取日時: 2026-09-19 16:54:47 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 一意制約からの情報漏れを再現するための準備。
+--
+-- 「全社を通じて 1 つのメールアドレスは 1 アカウント」という要件があると、
+-- 一意制約は tenant_id を含まない形になる。
+-- 元データは意図的に、テナントをまたいで同じ email を持たせてある
+-- （user1@example.com が全社にある）ので、
+-- まず衝突する行を消してから制約を張る。
+--
+-- run-as: book_owner
+-- 🔴 FORCE ROW LEVEL SECURITY を付けてあるので、所有者による管理作業にも
+--    ポリシーが適用される。app.tenant_id を設定しないと、ポリシー式の評価が
+--    失敗して DELETE すらできない。
+--    ここでは準備のために、いったんポリシーを外して作業する。
+ALTER TABLE ch13_b.customers NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+ALTER TABLE ch13_b.deals     NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+-- 衝突する行を消す（テナント 50 と 52 の 2 社だけ残す実験用）。
+-- 案件が顧客を参照しているので、案件から先に消す。
+DELETE FROM ch13_b.deals;
+DELETE 598800
+DELETE FROM ch13_b.customers WHERE tenant_id NOT IN (50, 52);
+DELETE 49800
+-- 50 と 52 は同じアドレスの並び（user1〜user50）を持つので、52 側を消す
+DELETE FROM ch13_b.customers WHERE tenant_id = 52;
+DELETE 50
+-- テナント 52 にだけ存在するアドレスを 1 件用意する
+INSERT INTO ch13_b.customers (tenant_id, id, email, name)
+VALUES (52, 5200999, 'secret@t52.example.com', 'only-in-52');
+INSERT 0 1
+-- 全社で一意（tenant_id を含まない）
+CREATE UNIQUE INDEX customers_email_global ON ch13_b.customers (email);
+CREATE INDEX
+SELECT count(*) AS customers_left,
+       count(*) FILTER (WHERE email = 'secret@t52.example.com') AS secret_rows
+FROM ch13_b.customers;
+ customers_left | secret_rows 
+----------------+-------------
+             51 |           1
+(1 row)
+
+-- ポリシーを戻す。ここから先は所有者にもポリシーが適用される。
+ALTER TABLE ch13_b.customers FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+
+-- run-as: book_app
+-- expect-error: 23505
+-- 🔴 見えない行の存在が、一意制約のエラーから分かる。
+--
+-- テナント 50 として接続する。テナント 52 の顧客は 1 件も見えない。
+-- それなのに、52 が使っているアドレスを登録しようとするとエラーになる。
+-- つまり「そのアドレスは他社が使っている」と分かってしまう。
+--
+-- 公式マニュアルはこれを covert channel として警告している。
+-- 参照整合性の検査（一意制約・主キー・外部キー）は、データの整合性を保つため、
+-- 常に行レベルセキュリティを迂回する。
+--
+SELECT set_config('app.tenant_id', '50', false);
+ set_config 
+------------
+ 50
+(1 row)
+
+-- (1) テナント 50 からは、そのアドレスの行は 1 件も見えない
+SELECT count(*) AS visible_rows_with_that_email
+FROM ch13_b.customers
+WHERE email = 'secret@t52.example.com';
+ visible_rows_with_that_email 
+------------------------------
+                            0
+(1 row)
+
+-- (2) だが同じアドレスを自社に登録しようとすると弾かれる
+INSERT INTO ch13_b.customers (tenant_id, id, email, name)
+VALUES (50, 5000999, 'secret@t52.example.com', 'mine');
+psql:/tmp/run-sql.sql:22: ERROR:  duplicate key value violates unique constraint "customers_email_global"

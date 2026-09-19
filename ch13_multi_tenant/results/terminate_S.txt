@@ -1,0 +1,98 @@
+# 採取日時: 2026-09-19 16:54:45 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- テナント 1 社の解約。小さい会社（51）と大きい会社（1）の両方で測る。
+--
+-- 案B は DELETE、案C は DROP SCHEMA、案D は DETACH + DROP TABLE。
+-- 時間だけでなく、そのあとに残るもの（不要になった行と、戻らない領域）も見る。
+--
+-- run-as: book_owner
+-- standalone
+--
+-- 🔴 案B は FORCE ROW LEVEL SECURITY なので、所有者にもポリシーが適用される。
+--    解約は「他社の行を消す」操作なので、ポリシーが付いたままでは実行できない。
+--    運用では BYPASSRLS を持つ管理用のロールを用意するが、ここでは
+--    測定のためにポリシーを外して時間を測る（外す操作自体は一瞬で終わる）。
+ALTER TABLE ch13_b.deals     NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+ALTER TABLE ch13_b.customers NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE
+\timing on
+Timing is on.
+-- 案B: 小さい会社
+DELETE FROM ch13_b.deals     WHERE tenant_id = 51;
+DELETE 600
+Time: 1.081 ms
+DELETE FROM ch13_b.customers WHERE tenant_id = 51;
+DELETE 50
+Time: 1.643 ms
+-- 案B: 大きい会社
+DELETE FROM ch13_b.deals     WHERE tenant_id = 1;
+DELETE 400000
+Time: 160.601 ms
+DELETE FROM ch13_b.customers WHERE tenant_id = 1;
+DELETE 5000
+Time: 2016.689 ms (00:02.017)
+-- 案C: 小さい会社
+DROP SCHEMA ch13_c_t0051 CASCADE;
+psql:/tmp/run-sql.sql:27: NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to table ch13_c_t0051.customers
+drop cascades to table ch13_c_t0051.deals
+DROP SCHEMA
+Time: 6.991 ms
+-- 案C: 大きい会社
+DROP SCHEMA ch13_c_t0001 CASCADE;
+psql:/tmp/run-sql.sql:30: NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to table ch13_c_t0001.customers
+drop cascades to table ch13_c_t0001.deals
+DROP SCHEMA
+Time: 7.532 ms
+-- 案D: 大きい会社（パーティションを外して落とす）
+ALTER TABLE ch13_d.deals DETACH PARTITION ch13_d.deals_t1;
+ALTER TABLE
+Time: 2.521 ms
+DROP TABLE ch13_d.deals_t1;
+DROP TABLE
+Time: 3.626 ms
+\timing off
+Timing is off.
+-- 案B の後始末。DELETE したぶんは、すぐには領域が戻らない。
+SELECT relname,
+       n_live_tup, n_dead_tup,
+       pg_size_pretty(pg_total_relation_size(relid)) AS total_size
+FROM pg_stat_user_tables
+WHERE schemaname = 'ch13_b' AND relname IN ('deals', 'customers')
+ORDER BY relname;
+  relname  | n_live_tup | n_dead_tup | total_size 
+-----------+------------+------------+------------
+ customers |      49900 |       5050 | 8568 kB
+ deals     |     598800 |     400600 | 146 MB
+(2 rows)
+
+\timing on
+Timing is on.
+VACUUM ch13_b.deals;
+VACUUM
+Time: 72.938 ms
+\timing off
+Timing is off.
+SELECT relname,
+       n_live_tup, n_dead_tup,
+       pg_size_pretty(pg_total_relation_size(relid)) AS size_after_vacuum
+FROM pg_stat_user_tables
+WHERE schemaname = 'ch13_b' AND relname = 'deals';
+ relname | n_live_tup | n_dead_tup | size_after_vacuum 
+---------+------------+------------+-------------------
+ deals   |     598800 |          0 | 146 MB
+(1 row)
+

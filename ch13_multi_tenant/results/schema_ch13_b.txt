@@ -1,0 +1,113 @@
+# 採取日時: 2026-09-19 16:54:15 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案B: 案A と同じ形に、行レベルセキュリティのポリシーを足す。
+--
+-- 案A との違いはポリシーだけである。列もインデックスも同じにしてあるので、
+-- 測って出た差は、すべてポリシーによるものになる。
+CREATE SCHEMA ch13_b;
+CREATE SCHEMA
+CREATE TABLE ch13_b.tenants (
+  id     int  PRIMARY KEY,
+  name   text NOT NULL,
+  status text NOT NULL DEFAULT 'active'
+         CHECK (status IN ('active', 'terminated'))
+);
+CREATE TABLE
+CREATE TABLE ch13_b.customers (
+  tenant_id int    NOT NULL REFERENCES ch13_b.tenants(id),
+  id        bigint NOT NULL,
+  email     text   NOT NULL,
+  name      text   NOT NULL,
+  PRIMARY KEY (tenant_id, id)
+);
+CREATE TABLE
+CREATE TABLE ch13_b.deals (
+  tenant_id   int           NOT NULL REFERENCES ch13_b.tenants(id),
+  id          bigint        NOT NULL,
+  customer_id bigint        NOT NULL,
+  title       text          NOT NULL,
+  amount      numeric(14,2) NOT NULL,
+  created_at  timestamptz   NOT NULL,
+  PRIMARY KEY (tenant_id, id),
+  FOREIGN KEY (tenant_id, customer_id)
+    REFERENCES ch13_b.customers(tenant_id, id)
+);
+CREATE TABLE
+
+-- 案B に元データを写す。案A と同じ順・同じインデックスにする。
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM ch13_r.src_deal) = 0 THEN
+    RAISE EXCEPTION '元データ ch13_r.src_deal が空です。先に r_source/ を実行してください';
+  END IF;
+END $$;
+DO
+TRUNCATE ch13_b.deals, ch13_b.customers, ch13_b.tenants RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+INSERT INTO ch13_b.tenants (id, name, status)
+SELECT id, name, status FROM ch13_r.src_tenant ORDER BY id;
+INSERT 0 1000
+INSERT INTO ch13_b.customers (tenant_id, id, email, name)
+SELECT tenant_id, id, email, name FROM ch13_r.src_customer ORDER BY tenant_id, id;
+INSERT 0 54950
+INSERT INTO ch13_b.deals (tenant_id, id, customer_id, title, amount, created_at)
+SELECT tenant_id, id, customer_id, title, amount, created_at
+FROM ch13_r.src_deal ORDER BY tenant_id, id;
+INSERT 0 999400
+CREATE INDEX deals_tenant_created_b ON ch13_b.deals (tenant_id, created_at DESC);
+CREATE INDEX
+CREATE INDEX customers_tenant_email_b ON ch13_b.customers (tenant_id, email);
+CREATE INDEX
+ANALYZE ch13_b.tenants, ch13_b.customers, ch13_b.deals;
+ANALYZE
+
+-- run-as: book_owner
+-- 案B のポリシーを付ける。
+--
+-- ENABLE だけでは、表を作った本人（所有者）には適用されない。
+-- FORCE を付けて、所有者にも適用させる。
+ALTER TABLE ch13_b.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE
+ALTER TABLE ch13_b.deals     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE
+ALTER TABLE ch13_b.customers FORCE  ROW LEVEL SECURITY;
+ALTER TABLE
+ALTER TABLE ch13_b.deals     FORCE  ROW LEVEL SECURITY;
+ALTER TABLE
+-- USING は読み取りの条件。書き込みの条件（WITH CHECK）を省くと、
+-- USING が暗黙の WITH CHECK として使われる。
+CREATE POLICY tenant_isolation ON ch13_b.customers
+  USING (tenant_id = current_setting('app.tenant_id')::int);
+CREATE POLICY
+CREATE POLICY tenant_isolation ON ch13_b.deals
+  USING (tenant_id = current_setting('app.tenant_id')::int);
+CREATE POLICY
+-- 測定用のロールに読み書きを許す。ポリシーは GRANT とは別の層なので、
+-- GRANT しただけでは他社の行は見えない。
+GRANT SELECT, INSERT, UPDATE, DELETE ON ch13_b.customers, ch13_b.deals TO book_app;
+GRANT
+GRANT SELECT ON ch13_b.tenants TO book_app;
+GRANT
+SELECT relname,
+       relrowsecurity  AS enabled,
+       relforcerowsecurity AS forced
+FROM pg_class
+WHERE oid IN ('ch13_b.customers'::regclass, 'ch13_b.deals'::regclass)
+ORDER BY relname;
+  relname  | enabled | forced 
+-----------+---------+--------
+ customers | t       | t
+ deals     | t       | t
+(2 rows)
+

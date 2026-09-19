@@ -1,0 +1,110 @@
+# 採取日時: 2026-09-19 16:54:05 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案A: tenant_id の列を持ち、絞り込みをアプリが書く。
+--
+-- 主キーを (tenant_id, id) の複合にし、外部キーにも tenant_id を含める。
+-- こうすると「A 社の案件が B 社の顧客を参照する」という行を、
+-- データベースが受け付けない。アプリのバグでも混ざらない。
+CREATE SCHEMA ch13_a;
+CREATE SCHEMA
+CREATE TABLE ch13_a.tenants (
+  id     int  PRIMARY KEY,
+  name   text NOT NULL,
+  status text NOT NULL DEFAULT 'active'
+         CHECK (status IN ('active', 'terminated'))
+);
+CREATE TABLE
+CREATE TABLE ch13_a.customers (
+  tenant_id int    NOT NULL REFERENCES ch13_a.tenants(id),
+  id        bigint NOT NULL,
+  email     text   NOT NULL,
+  name      text   NOT NULL,
+  PRIMARY KEY (tenant_id, id)
+);
+CREATE TABLE
+CREATE TABLE ch13_a.deals (
+  tenant_id   int           NOT NULL REFERENCES ch13_a.tenants(id),
+  id          bigint        NOT NULL,
+  customer_id bigint        NOT NULL,
+  title       text          NOT NULL,
+  amount      numeric(14,2) NOT NULL,
+  created_at  timestamptz   NOT NULL,
+  PRIMARY KEY (tenant_id, id),
+  FOREIGN KEY (tenant_id, customer_id)
+    REFERENCES ch13_a.customers(tenant_id, id)
+);
+CREATE TABLE
+
+-- 案A に元データを写す。
+--
+-- 🔴 元データが空なら、何も消す前にエラーで止める。
+--    空のまま写すと、全案が空になり、検査が「一致」で通ってしまう。
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM ch13_r.src_deal) = 0 THEN
+    RAISE EXCEPTION '元データ ch13_r.src_deal が空です。先に r_source/ を実行してください';
+  END IF;
+END $$;
+DO
+TRUNCATE ch13_a.deals, ch13_a.customers, ch13_a.tenants RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+INSERT INTO ch13_a.tenants (id, name, status)
+SELECT id, name, status FROM ch13_r.src_tenant ORDER BY id;
+INSERT 0 1000
+INSERT INTO ch13_a.customers (tenant_id, id, email, name)
+SELECT tenant_id, id, email, name FROM ch13_r.src_customer ORDER BY tenant_id, id;
+INSERT 0 54950
+INSERT INTO ch13_a.deals (tenant_id, id, customer_id, title, amount, created_at)
+SELECT tenant_id, id, customer_id, title, amount, created_at
+FROM ch13_r.src_deal ORDER BY tenant_id, id;
+INSERT 0 999400
+-- 🔴 インデックスはデータを入れてから作る（規約。付けたまま入れると充填率が変わる）。
+CREATE INDEX deals_tenant_created_a ON ch13_a.deals (tenant_id, created_at DESC);
+CREATE INDEX
+CREATE INDEX customers_tenant_email_a ON ch13_a.customers (tenant_id, email);
+CREATE INDEX
+ANALYZE ch13_a.tenants, ch13_a.customers, ch13_a.deals;
+ANALYZE
+
+-- 案A が元データと同じ中身であることを検査する。全行の先頭列が 0 になる。
+--
+-- 🔴 元データが空でないことも同時に見る。空どうしを比べると差が 0 になり、
+--    「一致した」と読み誤る。
+SELECT
+  (SELECT count(*) FROM (
+     (SELECT tenant_id, id, customer_id, title, amount, created_at FROM ch13_a.deals
+      EXCEPT
+      SELECT tenant_id, id, customer_id, title, amount, created_at FROM ch13_r.src_deal)
+     UNION ALL
+     (SELECT tenant_id, id, customer_id, title, amount, created_at FROM ch13_r.src_deal
+      EXCEPT
+      SELECT tenant_id, id, customer_id, title, amount, created_at FROM ch13_a.deals)
+   ) d) AS deal_diff_must_be_zero,
+  (SELECT count(*) FROM (
+     (SELECT tenant_id, id, email, name FROM ch13_a.customers
+      EXCEPT
+      SELECT tenant_id, id, email, name FROM ch13_r.src_customer)
+     UNION ALL
+     (SELECT tenant_id, id, email, name FROM ch13_r.src_customer
+      EXCEPT
+      SELECT tenant_id, id, email, name FROM ch13_a.customers)
+   ) c) AS customer_diff_must_be_zero,
+  (SELECT CASE WHEN count(*) = 0 THEN 1 ELSE 0 END FROM ch13_r.src_deal)
+    AS source_empty_must_be_zero,
+  (SELECT count(*) FROM ch13_a.deals) AS deals;
+ deal_diff_must_be_zero | customer_diff_must_be_zero | source_empty_must_be_zero | deals  
+------------------------+----------------------------+---------------------------+--------
+                      0 |                          0 |                         0 | 999400
+(1 row)
+

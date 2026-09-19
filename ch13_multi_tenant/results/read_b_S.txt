@@ -1,0 +1,123 @@
+# 採取日時: 2026-09-19 16:54:39 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案B の一覧。SQL に WHERE tenant_id は書かない。ポリシーが付ける。
+-- 案A と同じテナント・同じ件数・同じ回数で測る。
+--
+-- run-as: book_app
+-- 小さい会社
+SELECT set_config('app.tenant_id', '50', false);
+ set_config 
+------------
+ 50
+(1 row)
+
+EXPLAIN (ANALYZE) SELECT id, title, amount, created_at
+FROM ch13_b.deals ORDER BY created_at DESC LIMIT 20;
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..35.38 rows=20 width=32) (actual time=0.020..0.028 rows=20.00 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using deals_tenant_created_b on deals  (cost=0.43..1047.04 rows=599 width=32) (actual time=0.015..0.021 rows=20.00 loops=1)
+         Index Cond: (tenant_id = (current_setting('app.tenant_id'::text))::integer)
+         Index Searches: 1
+         Buffers: shared hit=23
+ Planning:
+   Buffers: shared hit=167
+ Planning Time: 0.351 ms
+ Execution Time: 0.045 ms
+(10 rows)
+
+EXPLAIN (ANALYZE) SELECT id, title, amount, created_at
+FROM ch13_b.deals ORDER BY created_at DESC LIMIT 20;
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..35.38 rows=20 width=32) (actual time=0.009..0.015 rows=20.00 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using deals_tenant_created_b on deals  (cost=0.43..1047.04 rows=599 width=32) (actual time=0.008..0.014 rows=20.00 loops=1)
+         Index Cond: (tenant_id = (current_setting('app.tenant_id'::text))::integer)
+         Index Searches: 1
+         Buffers: shared hit=23
+ Planning Time: 0.033 ms
+ Execution Time: 0.022 ms
+(8 rows)
+
+EXPLAIN (ANALYZE) SELECT id, title, amount, created_at
+FROM ch13_b.deals ORDER BY created_at DESC LIMIT 20;
+                                                                  QUERY PLAN                                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..35.38 rows=20 width=32) (actual time=0.014..0.039 rows=20.00 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using deals_tenant_created_b on deals  (cost=0.43..1047.04 rows=599 width=32) (actual time=0.014..0.037 rows=20.00 loops=1)
+         Index Cond: (tenant_id = (current_setting('app.tenant_id'::text))::integer)
+         Index Searches: 1
+         Buffers: shared hit=23
+ Planning Time: 0.072 ms
+ Execution Time: 0.048 ms
+(8 rows)
+
+-- 大きい会社
+SELECT set_config('app.tenant_id', '1', false);
+ set_config 
+------------
+ 1
+(1 row)
+
+EXPLAIN (ANALYZE) SELECT id, title, amount, created_at
+FROM ch13_b.deals ORDER BY created_at DESC LIMIT 20;
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..2.08 rows=20 width=32) (actual time=0.063..0.097 rows=20.00 loops=1)
+   Buffers: shared hit=18 read=5
+   ->  Index Scan using deals_tenant_created_b on deals  (cost=0.43..32749.12 rows=398561 width=32) (actual time=0.062..0.095 rows=20.00 loops=1)
+         Index Cond: (tenant_id = (current_setting('app.tenant_id'::text))::integer)
+         Index Searches: 1
+         Buffers: shared hit=18 read=5
+ Planning Time: 0.075 ms
+ Execution Time: 0.108 ms
+(8 rows)
+
+EXPLAIN (ANALYZE) SELECT id, title, amount, created_at
+FROM ch13_b.deals ORDER BY created_at DESC LIMIT 20;
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..2.08 rows=20 width=32) (actual time=0.006..0.012 rows=20.00 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using deals_tenant_created_b on deals  (cost=0.43..32749.12 rows=398561 width=32) (actual time=0.006..0.010 rows=20.00 loops=1)
+         Index Cond: (tenant_id = (current_setting('app.tenant_id'::text))::integer)
+         Index Searches: 1
+         Buffers: shared hit=23
+ Planning Time: 0.028 ms
+ Execution Time: 0.016 ms
+(8 rows)
+
+EXPLAIN (ANALYZE) SELECT id, title, amount, created_at
+FROM ch13_b.deals ORDER BY created_at DESC LIMIT 20;
+                                                                    QUERY PLAN                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.43..2.08 rows=20 width=32) (actual time=0.009..0.016 rows=20.00 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using deals_tenant_created_b on deals  (cost=0.43..32749.12 rows=398561 width=32) (actual time=0.009..0.014 rows=20.00 loops=1)
+         Index Cond: (tenant_id = (current_setting('app.tenant_id'::text))::integer)
+         Index Searches: 1
+         Buffers: shared hit=23
+ Planning Time: 0.029 ms
+ Execution Time: 0.021 ms
+(8 rows)
+
+SELECT set_config('app.tenant_id', '50', false);
+ set_config 
+------------
+ 50
+(1 row)
+
