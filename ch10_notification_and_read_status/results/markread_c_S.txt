@@ -1,0 +1,82 @@
+# 採取日時: 2026-09-19 10:18:56 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+--
+-- 案C で「すべて既読にする」。
+-- 告知の側はカーソルを 1 行更新するだけで終わる。
+-- 個別の通知は案A と同じく行を書き換える（カーソルは告知にしか効かない）。
+--
+-- 🔴 案A と比べるときは、比べている対象をそろえること。
+--    「案C なら 1 行で済む」のは**告知の既読**であって、個別の通知ではない。
+--    ここを混ぜると、案C を過大評価する。
+\timing on
+Timing is on.
+SET search_path TO ch10_c, public;
+SET
+Time: 0.151 ms
+\echo '=== 更新する前 ==='
+=== 更新する前 ===
+SELECT (SELECT broadcast_read_upto FROM ch10_c.read_cursors WHERE user_id = 107)
+         AS cursor_before,
+       (SELECT max(id) FROM ch10_c.broadcasts) AS latest_broadcast,
+       (SELECT count(*) FROM ch10_c.broadcasts b
+         WHERE b.id > (SELECT broadcast_read_upto FROM ch10_c.read_cursors
+                        WHERE user_id = 107)) AS unread_broadcasts;
+ cursor_before | latest_broadcast | unread_broadcasts 
+---------------+------------------+-------------------
+             3 |               20 |                17
+(1 row)
+
+Time: 1.301 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.121 ms
+SELECT wal_records, wal_bytes FROM pg_stat_wal \gset wal_before_
+Time: 0.275 ms
+BEGIN;
+BEGIN
+Time: 0.066 ms
+\echo '=== 告知をすべて既読にする（カーソルを 1 行更新） ==='
+=== 告知をすべて既読にする（カーソルを 1 行更新） ===
+UPDATE ch10_c.read_cursors
+   SET broadcast_read_upto = (SELECT max(id) FROM ch10_c.broadcasts),
+       updated_at = now()
+ WHERE user_id = 107;
+UPDATE 1
+Time: 0.286 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.084 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.119 ms
+\echo '=== この操作が書いた WAL（操作 1 回あたり） ==='
+=== この操作が書いた WAL（操作 1 回あたり） ===
+SELECT wal_records - :wal_before_wal_records            AS wal_records,
+       pg_size_pretty(wal_bytes - :wal_before_wal_bytes) AS wal_size
+  FROM pg_stat_wal;
+ wal_records | wal_size  
+-------------+-----------
+           4 | 250 bytes
+(1 row)
+
+Time: 0.339 ms

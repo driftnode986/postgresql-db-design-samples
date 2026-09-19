@@ -1,0 +1,60 @@
+# 採取日時: 2026-09-19 10:18:50 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案C: 利用者ごとに「ここまで読んだ」位置を持つ
+--
+-- 告知は 1 行だけ持ち（案B と同じ）、既読は「どの告知まで読んだか」という
+-- 位置（カーソル）を利用者 1 人につき 1 つだけ持つ。
+-- 「この告知だけ既読」はできなくなるが、既読にする操作が 1 行の更新で済む。
+--
+-- 利点: 「すべて既読にする」が 1 行の更新で終わる。表の大きさが利用者数で決まる。
+-- 代償: 既読の粒度を失う。飛ばして読むことができない。
+CREATE SCHEMA IF NOT EXISTS ch10_c;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch10_c.read_cursors;
+psql:/tmp/run-sql.sql:12: NOTICE:  table "read_cursors" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch10_c.broadcasts;
+psql:/tmp/run-sql.sql:13: NOTICE:  table "broadcasts" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch10_c.notifications;
+psql:/tmp/run-sql.sql:14: NOTICE:  table "notifications" does not exist, skipping
+DROP TABLE
+-- 個別の通知（案A・案B と同じ形）
+CREATE TABLE ch10_c.notifications (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  kind       text        NOT NULL,
+  body       text        NOT NULL,
+  read_at    timestamptz,
+  created_at timestamptz NOT NULL
+);
+CREATE TABLE
+-- 全員向けの告知（案B と同じ。id は元データのものを使う）
+CREATE TABLE ch10_c.broadcasts (
+  id         bigint      PRIMARY KEY,
+  kind       text        NOT NULL,
+  body       text        NOT NULL,
+  created_at timestamptz NOT NULL
+);
+CREATE TABLE
+-- 利用者ごとに 1 行。「この id までの告知は読んだ」という位置を持つ。
+--
+-- 🔴 位置を id で持てるのは、告知の id が時刻順に増えるからである。
+--    id が時刻順でない設計（UUIDv4 など）では、この案は成立しない。
+CREATE TABLE ch10_c.read_cursors (
+  user_id             bigint PRIMARY KEY,
+  broadcast_read_upto bigint NOT NULL DEFAULT 0,
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE

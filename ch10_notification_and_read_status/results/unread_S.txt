@@ -1,0 +1,421 @@
+# 採取日時: 2026-09-19 10:18:52 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+## 10_unread_count.sql on ch10_a
+-- 未読件数と未読 20 件。ヘッダーに常に表示されるので、最も頻度が高い問い合わせ。
+--
+-- 🔴 検算の入口: 採取した案のうち opus だけが
+--    「3 億件を数えるクエリは絶対に間に合わない」と断定し、
+--    カウンタ列を持つ設計を出した（docs/research/ch10_first_idea.md）。
+--    ほかの 2 本は素直に count(*) で数えている。
+--    **その断定が正しいかを、部分インデックスを張った状態で測る。**
+--
+-- 🔴 測る対象は「ためこむ人」（user_id % 100 = 7）にする。
+--    未読が均等に散った利用者を選ぶと未読 0 件になり、案の差が測れない
+--    （docs/research/ch10_verification.md §17）。
+--
+-- このファイルは案ごとの search_path で実行される（どの案にも notifications がある）。
+\timing on
+Timing is on.
+\echo '=== 対象の利用者の未読件数（個別の通知） ==='
+=== 対象の利用者の未読件数（個別の通知） ===
+SELECT user_id, count(*) AS unread
+  FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL
+ GROUP BY user_id;
+ user_id | unread 
+---------+--------
+     107 |     92
+(1 row)
+
+Time: 1.856 ms
+\echo '=== (1) 未読件数を数える（3 回） ==='
+=== (1) 未読件数を数える（3 回） ===
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=385.67..385.68 rows=1 width=8) (actual time=0.090..0.090 rows=1.00 loops=1)
+   Buffers: shared hit=92
+   ->  Bitmap Heap Scan on notifications  (cost=5.10..385.41 rows=105 width=0) (actual time=0.044..0.081 rows=92.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=90
+         Buffers: shared hit=92
+         ->  Bitmap Index Scan on notif_a_unread  (cost=0.00..5.08 rows=105 width=0) (actual time=0.033..0.033 rows=92.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.043 ms
+ Execution Time: 0.104 ms
+(12 rows)
+
+Time: 0.315 ms
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=385.67..385.68 rows=1 width=8) (actual time=0.050..0.050 rows=1.00 loops=1)
+   Buffers: shared hit=92
+   ->  Bitmap Heap Scan on notifications  (cost=5.10..385.41 rows=105 width=0) (actual time=0.012..0.041 rows=92.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=90
+         Buffers: shared hit=92
+         ->  Bitmap Index Scan on notif_a_unread  (cost=0.00..5.08 rows=105 width=0) (actual time=0.005..0.005 rows=92.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.018 ms
+ Execution Time: 0.055 ms
+(12 rows)
+
+Time: 0.169 ms
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=385.67..385.68 rows=1 width=8) (actual time=0.081..0.082 rows=1.00 loops=1)
+   Buffers: shared hit=92
+   ->  Bitmap Heap Scan on notifications  (cost=5.10..385.41 rows=105 width=0) (actual time=0.016..0.070 rows=92.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=90
+         Buffers: shared hit=92
+         ->  Bitmap Index Scan on notif_a_unread  (cost=0.00..5.08 rows=105 width=0) (actual time=0.008..0.008 rows=92.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.031 ms
+ Execution Time: 0.091 ms
+(12 rows)
+
+Time: 0.293 ms
+\echo '=== (2) 未読を新しい順に 20 件（3 回） ==='
+=== (2) 未読を新しい順に 20 件（3 回） ===
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..81.39 rows=20 width=52) (actual time=0.005..0.013 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_a_unread on notifications  (cost=0.29..426.07 rows=105 width=52) (actual time=0.004..0.010 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=59
+ Planning Time: 0.125 ms
+ Execution Time: 0.018 ms
+(10 rows)
+
+Time: 0.344 ms
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..81.39 rows=20 width=52) (actual time=0.006..0.015 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_a_unread on notifications  (cost=0.29..426.07 rows=105 width=52) (actual time=0.005..0.013 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.029 ms
+ Execution Time: 0.021 ms
+(8 rows)
+
+Time: 0.159 ms
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..81.39 rows=20 width=52) (actual time=0.006..0.015 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_a_unread on notifications  (cost=0.29..426.07 rows=105 width=52) (actual time=0.006..0.014 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.029 ms
+ Execution Time: 0.025 ms
+(8 rows)
+
+Time: 0.157 ms
+## 10_unread_count.sql on ch10_b
+-- 未読件数と未読 20 件。ヘッダーに常に表示されるので、最も頻度が高い問い合わせ。
+--
+-- 🔴 検算の入口: 採取した案のうち opus だけが
+--    「3 億件を数えるクエリは絶対に間に合わない」と断定し、
+--    カウンタ列を持つ設計を出した（docs/research/ch10_first_idea.md）。
+--    ほかの 2 本は素直に count(*) で数えている。
+--    **その断定が正しいかを、部分インデックスを張った状態で測る。**
+--
+-- 🔴 測る対象は「ためこむ人」（user_id % 100 = 7）にする。
+--    未読が均等に散った利用者を選ぶと未読 0 件になり、案の差が測れない
+--    （docs/research/ch10_verification.md §17）。
+--
+-- このファイルは案ごとの search_path で実行される（どの案にも notifications がある）。
+\timing on
+Timing is on.
+\echo '=== 対象の利用者の未読件数（個別の通知） ==='
+=== 対象の利用者の未読件数（個別の通知） ===
+SELECT user_id, count(*) AS unread
+  FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL
+ GROUP BY user_id;
+ user_id | unread 
+---------+--------
+     107 |     90
+(1 row)
+
+Time: 1.450 ms
+\echo '=== (1) 未読件数を数える（3 回） ==='
+=== (1) 未読件数を数える（3 回） ===
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=162.71..162.72 rows=1 width=8) (actual time=0.052..0.052 rows=1.00 loops=1)
+   Buffers: shared hit=90
+   ->  Bitmap Heap Scan on notifications  (cost=4.62..162.60 rows=43 width=0) (actual time=0.016..0.048 rows=90.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=88
+         Buffers: shared hit=90
+         ->  Bitmap Index Scan on notif_b_unread  (cost=0.00..4.61 rows=43 width=0) (actual time=0.007..0.007 rows=90.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.031 ms
+ Execution Time: 0.062 ms
+(12 rows)
+
+Time: 0.243 ms
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=162.71..162.72 rows=1 width=8) (actual time=0.043..0.044 rows=1.00 loops=1)
+   Buffers: shared hit=90
+   ->  Bitmap Heap Scan on notifications  (cost=4.62..162.60 rows=43 width=0) (actual time=0.011..0.039 rows=90.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=88
+         Buffers: shared hit=90
+         ->  Bitmap Index Scan on notif_b_unread  (cost=0.00..4.61 rows=43 width=0) (actual time=0.005..0.005 rows=90.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.020 ms
+ Execution Time: 0.049 ms
+(12 rows)
+
+Time: 0.168 ms
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=162.71..162.72 rows=1 width=8) (actual time=0.048..0.048 rows=1.00 loops=1)
+   Buffers: shared hit=90
+   ->  Bitmap Heap Scan on notifications  (cost=4.62..162.60 rows=43 width=0) (actual time=0.015..0.044 rows=90.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=88
+         Buffers: shared hit=90
+         ->  Bitmap Index Scan on notif_b_unread  (cost=0.00..4.61 rows=43 width=0) (actual time=0.007..0.007 rows=90.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.026 ms
+ Execution Time: 0.056 ms
+(12 rows)
+
+Time: 0.207 ms
+\echo '=== (2) 未読を新しい順に 20 件（3 回） ==='
+=== (2) 未読を新しい順に 20 件（3 回） ===
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..82.50 rows=20 width=44) (actual time=0.004..0.012 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_b_unread on notifications  (cost=0.29..177.04 rows=43 width=44) (actual time=0.004..0.010 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=27
+ Planning Time: 0.068 ms
+ Execution Time: 0.027 ms
+(10 rows)
+
+Time: 0.273 ms
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..82.50 rows=20 width=44) (actual time=0.011..0.029 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_b_unread on notifications  (cost=0.29..177.04 rows=43 width=44) (actual time=0.010..0.027 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.051 ms
+ Execution Time: 0.038 ms
+(8 rows)
+
+Time: 0.274 ms
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..82.50 rows=20 width=44) (actual time=0.005..0.023 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_b_unread on notifications  (cost=0.29..177.04 rows=43 width=44) (actual time=0.005..0.021 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.030 ms
+ Execution Time: 0.027 ms
+(8 rows)
+
+Time: 0.176 ms
+## 10_unread_count.sql on ch10_c
+-- 未読件数と未読 20 件。ヘッダーに常に表示されるので、最も頻度が高い問い合わせ。
+--
+-- 🔴 検算の入口: 採取した案のうち opus だけが
+--    「3 億件を数えるクエリは絶対に間に合わない」と断定し、
+--    カウンタ列を持つ設計を出した（docs/research/ch10_first_idea.md）。
+--    ほかの 2 本は素直に count(*) で数えている。
+--    **その断定が正しいかを、部分インデックスを張った状態で測る。**
+--
+-- 🔴 測る対象は「ためこむ人」（user_id % 100 = 7）にする。
+--    未読が均等に散った利用者を選ぶと未読 0 件になり、案の差が測れない
+--    （docs/research/ch10_verification.md §17）。
+--
+-- このファイルは案ごとの search_path で実行される（どの案にも notifications がある）。
+\timing on
+Timing is on.
+\echo '=== 対象の利用者の未読件数（個別の通知） ==='
+=== 対象の利用者の未読件数（個別の通知） ===
+SELECT user_id, count(*) AS unread
+  FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL
+ GROUP BY user_id;
+ user_id | unread 
+---------+--------
+     107 |     90
+(1 row)
+
+Time: 1.488 ms
+\echo '=== (1) 未読件数を数える（3 回） ==='
+=== (1) 未読件数を数える（3 回） ===
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=145.06..145.07 rows=1 width=8) (actual time=0.056..0.056 rows=1.00 loops=1)
+   Buffers: shared hit=90
+   ->  Bitmap Heap Scan on notifications  (cost=4.58..144.96 rows=38 width=0) (actual time=0.019..0.051 rows=90.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=88
+         Buffers: shared hit=90
+         ->  Bitmap Index Scan on notif_c_unread  (cost=0.00..4.57 rows=38 width=0) (actual time=0.008..0.008 rows=90.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.032 ms
+ Execution Time: 0.066 ms
+(12 rows)
+
+Time: 0.241 ms
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=145.06..145.07 rows=1 width=8) (actual time=0.127..0.127 rows=1.00 loops=1)
+   Buffers: shared hit=90
+   ->  Bitmap Heap Scan on notifications  (cost=4.58..144.96 rows=38 width=0) (actual time=0.024..0.122 rows=90.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=88
+         Buffers: shared hit=90
+         ->  Bitmap Index Scan on notif_c_unread  (cost=0.00..4.57 rows=38 width=0) (actual time=0.010..0.010 rows=90.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.047 ms
+ Execution Time: 0.141 ms
+(12 rows)
+
+Time: 0.394 ms
+EXPLAIN (ANALYZE) SELECT count(*) FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=145.06..145.07 rows=1 width=8) (actual time=0.052..0.052 rows=1.00 loops=1)
+   Buffers: shared hit=90
+   ->  Bitmap Heap Scan on notifications  (cost=4.58..144.96 rows=38 width=0) (actual time=0.014..0.047 rows=90.00 loops=1)
+         Recheck Cond: ((user_id = 107) AND (read_at IS NULL))
+         Heap Blocks: exact=88
+         Buffers: shared hit=90
+         ->  Bitmap Index Scan on notif_c_unread  (cost=0.00..4.57 rows=38 width=0) (actual time=0.006..0.006 rows=90.00 loops=1)
+               Index Cond: (user_id = 107)
+               Index Searches: 1
+               Buffers: shared hit=2
+ Planning Time: 0.027 ms
+ Execution Time: 0.060 ms
+(12 rows)
+
+Time: 0.195 ms
+\echo '=== (2) 未読を新しい順に 20 件（3 回） ==='
+=== (2) 未読を新しい順に 20 件（3 回） ===
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..82.74 rows=20 width=44) (actual time=0.005..0.016 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_c_unread on notifications  (cost=0.29..156.94 rows=38 width=44) (actual time=0.005..0.014 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=27
+ Planning Time: 0.080 ms
+ Execution Time: 0.022 ms
+(10 rows)
+
+Time: 0.308 ms
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..82.74 rows=20 width=44) (actual time=0.005..0.014 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_c_unread on notifications  (cost=0.29..156.94 rows=38 width=44) (actual time=0.004..0.012 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.024 ms
+ Execution Time: 0.019 ms
+(8 rows)
+
+Time: 0.139 ms
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                 QUERY PLAN                                                                 
+--------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..82.74 rows=20 width=44) (actual time=0.004..0.012 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using notif_c_unread on notifications  (cost=0.29..156.94 rows=38 width=44) (actual time=0.004..0.011 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.024 ms
+ Execution Time: 0.017 ms
+(8 rows)
+
+Time: 0.140 ms

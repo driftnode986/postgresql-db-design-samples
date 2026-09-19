@@ -1,0 +1,155 @@
+# 採取日時: 2026-09-19 10:18:57 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+--
+-- 通知の対象（「何についての通知か」）の持ち方を 3 通り比べる。
+--
+--   (1) 種類と ID の 2 列（kind, target_id）
+--   (2) 対象ごとの外部キー列 + CHECK でちょうど 1 つだけ非 NULL
+--   (3) payload（JSONB）に入れる
+--
+-- 通知は「注文が発送された」「コメントが付いた」「申請が承認された」のように、
+-- 対象の種類が違う。どれを指しているかを表にどう持つかという問題である。
+\timing on
+Timing is on.
+SET search_path TO ch10_b, public;
+SET
+Time: 0.118 ms
+DROP TABLE IF EXISTS ch10_b.tgt_two_cols;
+psql:/tmp/run-sql.sql:15: NOTICE:  table "tgt_two_cols" does not exist, skipping
+DROP TABLE
+Time: 0.269 ms
+DROP TABLE IF EXISTS ch10_b.tgt_fk_cols;
+psql:/tmp/run-sql.sql:16: NOTICE:  table "tgt_fk_cols" does not exist, skipping
+DROP TABLE
+Time: 0.081 ms
+DROP TABLE IF EXISTS ch10_b.tgt_payload;
+psql:/tmp/run-sql.sql:17: NOTICE:  table "tgt_payload" does not exist, skipping
+DROP TABLE
+Time: 0.079 ms
+DROP TABLE IF EXISTS ch10_b.tgt_comment;
+psql:/tmp/run-sql.sql:18: NOTICE:  table "tgt_comment" does not exist, skipping
+DROP TABLE
+Time: 0.152 ms
+DROP TABLE IF EXISTS ch10_b.tgt_order;
+psql:/tmp/run-sql.sql:19: NOTICE:  table "tgt_order" does not exist, skipping
+DROP TABLE
+Time: 0.189 ms
+-- 参照される側
+CREATE TABLE ch10_b.tgt_order   (id bigint PRIMARY KEY, code text NOT NULL);
+CREATE TABLE
+Time: 3.602 ms
+CREATE TABLE ch10_b.tgt_comment (id bigint PRIMARY KEY, body text NOT NULL);
+CREATE TABLE
+Time: 1.025 ms
+INSERT INTO ch10_b.tgt_order   VALUES (1, 'ORD-001'), (2, 'ORD-002');
+INSERT 0 2
+Time: 0.477 ms
+INSERT INTO ch10_b.tgt_comment VALUES (1, 'はじめまして'), (2, 'ありがとう');
+INSERT 0 2
+Time: 0.314 ms
+\echo '=== (1) 種類と ID の 2 列 ==='
+=== (1) 種類と ID の 2 列 ===
+-- 外部キーを張れない。target_id がどの表の id かは、kind を見ないと決まらない。
+CREATE TABLE ch10_b.tgt_two_cols (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  target_kind text   NOT NULL CHECK (target_kind IN ('order','comment')),
+  target_id   bigint NOT NULL
+);
+CREATE TABLE
+Time: 0.970 ms
+-- 🔴 存在しない対象を指しても、データベースは止められない
+INSERT INTO ch10_b.tgt_two_cols (target_kind, target_id) VALUES ('order', 999);
+INSERT 0 1
+Time: 0.274 ms
+-- 🔴 種類と ID が食い違っていても止められない（id=2 のコメントを order と言う）
+INSERT INTO ch10_b.tgt_two_cols (target_kind, target_id) VALUES ('order', 2);
+INSERT 0 1
+Time: 0.246 ms
+SELECT count(*) AS rows_that_should_not_exist FROM ch10_b.tgt_two_cols t
+ WHERE t.target_kind = 'order'
+   AND NOT EXISTS (SELECT 1 FROM ch10_b.tgt_order o WHERE o.id = t.target_id);
+ rows_that_should_not_exist 
+----------------------------
+                          1
+(1 row)
+
+Time: 0.334 ms
+\echo '=== (2) 対象ごとの外部キー列 + CHECK ==='
+=== (2) 対象ごとの外部キー列 + CHECK ===
+-- 🔴 num_nonnulls() で「ちょうど 1 つだけ非 NULL」を 1 行で書ける。
+-- 🔴 そのうえで「種類」を生成列で導出できる。導出するので食い違いが起きない。
+CREATE TABLE ch10_b.tgt_fk_cols (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  order_id    bigint REFERENCES ch10_b.tgt_order(id),
+  comment_id  bigint REFERENCES ch10_b.tgt_comment(id),
+  target_kind text GENERATED ALWAYS AS (
+    CASE WHEN order_id   IS NOT NULL THEN 'order'
+         WHEN comment_id IS NOT NULL THEN 'comment' END) STORED,
+  CONSTRAINT exactly_one_target CHECK (num_nonnulls(order_id, comment_id) = 1)
+);
+CREATE TABLE
+Time: 1.716 ms
+INSERT INTO ch10_b.tgt_fk_cols (order_id)   VALUES (1);
+INSERT 0 1
+Time: 0.427 ms
+INSERT INTO ch10_b.tgt_fk_cols (comment_id) VALUES (2);
+INSERT 0 1
+Time: 0.266 ms
+\echo '--- 種類は書かずに導出される ---'
+--- 種類は書かずに導出される ---
+SELECT id, order_id, comment_id, target_kind FROM ch10_b.tgt_fk_cols ORDER BY id;
+ id | order_id | comment_id | target_kind 
+----+----------+------------+-------------
+  1 |        1 |            | order
+  2 |          |          2 | comment
+(2 rows)
+
+Time: 0.084 ms
+\echo '=== (3) payload（JSONB）に入れる ==='
+=== (3) payload（JSONB）に入れる ===
+CREATE TABLE ch10_b.tgt_payload (
+  id      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  payload jsonb NOT NULL
+);
+CREATE TABLE
+Time: 1.026 ms
+INSERT INTO ch10_b.tgt_payload (payload)
+VALUES ('{"target_kind":"order","target_id":1}'),
+       -- 🔴 綴りを間違えても入る。列名の誤りをデータベースが教えてくれない
+       ('{"target_knid":"order","target_id":2}');
+INSERT 0 2
+Time: 0.301 ms
+SELECT id, payload->>'target_kind' AS target_kind, payload->>'target_id' AS target_id
+  FROM ch10_b.tgt_payload ORDER BY id;
+ id | target_kind | target_id 
+----+-------------+-----------
+  1 | order       | 1
+  2 |             | 2
+(2 rows)
+
+Time: 0.144 ms
+\echo '=== 3 通りのサイズ（2 行ずつ） ==='
+=== 3 通りのサイズ（2 行ずつ） ===
+SELECT 'tgt_two_cols' AS tbl, pg_size_pretty(pg_total_relation_size('ch10_b.tgt_two_cols')) AS total
+UNION ALL SELECT 'tgt_fk_cols', pg_size_pretty(pg_total_relation_size('ch10_b.tgt_fk_cols'))
+UNION ALL SELECT 'tgt_payload', pg_size_pretty(pg_total_relation_size('ch10_b.tgt_payload'));
+     tbl      | total 
+--------------+-------
+ tgt_two_cols | 32 kB
+ tgt_fk_cols  | 32 kB
+ tgt_payload  | 32 kB
+(3 rows)
+
+Time: 0.369 ms

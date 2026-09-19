@@ -1,0 +1,151 @@
+# 採取日時: 2026-09-19 10:19:01 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 3 案の中身が一致していることを確かめる。比較の前提である。
+--
+-- 🔴 返す全行の先頭列が 0 になるように書く（検証スクリプトが 0 でない行を FAIL にする）。
+-- 🔴 検査が 0 を返すことは正しさの証明ではない（第8章 C1）。
+--    同じ誤りを両側に含んだ比較はいつでも 0 を返すので、
+--    「比べる対象が空でないこと」も同時に検査する。
+\echo '=== (0) 検査の対象が空でないこと ==='
+=== (0) 検査の対象が空でないこと ===
+SELECT CASE WHEN (SELECT count(*) FROM ch10_r.src_notice) = 0 THEN 1 ELSE 0 END
+         AS source_is_empty,
+       CASE WHEN (SELECT count(*) FROM ch10_a.notifications) = 0 THEN 1 ELSE 0 END
+         AS a_is_empty,
+       CASE WHEN (SELECT count(*) FROM ch10_b.notifications) = 0 THEN 1 ELSE 0 END
+         AS b_is_empty,
+       CASE WHEN (SELECT count(*) FROM ch10_c.notifications) = 0 THEN 1 ELSE 0 END
+         AS c_is_empty;
+ source_is_empty | a_is_empty | b_is_empty | c_is_empty 
+-----------------+------------+------------+------------
+               0 |          0 |          0 |          0
+(1 row)
+
+\echo '=== (1) 個別の通知が 3 案で一致すること ==='
+=== (1) 個別の通知が 3 案で一致すること ===
+-- 🔴 対称差は必ず括弧で囲む。囲まないと EXCEPT と UNION ALL が左結合になり、
+--    片方向にしか働かない（第9章で 5 ファイルが同じ誤りだった）。
+SELECT count(*) AS ab_personal_diff FROM (
+  (SELECT user_id, kind, body, read_at, created_at FROM ch10_a.notifications
+    WHERE kind <> 'announcement'
+   EXCEPT ALL
+   SELECT user_id, kind, body, read_at, created_at FROM ch10_b.notifications)
+  UNION ALL
+  (SELECT user_id, kind, body, read_at, created_at FROM ch10_b.notifications
+   EXCEPT ALL
+   SELECT user_id, kind, body, read_at, created_at FROM ch10_a.notifications
+    WHERE kind <> 'announcement')
+) t;
+ ab_personal_diff 
+------------------
+                0
+(1 row)
+
+SELECT count(*) AS bc_personal_diff FROM (
+  (SELECT user_id, kind, body, read_at, created_at FROM ch10_b.notifications
+   EXCEPT ALL
+   SELECT user_id, kind, body, read_at, created_at FROM ch10_c.notifications)
+  UNION ALL
+  (SELECT user_id, kind, body, read_at, created_at FROM ch10_c.notifications
+   EXCEPT ALL
+   SELECT user_id, kind, body, read_at, created_at FROM ch10_b.notifications)
+) t;
+ bc_personal_diff 
+------------------
+                0
+(1 row)
+
+\echo '=== (2) 元データとの突き合わせ（個別の通知） ==='
+=== (2) 元データとの突き合わせ（個別の通知） ===
+SELECT count(*) AS src_vs_b_diff FROM (
+  (SELECT d.user_id, n.kind, n.body, d.read_at, n.created_at
+     FROM ch10_r.src_notice n JOIN ch10_r.src_delivery d ON d.notice_id = n.id
+    WHERE NOT n.is_broadcast
+   EXCEPT ALL
+   SELECT user_id, kind, body, read_at, created_at FROM ch10_b.notifications)
+  UNION ALL
+  (SELECT user_id, kind, body, read_at, created_at FROM ch10_b.notifications
+   EXCEPT ALL
+   SELECT d.user_id, n.kind, n.body, d.read_at, n.created_at
+     FROM ch10_r.src_notice n JOIN ch10_r.src_delivery d ON d.notice_id = n.id
+    WHERE NOT n.is_broadcast)
+) t;
+ src_vs_b_diff 
+---------------
+             0
+(1 row)
+
+\echo '=== (3) 告知の未読件数が案A と案B で一致すること ==='
+=== (3) 告知の未読件数が案A と案B で一致すること ===
+-- 案A は行を展開しているので read_at IS NULL を数える。
+-- 案B は「告知はあるが読んだ記録が無い」を数える。
+-- 🔴 この 2 つが一致することが、案B が案A と同じ答えを返す証拠である。
+--    案C は畳んでいるので一致しない（それが案C の代償で、(4) で数える）。
+WITH a AS (
+  SELECT user_id, count(*) AS n FROM ch10_a.notifications
+   WHERE kind = 'announcement' AND read_at IS NULL GROUP BY user_id
+), b AS (
+  SELECT u.id AS user_id, count(*) AS n
+    FROM ch10_r.src_user u
+   CROSS JOIN ch10_b.broadcasts bc
+   WHERE NOT EXISTS (SELECT 1 FROM ch10_b.broadcast_reads r
+                      WHERE r.broadcast_id = bc.id AND r.user_id = u.id)
+   GROUP BY u.id
+)
+SELECT count(*) AS ab_broadcast_unread_diff FROM (
+  (SELECT * FROM a EXCEPT ALL SELECT * FROM b)
+  UNION ALL
+  (SELECT * FROM b EXCEPT ALL SELECT * FROM a)
+) t;
+ ab_broadcast_unread_diff 
+--------------------------
+                        0
+(1 row)
+
+\echo '=== (4) 案C が畳んだことで失う既読（代償の大きさ） ==='
+=== (4) 案C が畳んだことで失う既読（代償の大きさ） ===
+-- 🔴 これは 0 にならないのが正しい。案C の代償を数値で示すための測定であって、
+--    合否の検査ではない。だから先頭列は 0 を返す形にし、
+--    実際の件数は 2 列目以降に出す。
+SELECT 0 AS always_zero,
+       count(*) AS lost_reads,
+       round(100.0 * count(*) /
+             nullif((SELECT count(*) FROM ch10_r.src_delivery d2
+                      JOIN ch10_c.broadcasts b2 ON b2.id = d2.notice_id
+                     WHERE d2.read_at IS NOT NULL), 0), 1) AS lost_pct
+  FROM ch10_r.src_delivery d
+  JOIN ch10_c.broadcasts b ON b.id = d.notice_id
+  JOIN ch10_c.read_cursors c ON c.user_id = d.user_id
+ WHERE d.read_at IS NOT NULL
+   AND b.id > c.broadcast_read_upto;
+ always_zero | lost_reads | lost_pct 
+-------------+------------+----------
+           0 |     120368 |     75.4
+(1 row)
+
+\echo '=== (5) カーソルは既読を「未読側」にしか誤らないこと ==='
+=== (5) カーソルは既読を「未読側」にしか誤らないこと ===
+-- 🔴 案C が安全側に倒れていることの確認。
+--    読んでいない告知を既読と見なす（＝通知を握りつぶす）ことが 1 件も無いこと。
+SELECT count(*) AS swallowed_unread
+  FROM ch10_c.broadcasts b
+  JOIN ch10_c.read_cursors c ON b.id <= c.broadcast_read_upto
+ WHERE NOT EXISTS (SELECT 1 FROM ch10_r.src_delivery d
+                    WHERE d.notice_id = b.id AND d.user_id = c.user_id
+                      AND d.read_at IS NOT NULL);
+ swallowed_unread 
+------------------
+                0
+(1 row)
+

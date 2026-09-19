@@ -1,0 +1,81 @@
+# 採取日時: 2026-09-19 10:18:55 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+--
+-- 案B で全員向けの告知を 1 件送る。行は 1 つしか作らない。
+-- 案A（a_row_per_recipient/30_send_broadcast.sql）とまったく同じ告知を送り、
+-- かかった時間と書いた WAL を比べる。
+\timing on
+Timing is on.
+SET search_path TO ch10_b, public;
+SET
+Time: 0.102 ms
+\echo '=== 送る前 ==='
+=== 送る前 ===
+SELECT count(*) AS rows_before FROM ch10_b.broadcasts;
+ rows_before 
+-------------
+          20
+(1 row)
+
+Time: 0.858 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.133 ms
+SELECT wal_records, wal_bytes FROM pg_stat_wal \gset wal_before_
+Time: 0.224 ms
+BEGIN;
+BEGIN
+Time: 0.068 ms
+\echo '=== 告知 1 件を全利用者に送る（1 行を足すだけ） ==='
+=== 告知 1 件を全利用者に送る（1 行を足すだけ） ===
+INSERT INTO ch10_b.broadcasts (id, kind, body, created_at)
+VALUES ((SELECT max(id) + 1 FROM ch10_b.broadcasts),
+        'announcement', '臨時メンテナンスのお知らせ', now());
+INSERT 0 1
+Time: 0.543 ms
+\echo '=== 送った直後の行数 ==='
+=== 送った直後の行数 ===
+SELECT count(*) AS rows_after FROM ch10_b.broadcasts;
+ rows_after 
+------------
+         21
+(1 row)
+
+Time: 0.110 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.103 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.115 ms
+\echo '=== この操作が書いた WAL（操作 1 回あたり） ==='
+=== この操作が書いた WAL（操作 1 回あたり） ===
+SELECT wal_records - :wal_before_wal_records            AS wal_records,
+       pg_size_pretty(wal_bytes - :wal_before_wal_bytes) AS wal_size
+  FROM pg_stat_wal;
+ wal_records | wal_size  
+-------------+-----------
+           3 | 225 bytes
+(1 row)
+
+Time: 0.333 ms

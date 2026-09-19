@@ -1,0 +1,73 @@
+# 採取日時: 2026-09-19 10:18:55 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+--
+-- 案A で「すべて既読にする」。未読の行をすべて書き換える。
+--
+-- 🔴 対象は「ためこむ人」（user_id = 107）にする。未読が 0 件の利用者を選ぶと
+--    0 行の UPDATE になり、案の差が測れない（§17）。
+\timing on
+Timing is on.
+SET search_path TO ch10_a, public;
+SET
+Time: 0.101 ms
+\echo '=== 更新する前の未読件数 ==='
+=== 更新する前の未読件数 ===
+SELECT count(*) AS unread_before FROM ch10_a.notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+ unread_before 
+---------------
+            92
+(1 row)
+
+Time: 1.053 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.179 ms
+SELECT wal_records, wal_bytes FROM pg_stat_wal \gset wal_before_
+Time: 0.380 ms
+BEGIN;
+BEGIN
+Time: 0.057 ms
+\echo '=== すべて既読にする ==='
+=== すべて既読にする ===
+UPDATE ch10_a.notifications SET read_at = now()
+ WHERE user_id = 107 AND read_at IS NULL;
+UPDATE 92
+Time: 2.225 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.065 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.141 ms
+\echo '=== この操作が書いた WAL（操作 1 回あたり） ==='
+=== この操作が書いた WAL（操作 1 回あたり） ===
+SELECT wal_records - :wal_before_wal_records            AS wal_records,
+       pg_size_pretty(wal_bytes - :wal_before_wal_bytes) AS wal_size
+  FROM pg_stat_wal;
+ wal_records | wal_size 
+-------------+----------
+         277 | 24 kB
+(1 row)
+
+Time: 0.330 ms

@@ -1,3 +1,16 @@
+# 採取日時: 2026-09-19 10:18:56 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
 -- 3 案の保存の大きさ。
 --
 -- 🔴 案ごとに表の顔ぶれが違うので、案の合計で比べる。
@@ -12,10 +25,10 @@
 --    同じスキーマには、削除の実験（del_plain・del_part_*）や
 --    対象の持ち方の実験（tgt_*）で作った表も置いてある。
 --    それらを足すと案A が 64 MB ではなく 156 MB になり、比較が壊れる（実際に一度そうなった）。
-
 \timing on
-
+Timing is on.
 \echo '=== 案ごとの合計（本体・索引・合計） ==='
+=== 案ごとの合計（本体・索引・合計） ===
 WITH t AS (
   SELECT '案A: 受信者ごとに行を作る' AS plan, c.oid
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -38,8 +51,16 @@ SELECT plan,
        pg_size_pretty(sum(pg_total_relation_size(oid))) AS total,
        sum(pg_total_relation_size(oid))                 AS total_bytes
   FROM t GROUP BY plan ORDER BY total_bytes;
+            plan             | heap  | indexes | total | total_bytes 
+-----------------------------+-------+---------+-------+-------------
+ 案C: 告知は 1 行 + カーソル | 27 MB | 7264 kB | 34 MB |    35708928
+ 案B: 告知は 1 行 + 既読の表 | 34 MB | 13 MB   | 47 MB |    49684480
+ 案A: 受信者ごとに行を作る   | 49 MB | 14 MB   | 64 MB |    66732032
+(3 rows)
 
+Time: 3.208 ms
 \echo '=== 表ごとの内訳 ==='
+=== 表ごとの内訳 ===
 SELECT n.nspname || '.' || c.relname                    AS tbl,
        pg_size_pretty(pg_relation_size(c.oid))          AS heap,
        pg_size_pretty(pg_indexes_size(c.oid))           AS indexes,
@@ -49,3 +70,15 @@ SELECT n.nspname || '.' || c.relname                    AS tbl,
  WHERE n.nspname IN ('ch10_a','ch10_b','ch10_c') AND c.relkind = 'r'
    AND c.relname IN ('notifications','broadcasts','broadcast_reads','read_cursors')
  ORDER BY n.nspname, pg_total_relation_size(c.oid) DESC;
+          tbl           |    heap    | indexes | total  | est_rows 
+------------------------+------------+---------+--------+----------
+ ch10_a.notifications   | 49 MB      | 14 MB   | 64 MB  |   500000
+ ch10_b.notifications   | 26 MB      | 7008 kB | 33 MB  |   300000
+ ch10_b.broadcast_reads | 8136 kB    | 6248 kB | 14 MB  |   159647
+ ch10_b.broadcasts      | 8192 bytes | 16 kB   | 32 kB  |       20
+ ch10_c.notifications   | 26 MB      | 7008 kB | 33 MB  |   300000
+ ch10_c.read_cursors    | 512 kB     | 240 kB  | 776 kB |    10000
+ ch10_c.broadcasts      | 8192 bytes | 16 kB   | 32 kB  |       20
+(7 rows)
+
+Time: 0.932 ms

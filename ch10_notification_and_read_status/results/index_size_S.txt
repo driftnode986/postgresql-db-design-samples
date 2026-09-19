@@ -1,0 +1,118 @@
+# 採取日時: 2026-09-19 10:18:53 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+--
+-- 部分インデックスと全行インデックスのサイズを比べる。
+--
+-- 🔴 比べるのは「同じ問い合わせを成立させる索引どうし」にする。
+--    列数の違うものを並べると倍率が水増しされる。
+--    企画は「128 kB 対 9,264 kB ＝ 約 70 倍」と書いていたが、
+--    これは 1 列の部分索引と INCLUDE 付きの全行索引を比べていた誤りで、
+--    そろえると約 20 倍になる（docs/research/ch10_research.md §1-1）。
+--
+-- どちらも (user_id, created_at DESC) で、
+-- 「未読を新しい順に 20 件」を索引の順序のまま返せる形にそろえる。
+\timing on
+Timing is on.
+SET search_path TO ch10_a, public;
+SET
+Time: 0.110 ms
+-- 全行の索引を、比較のためだけに作る
+CREATE INDEX IF NOT EXISTS notif_a_all
+  ON ch10_a.notifications (user_id, created_at DESC);
+CREATE INDEX
+Time: 527.308 ms
+ANALYZE ch10_a.notifications;
+ANALYZE
+Time: 178.958 ms
+\echo '=== 同じ問い合わせを支える 2 つの索引のサイズ ==='
+=== 同じ問い合わせを支える 2 つの索引のサイズ ===
+SELECT 'notif_a_unread（WHERE read_at IS NULL）' AS idx,
+       pg_size_pretty(pg_relation_size('ch10_a.notif_a_unread')) AS size,
+       pg_relation_size('ch10_a.notif_a_unread') AS bytes
+UNION ALL
+SELECT 'notif_a_all（全行）',
+       pg_size_pretty(pg_relation_size('ch10_a.notif_a_all')),
+       pg_relation_size('ch10_a.notif_a_all')
+ORDER BY bytes;
+                   idx                   |  size   |  bytes   
+-----------------------------------------+---------+----------
+ notif_a_unread（WHERE read_at IS NULL） | 1640 kB |  1679360
+ notif_a_all（全行）                     | 13 MB   | 13754368
+(2 rows)
+
+Time: 0.576 ms
+\echo '=== 倍率と、未読率 ==='
+=== 倍率と、未読率 ===
+SELECT round(pg_relation_size('ch10_a.notif_a_all')::numeric
+             / pg_relation_size('ch10_a.notif_a_unread'), 1) AS size_ratio,
+       count(*) AS rows,
+       count(*) FILTER (WHERE read_at IS NULL) AS unread,
+       round(100.0 * count(*) FILTER (WHERE read_at IS NULL) / count(*), 2)
+         AS unread_pct
+  FROM ch10_a.notifications;
+ size_ratio |  rows  | unread | unread_pct 
+------------+--------+--------+------------
+        8.2 | 500000 |  55325 |      11.07
+(1 row)
+
+Time: 12.640 ms
+\echo '=== 表の全体（本体・索引・合計） ==='
+=== 表の全体（本体・索引・合計） ===
+SELECT pg_size_pretty(pg_relation_size('ch10_a.notifications'))       AS heap,
+       pg_size_pretty(pg_indexes_size('ch10_a.notifications'))        AS indexes,
+       pg_size_pretty(pg_total_relation_size('ch10_a.notifications')) AS total;
+ heap  | indexes | total 
+-------+---------+-------
+ 48 MB | 25 MB   | 74 MB
+(1 row)
+
+Time: 0.376 ms
+\echo '=== 全行の索引しか無いときの実行計画（比較用） ==='
+=== 全行の索引しか無いときの実行計画（比較用） ===
+-- 🔴 BEGIN … ROLLBACK で囲み、部分索引を落とした状態を確定させない。
+--    確定させると、あとの測定が索引の無い状態で走る。
+BEGIN;
+BEGIN
+Time: 0.050 ms
+DROP INDEX ch10_a.notif_a_unread;
+DROP INDEX
+Time: 0.381 ms
+EXPLAIN (ANALYZE) SELECT id, kind, body, created_at FROM ch10_a.notifications
+ WHERE user_id = 107 AND read_at IS NULL ORDER BY created_at DESC LIMIT 20;
+                                                                QUERY PLAN                                                                
+------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..672.63 rows=20 width=52) (actual time=0.044..1.000 rows=20.00 loops=1)
+   Buffers: shared hit=26 read=152 written=143
+   ->  Index Scan using notif_a_all on notifications  (cost=0.42..3327.87 rows=99 width=52) (actual time=0.043..0.997 rows=20.00 loops=1)
+         Index Cond: (user_id = 107)
+         Filter: (read_at IS NULL)
+         Rows Removed by Filter: 152
+         Index Searches: 1
+         Buffers: shared hit=26 read=152 written=143
+ Planning:
+   Buffers: shared hit=48
+ Planning Time: 0.110 ms
+ Execution Time: 1.008 ms
+(12 rows)
+
+Time: 1.310 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.073 ms
+\echo '=== 比較のために作った全行の索引を落とす ==='
+=== 比較のために作った全行の索引を落とす ===
+DROP INDEX ch10_a.notif_a_all;
+DROP INDEX
+Time: 1.173 ms

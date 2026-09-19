@@ -1,0 +1,142 @@
+# 採取日時: 2026-09-19 10:18:57 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+--
+-- 90 日より古い通知を消す。2 つのやり方を比べる。
+--
+--   (A) 通常の表を DELETE する
+--   (B) 月ごとのパーティションを DETACH して DROP する
+--
+-- 🔴 本当の論点は時間ではなくロックである。
+--    「パーティションなら一瞬」で終わらせると、CONCURRENTLY を付け忘れて
+--    本番の読み取りを止める読者が出る（docs/research/ch10_verification.md §11）。
+--
+-- 元データからコピーした作業用の表で測る。案A の本体は触らない。
+\timing on
+Timing is on.
+SET search_path TO ch10_a, public;
+SET
+Time: 0.111 ms
+DROP TABLE IF EXISTS ch10_a.del_plain;
+psql:/tmp/run-sql.sql:17: NOTICE:  table "del_plain" does not exist, skipping
+DROP TABLE
+Time: 0.201 ms
+DROP TABLE IF EXISTS ch10_a.del_part;
+psql:/tmp/run-sql.sql:18: NOTICE:  table "del_part" does not exist, skipping
+DROP TABLE
+Time: 0.193 ms
+\echo '=== (A) 通常の表を用意する ==='
+=== (A) 通常の表を用意する ===
+CREATE TABLE ch10_a.del_plain (LIKE ch10_a.notifications INCLUDING ALL);
+CREATE TABLE
+Time: 2.762 ms
+INSERT INTO ch10_a.del_plain (user_id, kind, body, read_at, created_at)
+SELECT user_id, kind, body, read_at, created_at FROM ch10_a.notifications
+ ORDER BY id;
+INSERT 0 500000
+Time: 724.278 ms
+ANALYZE ch10_a.del_plain;
+ANALYZE
+Time: 194.289 ms
+\echo '=== (B) パーティション表を用意する（月ごと） ==='
+=== (B) パーティション表を用意する（月ごと） ===
+-- 🔴 パーティション表の主キーには、パーティションキーの列が入る必要がある。
+--    (id) だけにすると「unique constraint on partitioned table must include
+--    all partitioning columns」で作れない。
+CREATE TABLE ch10_a.del_part (
+  id         bigint GENERATED ALWAYS AS IDENTITY,
+  user_id    bigint      NOT NULL,
+  kind       text        NOT NULL,
+  body       text        NOT NULL,
+  read_at    timestamptz,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (id, created_at)
+) PARTITION BY RANGE (created_at);
+CREATE TABLE
+Time: 0.943 ms
+-- 直近 7 か月ぶんを用意する（元データは 180 日に散っている）
+DO $$
+DECLARE m date := date_trunc('month', now())::date - interval '6 months';
+BEGIN
+  WHILE m <= date_trunc('month', now())::date LOOP
+    EXECUTE format(
+      'CREATE TABLE ch10_a.del_part_%s PARTITION OF ch10_a.del_part '
+      'FOR VALUES FROM (%L) TO (%L)',
+      to_char(m, 'YYYY_MM'), m, m + interval '1 month');
+    m := m + interval '1 month';
+  END LOOP;
+END $$;
+DO
+Time: 5.801 ms
+INSERT INTO ch10_a.del_part (user_id, kind, body, read_at, created_at)
+SELECT user_id, kind, body, read_at, created_at FROM ch10_a.notifications
+ ORDER BY id;
+INSERT 0 500000
+Time: 814.827 ms
+ANALYZE ch10_a.del_part;
+ANALYZE
+Time: 1153.586 ms (00:01.154)
+\echo '=== 消す前のサイズ ==='
+=== 消す前のサイズ ===
+-- 🔴 パーティション表に pg_total_relation_size(親) を使わない。0 を返す。
+--    全パーティションの合計を取る（docs/measurement-rules.yml の sizes.partitioned）。
+SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS plain,
+       pg_size_pretty(pg_total_relation_size('ch10_a.del_part'))  AS part_parent_wrong,
+       pg_size_pretty((SELECT sum(pg_total_relation_size(c.oid))
+                         FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                        WHERE i.inhparent = 'ch10_a.del_part'::regclass)) AS part_correct;
+ plain | part_parent_wrong | part_correct 
+-------+-------------------+--------------
+ 61 MB | 0 bytes           | 64 MB
+(1 row)
+
+Time: 1.567 ms
+\echo '=== (A) DELETE で 90 日より古い行を消す ==='
+=== (A) DELETE で 90 日より古い行を消す ===
+DELETE FROM ch10_a.del_plain WHERE created_at < now() - interval '90 days';
+DELETE 187642
+Time: 106.708 ms
+\echo '=== DELETE の直後のサイズ（戻らない） ==='
+=== DELETE の直後のサイズ（戻らない） ===
+SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_delete;
+ after_delete 
+--------------
+ 61 MB
+(1 row)
+
+Time: 0.159 ms
+VACUUM (ANALYZE) ch10_a.del_plain;
+VACUUM
+Time: 236.738 ms
+\echo '=== VACUUM の後のサイズ（まだ戻らない） ==='
+=== VACUUM の後のサイズ（まだ戻らない） ===
+SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_vacuum;
+ after_vacuum 
+--------------
+ 61 MB
+(1 row)
+
+Time: 0.226 ms
+VACUUM FULL ch10_a.del_plain;
+VACUUM
+Time: 203.782 ms
+\echo '=== VACUUM FULL の後のサイズ（ここで戻る） ==='
+=== VACUUM FULL の後のサイズ（ここで戻る） ===
+SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_vacuum_full;
+ after_vacuum_full 
+-------------------
+ 37 MB
+(1 row)
+
+Time: 0.257 ms
