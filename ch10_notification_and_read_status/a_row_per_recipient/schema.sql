@@ -1,0 +1,24 @@
+-- 案A: 受信者ごとに行を作る（fan-out on write）
+--
+-- 個別の通知も全員向けの告知も、届いた人の数だけ行を作る。
+-- 既読はその行の read_at に記録する。
+--
+-- 利点: 一覧も未読件数も 1 つの表で完結する。既読が通知 1 件ごとに分かる。
+-- 代償: 告知 1 件が利用者の数だけ行を作る。「すべて既読にする」が全行の更新になる。
+
+CREATE SCHEMA IF NOT EXISTS ch10_a;
+
+DROP TABLE IF EXISTS ch10_a.notifications;
+
+CREATE TABLE ch10_a.notifications (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    bigint      NOT NULL,
+  kind       text        NOT NULL,
+  body       text        NOT NULL,
+  -- 🔴 未読を表す列は read_at の 1 本だけにする。
+  --    is_read boolean と read_at の 2 本を持つと、
+  --    is_read = true なのに read_at IS NULL という食い違いが作れてしまう。
+  --    採取した案のうち 2 本が 2 列を持っていた（docs/research/ch10_first_idea.md）。
+  read_at    timestamptz,
+  created_at timestamptz NOT NULL
+);
