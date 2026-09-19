@@ -72,6 +72,9 @@ save "sizes_$SIZE.txt" book_app ch10_a "$CH/queries/50_sizes.sql" || exit 1
 echo "■ 通知の対象の持ち方 3 通り"
 save "targets_$SIZE.txt" book_owner ch10_b "$CH/b_broadcast_one_row/50_target_shapes.sql" || exit 1
 
+echo "■ 変更の手数（あとからパーティションを入れる）"
+save "change_$SIZE.txt" book_owner ch10_a "$CH/change/10_add_partitioning.sql" || exit 1
+
 echo "■ 90 日より古い通知を消す（DELETE 対 DETACH）"
 save "delete_$SIZE.txt" book_owner ch10_a "$CH/a_row_per_recipient/60_delete_old.sql" || exit 1
 save "detach_$SIZE.txt" book_owner ch10_a "$CH/a_row_per_recipient/61_detach_old.sql" || exit 1

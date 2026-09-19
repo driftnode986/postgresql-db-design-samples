@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:17:27 +0900
+# 採取日時: 2026-09-19 10:37:39 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -28,7 +28,7 @@ Timing is on.
 -- 🔴 入れ直しても同じ結果になるようにする
 TRUNCATE ch10_a.notifications RESTART IDENTITY;
 TRUNCATE TABLE
-Time: 1.406 ms
+Time: 1.928 ms
 -- 個別の通知は、宛先の 1 人にだけ行を作る
 INSERT INTO ch10_a.notifications (user_id, kind, body, read_at, created_at)
 SELECT d.user_id, n.kind, n.body, d.read_at, n.created_at
@@ -37,7 +37,7 @@ SELECT d.user_id, n.kind, n.body, d.read_at, n.created_at
  WHERE NOT n.is_broadcast
  ORDER BY n.id;
 INSERT 0 300000
-Time: 477.029 ms
+Time: 451.307 ms
 -- 🔴 全員向けの告知は、利用者の数だけ行を作る。これが案A の代償である。
 --    元データの src_delivery は「読んだ人」しか持たないので、
 --    読んでいない人の行はここで作る（左外部結合）。
@@ -50,7 +50,7 @@ SELECT u.id, n.kind, n.body, d.read_at, n.created_at
  WHERE n.is_broadcast
  ORDER BY n.id, u.id;
 INSERT 0 200000
-Time: 79736.693 ms (01:19.737)
+Time: 472.069 ms
 -- 🔴 索引はデータを入れてから作る。
 --    付けたまま入れると充填率が 90 から 67 に下がり、
 --    サイズが実行のたびに変わる（docs/measurement-rules.yml の sizes）。
@@ -61,10 +61,10 @@ Time: 79736.693 ms (01:19.737)
 CREATE INDEX notif_a_unread ON ch10_a.notifications (user_id, created_at DESC)
   WHERE read_at IS NULL;
 CREATE INDEX
-Time: 41.076 ms
+Time: 38.999 ms
 ANALYZE ch10_a.notifications;
 ANALYZE
-Time: 179.118 ms
+Time: 173.208 ms
 \echo '=== 案A の件数 ==='
 === 案A の件数 ===
 SELECT count(*) AS rows,
@@ -75,4 +75,4 @@ SELECT count(*) AS rows,
  500000 |  55325
 (1 row)
 
-Time: 11.979 ms
+Time: 11.964 ms

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:19:01 +0900
+# 採取日時: 2026-09-19 10:37:55 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -23,7 +23,7 @@
 Timing is on.
 SET search_path TO ch10_a, public;
 SET
-Time: 0.128 ms
+Time: 0.115 ms
 -- 🔴 このファイルは 2 回流しても同じ結果になるようにする。
 --    前回の実行で切り離した（DETACH した）パーティションが残っていると、
 --    次の実行は「すでに切り離されている」ところで止まる。
@@ -41,7 +41,7 @@ BEGIN
   END LOOP;
 END $$;
 DO
-Time: 2.280 ms
+Time: 2.087 ms
 \echo '=== 消す前（全パーティションの合計） ==='
 === 消す前（全パーティションの合計） ===
 SELECT pg_size_pretty((SELECT sum(pg_total_relation_size(c.oid))
@@ -52,7 +52,7 @@ SELECT pg_size_pretty((SELECT sum(pg_total_relation_size(c.oid))
  64 MB
 (1 row)
 
-Time: 1.182 ms
+Time: 0.902 ms
 \echo '=== パーティションごとの行数 ==='
 === パーティションごとの行数 ===
 SELECT c.relname,
@@ -72,17 +72,17 @@ SELECT c.relname,
  del_part_2026_09 |   128041 | 16 MB
 (7 rows)
 
-Time: 0.530 ms
+Time: 0.666 ms
 \echo '=== (1) CONCURRENTLY を付けない DETACH が取るロック ==='
 === (1) CONCURRENTLY を付けない DETACH が取るロック ===
 -- 🔴 トランザクションの中で実行して pg_locks を見る。
 --    ここで AccessExclusiveLock が見えることが、この節の要点である。
 BEGIN;
 BEGIN
-Time: 0.058 ms
+Time: 0.068 ms
 ALTER TABLE ch10_a.del_part DETACH PARTITION ch10_a.del_part_2026_04;
 ALTER TABLE
-Time: 1.420 ms
+Time: 1.232 ms
 SELECT c.relname, l.mode
   FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
   JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -95,10 +95,10 @@ SELECT c.relname, l.mode
  del_part_2026_04_pkey | AccessExclusiveLock
 (3 rows)
 
-Time: 0.778 ms
+Time: 0.553 ms
 ROLLBACK;
 ROLLBACK
-Time: 0.079 ms
+Time: 0.058 ms
 \echo '=== (2) DETACH CONCURRENTLY はトランザクションの中で実行できない ==='
 === (2) DETACH CONCURRENTLY はトランザクションの中で実行できない ===
 -- 🔴 「消す処理をトランザクションでまとめて安全に」という素直な書き方ができない。
@@ -107,22 +107,22 @@ Time: 0.079 ms
 \set ON_ERROR_STOP off
 BEGIN;
 BEGIN
-Time: 0.073 ms
+Time: 0.095 ms
 ALTER TABLE ch10_a.del_part DETACH PARTITION ch10_a.del_part_2026_04 CONCURRENTLY;
 psql:/tmp/run-sql.sql:61: ERROR:  ALTER TABLE ... DETACH CONCURRENTLY cannot run inside a transaction block
-Time: 0.142 ms
+Time: 0.152 ms
 ROLLBACK;
 ROLLBACK
-Time: 0.083 ms
+Time: 0.061 ms
 \set ON_ERROR_STOP on
 \echo '=== (3) DETACH CONCURRENTLY + DROP（トランザクションの外） ==='
 === (3) DETACH CONCURRENTLY + DROP（トランザクションの外） ===
 ALTER TABLE ch10_a.del_part DETACH PARTITION ch10_a.del_part_2026_04 CONCURRENTLY;
 ALTER TABLE
-Time: 3.512 ms
+Time: 1.030 ms
 DROP TABLE ch10_a.del_part_2026_04;
 DROP TABLE
-Time: 2.495 ms
+Time: 2.309 ms
 \echo '=== 落とした後（全パーティションの合計。即座に戻る） ==='
 === 落とした後（全パーティションの合計。即座に戻る） ===
 SELECT pg_size_pretty((SELECT sum(pg_total_relation_size(c.oid))
@@ -133,4 +133,4 @@ SELECT pg_size_pretty((SELECT sum(pg_total_relation_size(c.oid))
  55 MB
 (1 row)
 
-Time: 0.245 ms
+Time: 0.267 ms

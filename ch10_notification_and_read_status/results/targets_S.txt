@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:18:57 +0900
+# 採取日時: 2026-09-19 10:37:49 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -25,40 +25,40 @@
 Timing is on.
 SET search_path TO ch10_b, public;
 SET
-Time: 0.118 ms
+Time: 0.145 ms
 DROP TABLE IF EXISTS ch10_b.tgt_two_cols;
 psql:/tmp/run-sql.sql:15: NOTICE:  table "tgt_two_cols" does not exist, skipping
 DROP TABLE
-Time: 0.269 ms
+Time: 0.222 ms
 DROP TABLE IF EXISTS ch10_b.tgt_fk_cols;
 psql:/tmp/run-sql.sql:16: NOTICE:  table "tgt_fk_cols" does not exist, skipping
 DROP TABLE
-Time: 0.081 ms
+Time: 0.138 ms
 DROP TABLE IF EXISTS ch10_b.tgt_payload;
 psql:/tmp/run-sql.sql:17: NOTICE:  table "tgt_payload" does not exist, skipping
 DROP TABLE
-Time: 0.079 ms
+Time: 0.160 ms
 DROP TABLE IF EXISTS ch10_b.tgt_comment;
 psql:/tmp/run-sql.sql:18: NOTICE:  table "tgt_comment" does not exist, skipping
 DROP TABLE
-Time: 0.152 ms
+Time: 0.133 ms
 DROP TABLE IF EXISTS ch10_b.tgt_order;
 psql:/tmp/run-sql.sql:19: NOTICE:  table "tgt_order" does not exist, skipping
 DROP TABLE
-Time: 0.189 ms
+Time: 0.118 ms
 -- 参照される側
 CREATE TABLE ch10_b.tgt_order   (id bigint PRIMARY KEY, code text NOT NULL);
 CREATE TABLE
-Time: 3.602 ms
+Time: 3.278 ms
 CREATE TABLE ch10_b.tgt_comment (id bigint PRIMARY KEY, body text NOT NULL);
 CREATE TABLE
-Time: 1.025 ms
+Time: 0.910 ms
 INSERT INTO ch10_b.tgt_order   VALUES (1, 'ORD-001'), (2, 'ORD-002');
 INSERT 0 2
-Time: 0.477 ms
+Time: 0.447 ms
 INSERT INTO ch10_b.tgt_comment VALUES (1, 'はじめまして'), (2, 'ありがとう');
 INSERT 0 2
-Time: 0.314 ms
+Time: 0.334 ms
 \echo '=== (1) 種類と ID の 2 列 ==='
 === (1) 種類と ID の 2 列 ===
 -- 外部キーを張れない。target_id がどの表の id かは、kind を見ないと決まらない。
@@ -68,15 +68,15 @@ CREATE TABLE ch10_b.tgt_two_cols (
   target_id   bigint NOT NULL
 );
 CREATE TABLE
-Time: 0.970 ms
+Time: 1.037 ms
 -- 🔴 存在しない対象を指しても、データベースは止められない
 INSERT INTO ch10_b.tgt_two_cols (target_kind, target_id) VALUES ('order', 999);
 INSERT 0 1
-Time: 0.274 ms
+Time: 0.328 ms
 -- 🔴 種類と ID が食い違っていても止められない（id=2 のコメントを order と言う）
 INSERT INTO ch10_b.tgt_two_cols (target_kind, target_id) VALUES ('order', 2);
 INSERT 0 1
-Time: 0.246 ms
+Time: 0.233 ms
 SELECT count(*) AS rows_that_should_not_exist FROM ch10_b.tgt_two_cols t
  WHERE t.target_kind = 'order'
    AND NOT EXISTS (SELECT 1 FROM ch10_b.tgt_order o WHERE o.id = t.target_id);
@@ -85,7 +85,7 @@ SELECT count(*) AS rows_that_should_not_exist FROM ch10_b.tgt_two_cols t
                           1
 (1 row)
 
-Time: 0.334 ms
+Time: 0.332 ms
 \echo '=== (2) 対象ごとの外部キー列 + CHECK ==='
 === (2) 対象ごとの外部キー列 + CHECK ===
 -- 🔴 num_nonnulls() で「ちょうど 1 つだけ非 NULL」を 1 行で書ける。
@@ -100,13 +100,13 @@ CREATE TABLE ch10_b.tgt_fk_cols (
   CONSTRAINT exactly_one_target CHECK (num_nonnulls(order_id, comment_id) = 1)
 );
 CREATE TABLE
-Time: 1.716 ms
+Time: 1.630 ms
 INSERT INTO ch10_b.tgt_fk_cols (order_id)   VALUES (1);
 INSERT 0 1
-Time: 0.427 ms
+Time: 0.428 ms
 INSERT INTO ch10_b.tgt_fk_cols (comment_id) VALUES (2);
 INSERT 0 1
-Time: 0.266 ms
+Time: 0.217 ms
 \echo '--- 種類は書かずに導出される ---'
 --- 種類は書かずに導出される ---
 SELECT id, order_id, comment_id, target_kind FROM ch10_b.tgt_fk_cols ORDER BY id;
@@ -116,7 +116,7 @@ SELECT id, order_id, comment_id, target_kind FROM ch10_b.tgt_fk_cols ORDER BY id
   2 |          |          2 | comment
 (2 rows)
 
-Time: 0.084 ms
+Time: 0.089 ms
 \echo '=== (3) payload（JSONB）に入れる ==='
 === (3) payload（JSONB）に入れる ===
 CREATE TABLE ch10_b.tgt_payload (
@@ -124,13 +124,13 @@ CREATE TABLE ch10_b.tgt_payload (
   payload jsonb NOT NULL
 );
 CREATE TABLE
-Time: 1.026 ms
+Time: 0.783 ms
 INSERT INTO ch10_b.tgt_payload (payload)
 VALUES ('{"target_kind":"order","target_id":1}'),
        -- 🔴 綴りを間違えても入る。列名の誤りをデータベースが教えてくれない
        ('{"target_knid":"order","target_id":2}');
 INSERT 0 2
-Time: 0.301 ms
+Time: 0.279 ms
 SELECT id, payload->>'target_kind' AS target_kind, payload->>'target_id' AS target_id
   FROM ch10_b.tgt_payload ORDER BY id;
  id | target_kind | target_id 
@@ -139,7 +139,7 @@ SELECT id, payload->>'target_kind' AS target_kind, payload->>'target_id' AS targ
   2 |             | 2
 (2 rows)
 
-Time: 0.144 ms
+Time: 0.146 ms
 \echo '=== 3 通りのサイズ（2 行ずつ） ==='
 === 3 通りのサイズ（2 行ずつ） ===
 SELECT 'tgt_two_cols' AS tbl, pg_size_pretty(pg_total_relation_size('ch10_b.tgt_two_cols')) AS total
@@ -152,4 +152,4 @@ UNION ALL SELECT 'tgt_payload', pg_size_pretty(pg_total_relation_size('ch10_b.tg
  tgt_payload  | 32 kB
 (3 rows)
 
-Time: 0.369 ms
+Time: 0.279 ms

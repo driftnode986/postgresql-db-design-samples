@@ -41,6 +41,13 @@ a_wal="$(wal_row "$A")"; b_wal="$(wal_row "$B")"
   echo "投入した行数と時間:"
   echo "案A $(ins_rows "$A")  $(ins_time "$A")"
   echo "案B $(ins_rows "$B")  $(ins_time "$B")"
+  echo
+  # 🔴 図が引くための表。図の生成は「行ラベル | 値」の形を読むので、
+  #    末尾に数値だけが来る行を用意する（sync-chart-values.py の row_last）。
+  echo " 案                        | rows"
+  echo "---------------------------+-------"
+  printf ' %-25s | %s\n' "案A 受信者ごとに 1 行" "$(ins_rows "$A" | awk '{print $3}')"
+  printf ' %-25s | %s\n' "案B 告知は 1 行" "$(ins_rows "$B" | awk '{print $3}')"
 } > "$OUT"
 
 echo "  -> $OUT"

@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:18:54 +0900
+# 採取日時: 2026-09-19 10:37:47 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -22,7 +22,7 @@
 Timing is on.
 SET search_path TO ch10_a, public;
 SET
-Time: 0.107 ms
+Time: 0.150 ms
 \echo '=== 送る前 ==='
 === 送る前 ===
 SELECT count(*) AS rows_before FROM ch10_a.notifications;
@@ -31,26 +31,26 @@ SELECT count(*) AS rows_before FROM ch10_a.notifications;
       500000
 (1 row)
 
-Time: 10.724 ms
+Time: 10.655 ms
 SELECT pg_stat_force_next_flush();
  pg_stat_force_next_flush 
 --------------------------
  
 (1 row)
 
-Time: 0.252 ms
+Time: 0.194 ms
 SELECT wal_records, wal_bytes FROM pg_stat_wal \gset wal_before_
-Time: 0.401 ms
+Time: 0.412 ms
 BEGIN;
 BEGIN
-Time: 0.038 ms
+Time: 0.058 ms
 \echo '=== 告知 1 件を全利用者に送る（受信者ごとに 1 行） ==='
 === 告知 1 件を全利用者に送る（受信者ごとに 1 行） ===
 INSERT INTO ch10_a.notifications (user_id, kind, body, read_at, created_at)
 SELECT u.id, 'announcement', '臨時メンテナンスのお知らせ', NULL, now()
   FROM ch10_r.src_user u;
 INSERT 0 10000
-Time: 24.013 ms
+Time: 23.488 ms
 \echo '=== 送った直後の行数 ==='
 === 送った直後の行数 ===
 SELECT count(*) AS rows_after FROM ch10_a.notifications;
@@ -59,17 +59,17 @@ SELECT count(*) AS rows_after FROM ch10_a.notifications;
      510000
 (1 row)
 
-Time: 9.669 ms
+Time: 10.886 ms
 ROLLBACK;
 ROLLBACK
-Time: 0.090 ms
+Time: 0.093 ms
 SELECT pg_stat_force_next_flush();
  pg_stat_force_next_flush 
 --------------------------
  
 (1 row)
 
-Time: 0.171 ms
+Time: 0.175 ms
 \echo '=== この操作が書いた WAL（操作 1 回あたり） ==='
 === この操作が書いた WAL（操作 1 回あたり） ===
 -- 🔴 1 行あたりに割り算しない。全ページ書き込みがチェックポイント直後に出るため、
@@ -82,4 +82,4 @@ SELECT wal_records - :wal_before_wal_records            AS wal_records,
        30534 | 3414 kB
 (1 row)
 
-Time: 0.545 ms
+Time: 0.367 ms

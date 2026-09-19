@@ -7,5 +7,10 @@
            3 | 225 bytes
 
 投入した行数と時間:
-案A INSERT 0 10000  Time: 24.013 ms
-案B INSERT 0 1  Time: 0.543 ms
+案A INSERT 0 10000  Time: 23.488 ms
+案B INSERT 0 1  Time: 0.341 ms
+
+ 案                        | rows
+---------------------------+-------
+ 案A 受信者ごとに 1 行 | 10000
+ 案B 告知は 1 行      | 1

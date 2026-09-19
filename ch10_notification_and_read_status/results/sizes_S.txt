@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:18:56 +0900
+# 採取日時: 2026-09-19 10:37:48 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -54,11 +54,11 @@ SELECT plan,
             plan             | heap  | indexes | total | total_bytes 
 -----------------------------+-------+---------+-------+-------------
  案C: 告知は 1 行 + カーソル | 27 MB | 7264 kB | 34 MB |    35708928
- 案B: 告知は 1 行 + 既読の表 | 34 MB | 13 MB   | 47 MB |    49684480
- 案A: 受信者ごとに行を作る   | 49 MB | 14 MB   | 64 MB |    66732032
+ 案B: 告知は 1 行 + 既読の表 | 34 MB | 13 MB   | 47 MB |    49668096
+ 案A: 受信者ごとに行を作る   | 49 MB | 14 MB   | 64 MB |    66723840
 (3 rows)
 
-Time: 3.208 ms
+Time: 2.719 ms
 \echo '=== 表ごとの内訳 ==='
 === 表ごとの内訳 ===
 SELECT n.nspname || '.' || c.relname                    AS tbl,
@@ -81,4 +81,4 @@ SELECT n.nspname || '.' || c.relname                    AS tbl,
  ch10_c.broadcasts      | 8192 bytes | 16 kB   | 32 kB  |       20
 (7 rows)
 
-Time: 0.932 ms
+Time: 1.025 ms

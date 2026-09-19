@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:18:55 +0900
+# 採取日時: 2026-09-19 10:37:47 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -21,7 +21,7 @@
 Timing is on.
 SET search_path TO ch10_a, public;
 SET
-Time: 0.101 ms
+Time: 0.126 ms
 \echo '=== 更新する前の未読件数 ==='
 === 更新する前の未読件数 ===
 SELECT count(*) AS unread_before FROM ch10_a.notifications
@@ -31,35 +31,35 @@ SELECT count(*) AS unread_before FROM ch10_a.notifications
             92
 (1 row)
 
-Time: 1.053 ms
+Time: 0.966 ms
 SELECT pg_stat_force_next_flush();
  pg_stat_force_next_flush 
 --------------------------
  
 (1 row)
 
-Time: 0.179 ms
+Time: 0.195 ms
 SELECT wal_records, wal_bytes FROM pg_stat_wal \gset wal_before_
-Time: 0.380 ms
+Time: 0.199 ms
 BEGIN;
 BEGIN
-Time: 0.057 ms
+Time: 0.065 ms
 \echo '=== すべて既読にする ==='
 === すべて既読にする ===
 UPDATE ch10_a.notifications SET read_at = now()
  WHERE user_id = 107 AND read_at IS NULL;
 UPDATE 92
-Time: 2.225 ms
+Time: 1.676 ms
 ROLLBACK;
 ROLLBACK
-Time: 0.065 ms
+Time: 0.075 ms
 SELECT pg_stat_force_next_flush();
  pg_stat_force_next_flush 
 --------------------------
  
 (1 row)
 
-Time: 0.141 ms
+Time: 0.079 ms
 \echo '=== この操作が書いた WAL（操作 1 回あたり） ==='
 === この操作が書いた WAL（操作 1 回あたり） ===
 SELECT wal_records - :wal_before_wal_records            AS wal_records,
@@ -67,7 +67,63 @@ SELECT wal_records - :wal_before_wal_records            AS wal_records,
   FROM pg_stat_wal;
  wal_records | wal_size 
 -------------+----------
-         277 | 24 kB
+         277 | 23 kB
 (1 row)
 
-Time: 0.330 ms
+Time: 0.305 ms
+-- 🔴 ここからが案C と比べるための測定である。
+--    上の UPDATE は個別の通知と告知の両方を既読にしている。
+--    案C のカーソルが引き受けるのは**告知だけ**なので、
+--    そのまま案C の「1 行」と比べると案C を過大評価する。
+--    比べる対象をそろえて、告知だけを既読にする場合を測る。
+\echo '=== 未読の内訳（個別の通知と告知） ==='
+=== 未読の内訳（個別の通知と告知） ===
+SELECT count(*) FILTER (WHERE kind =  'announcement') AS unread_announcements,
+       count(*) FILTER (WHERE kind <> 'announcement') AS unread_personal
+  FROM ch10_a.notifications
+ WHERE user_id = 107 AND read_at IS NULL;
+ unread_announcements | unread_personal 
+----------------------+-----------------
+                    2 |              90
+(1 row)
+
+Time: 0.430 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.081 ms
+SELECT wal_records, wal_bytes FROM pg_stat_wal \gset wal_bc_
+Time: 0.122 ms
+BEGIN;
+BEGIN
+Time: 0.090 ms
+\echo '=== 告知だけを既読にする（案C と比べる対象） ==='
+=== 告知だけを既読にする（案C と比べる対象） ===
+UPDATE ch10_a.notifications SET read_at = now()
+ WHERE user_id = 107 AND kind = 'announcement' AND read_at IS NULL;
+UPDATE 2
+Time: 0.196 ms
+ROLLBACK;
+ROLLBACK
+Time: 0.061 ms
+SELECT pg_stat_force_next_flush();
+ pg_stat_force_next_flush 
+--------------------------
+ 
+(1 row)
+
+Time: 0.089 ms
+\echo '=== 告知だけを既読にしたときの WAL ==='
+=== 告知だけを既読にしたときの WAL ===
+SELECT wal_records - :wal_bc_wal_records            AS wal_records,
+       pg_size_pretty(wal_bytes - :wal_bc_wal_bytes) AS wal_size
+  FROM pg_stat_wal;
+ wal_records | wal_size  
+-------------+-----------
+           7 | 594 bytes
+(1 row)
+
+Time: 0.119 ms

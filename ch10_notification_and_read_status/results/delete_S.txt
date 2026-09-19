@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:18:57 +0900
+# 採取日時: 2026-09-19 10:37:51 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -27,28 +27,28 @@
 Timing is on.
 SET search_path TO ch10_a, public;
 SET
-Time: 0.111 ms
+Time: 0.167 ms
 DROP TABLE IF EXISTS ch10_a.del_plain;
 psql:/tmp/run-sql.sql:17: NOTICE:  table "del_plain" does not exist, skipping
 DROP TABLE
-Time: 0.201 ms
+Time: 0.319 ms
 DROP TABLE IF EXISTS ch10_a.del_part;
 psql:/tmp/run-sql.sql:18: NOTICE:  table "del_part" does not exist, skipping
 DROP TABLE
-Time: 0.193 ms
+Time: 0.128 ms
 \echo '=== (A) 通常の表を用意する ==='
 === (A) 通常の表を用意する ===
 CREATE TABLE ch10_a.del_plain (LIKE ch10_a.notifications INCLUDING ALL);
 CREATE TABLE
-Time: 2.762 ms
+Time: 3.051 ms
 INSERT INTO ch10_a.del_plain (user_id, kind, body, read_at, created_at)
 SELECT user_id, kind, body, read_at, created_at FROM ch10_a.notifications
  ORDER BY id;
 INSERT 0 500000
-Time: 724.278 ms
+Time: 707.213 ms
 ANALYZE ch10_a.del_plain;
 ANALYZE
-Time: 194.289 ms
+Time: 201.611 ms
 \echo '=== (B) パーティション表を用意する（月ごと） ==='
 === (B) パーティション表を用意する（月ごと） ===
 -- 🔴 パーティション表の主キーには、パーティションキーの列が入る必要がある。
@@ -64,7 +64,7 @@ CREATE TABLE ch10_a.del_part (
   PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 CREATE TABLE
-Time: 0.943 ms
+Time: 1.095 ms
 -- 直近 7 か月ぶんを用意する（元データは 180 日に散っている）
 DO $$
 DECLARE m date := date_trunc('month', now())::date - interval '6 months';
@@ -78,15 +78,15 @@ BEGIN
   END LOOP;
 END $$;
 DO
-Time: 5.801 ms
+Time: 5.648 ms
 INSERT INTO ch10_a.del_part (user_id, kind, body, read_at, created_at)
 SELECT user_id, kind, body, read_at, created_at FROM ch10_a.notifications
  ORDER BY id;
 INSERT 0 500000
-Time: 814.827 ms
+Time: 735.800 ms
 ANALYZE ch10_a.del_part;
 ANALYZE
-Time: 1153.586 ms (00:01.154)
+Time: 1197.496 ms (00:01.197)
 \echo '=== 消す前のサイズ ==='
 === 消す前のサイズ ===
 -- 🔴 パーティション表に pg_total_relation_size(親) を使わない。0 を返す。
@@ -101,12 +101,12 @@ SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS plain,
  61 MB | 0 bytes           | 64 MB
 (1 row)
 
-Time: 1.567 ms
+Time: 1.393 ms
 \echo '=== (A) DELETE で 90 日より古い行を消す ==='
 === (A) DELETE で 90 日より古い行を消す ===
 DELETE FROM ch10_a.del_plain WHERE created_at < now() - interval '90 days';
 DELETE 187642
-Time: 106.708 ms
+Time: 113.631 ms
 \echo '=== DELETE の直後のサイズ（戻らない） ==='
 === DELETE の直後のサイズ（戻らない） ===
 SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_delete;
@@ -115,10 +115,10 @@ SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_delet
  61 MB
 (1 row)
 
-Time: 0.159 ms
+Time: 0.171 ms
 VACUUM (ANALYZE) ch10_a.del_plain;
 VACUUM
-Time: 236.738 ms
+Time: 241.613 ms
 \echo '=== VACUUM の後のサイズ（まだ戻らない） ==='
 === VACUUM の後のサイズ（まだ戻らない） ===
 SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_vacuum;
@@ -127,10 +127,10 @@ SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_vacuu
  61 MB
 (1 row)
 
-Time: 0.226 ms
+Time: 0.209 ms
 VACUUM FULL ch10_a.del_plain;
 VACUUM
-Time: 203.782 ms
+Time: 160.639 ms
 \echo '=== VACUUM FULL の後のサイズ（ここで戻る） ==='
 === VACUUM FULL の後のサイズ（ここで戻る） ===
 SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_vacuum_full;
@@ -139,4 +139,4 @@ SELECT pg_size_pretty(pg_total_relation_size('ch10_a.del_plain')) AS after_vacuu
  37 MB
 (1 row)
 
-Time: 0.257 ms
+Time: 0.216 ms

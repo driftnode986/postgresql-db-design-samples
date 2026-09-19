@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:17:21 +0900
+# 採取日時: 2026-09-19 10:37:33 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -63,7 +63,7 @@ CREATE TABLE ch10_r.src_delivery (
 CREATE TABLE
 CREATE INDEX src_delivery_user ON ch10_r.src_delivery (user_id);
 CREATE INDEX
-# 採取日時: 2026-09-19 10:17:21 +0900
+# 採取日時: 2026-09-19 10:37:33 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -120,19 +120,19 @@ SELECT setseed(0.42);
  
 (1 row)
 
-Time: 0.264 ms
+Time: 0.234 ms
 -- 🔴 入れ直しても同じ結果になるようにする（2 回実行して行が倍にならない）
 TRUNCATE ch10_r.src_delivery;
 TRUNCATE TABLE
-Time: 2.083 ms
+Time: 2.405 ms
 TRUNCATE ch10_r.src_notice CASCADE;
 psql:/tmp/run-sql.sql:44: NOTICE:  truncate cascades to table "src_delivery"
 TRUNCATE TABLE
-Time: 1.199 ms
+Time: 0.998 ms
 TRUNCATE ch10_r.src_user CASCADE;
 psql:/tmp/run-sql.sql:45: NOTICE:  truncate cascades to table "src_delivery"
 TRUNCATE TABLE
-Time: 1.082 ms
+Time: 0.761 ms
 \echo '生成する通知数:' :n_notice
 生成する通知数: 300000
 \echo '生成する利用者数:' :n_user
@@ -142,7 +142,7 @@ INSERT INTO ch10_r.src_user (id, login, is_hoarder)
 SELECT g, 'user' || g, (g % 100 = 7)
 FROM generate_series(1, :n_user) AS g;
 INSERT 0 10000
-Time: 10.825 ms
+Time: 10.431 ms
 -- 全員向けの告知は 20 件（年に数回という想定より多めにして、
 -- 案B の未読判定に十分な件数を作る）
 INSERT INTO ch10_r.src_notice (id, kind, is_broadcast, addressee_id, body, created_at)
@@ -154,7 +154,7 @@ SELECT g,
        now() - (make_interval(days => 180) * (20 - g) / 20.0)
 FROM generate_series(1, 20) AS g;
 INSERT 0 20
-Time: 0.622 ms
+Time: 0.728 ms
 -- 個別の通知。告知の 20 件を避けて id を振る
 INSERT INTO ch10_r.src_notice (id, kind, is_broadcast, addressee_id, body, created_at)
 WITH base AS MATERIALIZED (
@@ -179,7 +179,7 @@ SELECT 20 + g,
        now() - make_interval(days => floor(r_age * r_age * 180)::int)
 FROM base;
 INSERT 0 300000
-Time: 472.343 ms
+Time: 458.970 ms
 -- 既読の記録。
 --
 -- 個別の通知は宛先の 1 人にだけ届く。
@@ -206,7 +206,7 @@ SELECT notice_id,
        END
   FROM base;
 INSERT 0 300000
-Time: 2592.735 ms (00:02.593)
+Time: 2397.899 ms (00:02.398)
 -- 告知の既読。告知は全員に届くが、行を作るのは「読んだ人」だけにする。
 -- 案A（受信者ごとに行を作る）はここから 100 万行に展開し、
 -- 案B・案C はこのまま使う。
@@ -226,16 +226,16 @@ SELECT notice_id, user_id,
   FROM pairs
  WHERE r_read < 0.80;
 INSERT 0 159647
-Time: 1400.791 ms (00:01.401)
+Time: 1326.082 ms (00:01.326)
 ANALYZE ch10_r.src_user;
 ANALYZE
-Time: 15.663 ms
+Time: 22.193 ms
 ANALYZE ch10_r.src_notice;
 ANALYZE
-Time: 263.192 ms
+Time: 253.222 ms
 ANALYZE ch10_r.src_delivery;
 ANALYZE
-Time: 39.336 ms
+Time: 37.976 ms
 -- 生成できたものを確認する。本文はここに出る数値を引用する。
 \echo '=== 元データの件数 ==='
 === 元データの件数 ===
@@ -248,7 +248,7 @@ SELECT (SELECT count(*) FROM ch10_r.src_user)                          AS users,
  10000 |   300000 |         20 |     459647
 (1 row)
 
-Time: 40.609 ms
+Time: 34.972 ms
 \echo '=== 個別の通知の未読率と、その偏り ==='
 === 個別の通知の未読率と、その偏り ===
 SELECT count(*) FILTER (WHERE d.read_at IS NULL)                        AS unread,
@@ -264,7 +264,7 @@ SELECT count(*) FILTER (WHERE d.read_at IS NULL)                        AS unrea
   14972 |       4.99 |            78.8
 (1 row)
 
-Time: 82.325 ms
+Time: 71.505 ms
 \echo '=== 1 人あたりの未読（ためこむ人とそれ以外） ==='
 === 1 人あたりの未読（ためこむ人とそれ以外） ===
 SELECT u.is_hoarder,
@@ -282,4 +282,4 @@ SELECT u.is_hoarder,
  t          |   100 |  11792 |           117.9
 (2 rows)
 
-Time: 212.759 ms
+Time: 188.844 ms

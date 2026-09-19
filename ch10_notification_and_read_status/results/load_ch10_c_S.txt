@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 10:18:51 +0900
+# 採取日時: 2026-09-19 10:37:43 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -23,13 +23,13 @@ DO
 Timing is on.
 TRUNCATE ch10_c.read_cursors;
 TRUNCATE TABLE
-Time: 2.373 ms
+Time: 1.880 ms
 TRUNCATE ch10_c.broadcasts;
 TRUNCATE TABLE
-Time: 0.718 ms
+Time: 0.907 ms
 TRUNCATE ch10_c.notifications RESTART IDENTITY;
 TRUNCATE TABLE
-Time: 0.777 ms
+Time: 1.042 ms
 -- 個別の通知（案A・案B とまったく同じ中身）
 INSERT INTO ch10_c.notifications (user_id, kind, body, read_at, created_at)
 SELECT d.user_id, n.kind, n.body, d.read_at, n.created_at
@@ -38,7 +38,7 @@ SELECT d.user_id, n.kind, n.body, d.read_at, n.created_at
  WHERE NOT n.is_broadcast
  ORDER BY n.id;
 INSERT 0 300000
-Time: 471.401 ms
+Time: 452.197 ms
 -- 全員向けの告知（案B と同じ）
 INSERT INTO ch10_c.broadcasts (id, kind, body, created_at)
 SELECT n.id, n.kind, n.body, n.created_at
@@ -46,7 +46,7 @@ SELECT n.id, n.kind, n.body, n.created_at
  WHERE n.is_broadcast
  ORDER BY n.id;
 INSERT 0 20
-Time: 11.664 ms
+Time: 13.517 ms
 -- カーソル。利用者 1 人につき 1 行。
 --
 -- 🔴 ここが案C の性質そのものである。
@@ -73,21 +73,21 @@ SELECT u.id,
   FROM ch10_r.src_user u
  ORDER BY u.id;
 INSERT 0 10000
-Time: 373.131 ms
+Time: 380.853 ms
 -- 🔴 索引はデータを入れてから作る。案A・案B と同じ形にそろえる
 CREATE INDEX notif_c_unread ON ch10_c.notifications (user_id, created_at DESC)
   WHERE read_at IS NULL;
 CREATE INDEX
-Time: 27.713 ms
+Time: 26.775 ms
 ANALYZE ch10_c.notifications;
 ANALYZE
-Time: 243.980 ms
+Time: 251.566 ms
 ANALYZE ch10_c.broadcasts;
 ANALYZE
-Time: 1.420 ms
+Time: 0.617 ms
 ANALYZE ch10_c.read_cursors;
 ANALYZE
-Time: 2.119 ms
+Time: 2.400 ms
 \echo '=== 案C の件数 ==='
 === 案C の件数 ===
 SELECT (SELECT count(*) FROM ch10_c.notifications) AS personal_rows,
@@ -98,7 +98,7 @@ SELECT (SELECT count(*) FROM ch10_c.notifications) AS personal_rows,
         300000 |             20 |       10000
 (1 row)
 
-Time: 13.076 ms
+Time: 12.922 ms
 \echo '=== カーソルに畳んだことで失われた情報（飛ばし読み） ==='
 === カーソルに畳んだことで失われた情報（飛ばし読み） ===
 -- 元データでは読んだのに、カーソルでは未読になる告知の件数。
@@ -114,4 +114,4 @@ SELECT count(*) AS lost_reads
      120368
 (1 row)
 
-Time: 104.087 ms
+Time: 106.727 ms
