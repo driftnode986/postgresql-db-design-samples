@@ -1,0 +1,109 @@
+# 採取日時: 2026-09-26 07:53:55 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 18 で手数が減った変更: NULL が残っている列に、あとから NOT NULL を足す。
+CREATE SCHEMA ch15_d;
+CREATE SCHEMA
+CREATE TABLE ch15_d.users (
+  id    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  email text
+);
+CREATE TABLE
+
+-- 10 万行のうち 100 行に 1 行、メールアドレスが入っていない
+TRUNCATE ch15_d.users RESTART IDENTITY;
+TRUNCATE TABLE
+INSERT INTO ch15_d.users (email)
+SELECT CASE WHEN i % 100 = 0 THEN NULL
+            ELSE 'user' || i || '@example.com' END
+  FROM generate_series(1, 100000) AS i
+ ORDER BY i;
+INSERT 0 100000
+ANALYZE ch15_d.users;
+ANALYZE
+
+-- run-as: book_owner
+-- 既存の行を検査せずに、NOT NULL を足す（18 から）
+ALTER TABLE ch15_d.users
+  ADD CONSTRAINT users_email_nn NOT NULL email NOT VALID;
+ALTER TABLE
+SELECT conname, convalidated
+  FROM pg_constraint
+ WHERE conrelid = 'ch15_d.users'::regclass AND contype = 'n';
+      conname      | convalidated 
+-------------------+--------------
+ users_email_nn    | f
+ users_id_not_null | t
+(2 rows)
+
+
+-- run-as: book_owner
+-- expect-error: 23502
+-- 足した直後から、新しい NULL は拒否される
+INSERT INTO ch15_d.users (email) VALUES (NULL);
+psql:/tmp/run-sql.sql:4: ERROR:  null value in column "email" of relation "users" violates not-null constraint
+DETAIL:  Failing row contains (100001, null).
+
+-- run-as: book_owner
+-- expect-error: contains null values
+-- 古い NULL が残っているあいだは、検査を通せない
+ALTER TABLE ch15_d.users VALIDATE CONSTRAINT users_email_nn;
+psql:/tmp/run-sql.sql:4: ERROR:  column "email" of relation "users" contains null values
+
+-- 残っている NULL を探す。検査を済ませていない制約は、計画を省略する根拠に使われない
+EXPLAIN (ANALYZE)
+SELECT id FROM ch15_d.users WHERE email IS NULL;
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Seq Scan on users  (cost=0.00..1736.00 rows=990 width=8) (actual time=0.009..3.464 rows=1000.00 loops=1)
+   Filter: (email IS NULL)
+   Rows Removed by Filter: 99000
+   Buffers: shared hit=736
+ Planning:
+   Buffers: shared hit=64
+ Planning Time: 0.130 ms
+ Execution Time: 3.558 ms
+(8 rows)
+
+
+-- run-as: book_owner
+-- 残った行を埋めてから、検査を通す
+UPDATE ch15_d.users
+   SET email = 'unknown' || id || '@example.invalid'
+ WHERE email IS NULL;
+UPDATE 1000
+ALTER TABLE ch15_d.users VALIDATE CONSTRAINT users_email_nn;
+ALTER TABLE
+SELECT conname, convalidated
+  FROM pg_constraint
+ WHERE conrelid = 'ch15_d.users'::regclass AND contype = 'n';
+      conname      | convalidated 
+-------------------+--------------
+ users_email_nn    | t
+ users_id_not_null | t
+(2 rows)
+
+
+-- 検査が済むと、同じ問い合わせはテーブルを読まずに 0 行を返す
+EXPLAIN (ANALYZE)
+SELECT id FROM ch15_d.users WHERE email IS NULL;
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Result  (cost=0.00..0.00 rows=0 width=0) (actual time=0.001..0.002 rows=0.00 loops=1)
+   One-Time Filter: false
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.102 ms
+ Execution Time: 0.021 ms
+(6 rows)
+

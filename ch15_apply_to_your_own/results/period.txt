@@ -1,0 +1,76 @@
+# 採取日時: 2026-09-26 07:53:53 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 衝突3: 料金の版を期間で持ち（第8章）、契約が期間つき外部キーで版を参照する。
+CREATE SCHEMA ch15_c;
+CREATE SCHEMA
+CREATE TABLE ch15_c.plan_prices (
+  plan_id bigint,
+  valid   daterange,
+  price   integer NOT NULL,
+  PRIMARY KEY (plan_id, valid WITHOUT OVERLAPS)
+);
+CREATE TABLE
+CREATE TABLE ch15_c.contracts (
+  id      bigint PRIMARY KEY,
+  plan_id bigint NOT NULL,
+  valid   daterange NOT NULL,
+  FOREIGN KEY (plan_id, PERIOD valid)
+    REFERENCES ch15_c.plan_prices (plan_id, PERIOD valid)
+);
+CREATE TABLE
+
+TRUNCATE ch15_c.contracts, ch15_c.plan_prices;
+TRUNCATE TABLE
+INSERT INTO ch15_c.plan_prices VALUES
+  (1, '[2026-01-01,2026-07-01)', 980),
+  (1, '[2026-07-01,)',           1200);
+INSERT 0 2
+-- 3 月から 9 月までの契約は、2 つの版にまたがる
+INSERT INTO ch15_c.contracts VALUES (10, 1, '[2026-03-01,2026-09-01)');
+INSERT 0 1
+
+-- run-as: book_owner
+-- expect-error: 23503
+-- 1 月からの版の期間を、5 月までに縮める（料金表の手直し）。
+-- 契約の 5 月から 7 月が、どの版にも覆われなくなる。
+UPDATE ch15_c.plan_prices
+   SET valid = '[2026-01-01,2026-05-01)'
+ WHERE plan_id = 1 AND lower(valid) = '2026-01-01';
+psql:/tmp/run-sql.sql:7: ERROR:  update or delete on table "plan_prices" violates foreign key constraint "contracts_plan_id_valid_fkey" on table "contracts"
+DETAIL:  Key (plan_id, valid)=(1, [2026-01-01,2026-07-01)) is still referenced from table "contracts".
+
+-- run-as: book_owner
+-- expect-error: unsupported ON DELETE action for foreign key constraint using PERIOD
+-- 参照先を消せないようにする RESTRICT も、期間つき外部キーには付けられない。
+CREATE TABLE ch15_c.contracts_restrict (
+  id      bigint PRIMARY KEY,
+  plan_id bigint NOT NULL,
+  valid   daterange NOT NULL,
+  FOREIGN KEY (plan_id, PERIOD valid)
+    REFERENCES ch15_c.plan_prices (plan_id, PERIOD valid)
+    ON DELETE RESTRICT
+);
+psql:/tmp/run-sql.sql:11: ERROR:  unsupported ON DELETE action for foreign key constraint using PERIOD
+
+-- run-as: book_owner
+-- 料金の版を消すには、同じトランザクションで、参照している契約を先に消す。
+-- 実行しても元に戻るように ROLLBACK で終える。
+BEGIN;
+BEGIN
+DELETE FROM ch15_c.contracts WHERE plan_id = 1;
+DELETE 1
+DELETE FROM ch15_c.plan_prices WHERE plan_id = 1;
+DELETE 2
+ROLLBACK;
+ROLLBACK

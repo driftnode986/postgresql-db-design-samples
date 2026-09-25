@@ -1,0 +1,43 @@
+# 採取日時: 2026-09-26 07:54:18 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 本書が章にしなかった題材の出発点: 欠番のない連番（請求書番号など）
+CREATE SCHEMA ch15_f;
+CREATE SCHEMA
+CREATE TABLE ch15_f.invoices (
+  no   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  note text NOT NULL
+);
+CREATE TABLE
+
+TRUNCATE ch15_f.invoices RESTART IDENTITY;
+TRUNCATE TABLE
+INSERT INTO ch15_f.invoices (note) VALUES ('1 件目');
+INSERT 0 1
+-- 2 件目は、途中で取り消した
+BEGIN;
+BEGIN
+INSERT INTO ch15_f.invoices (note) VALUES ('取り消した 2 件目');
+INSERT 0 1
+ROLLBACK;
+ROLLBACK
+INSERT INTO ch15_f.invoices (note) VALUES ('3 件目');
+INSERT 0 1
+
+SELECT no, note FROM ch15_f.invoices ORDER BY no;
+ no |  note  
+----+--------
+  1 | 1 件目
+  3 | 3 件目
+(2 rows)
+

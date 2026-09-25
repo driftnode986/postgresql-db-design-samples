@@ -1,0 +1,221 @@
+# 採取日時: 2026-09-26 07:53:57 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 制約の第 3 の置き方: 宣言だけして、データベースは検査しない（NOT ENFORCED、18 から）
+CREATE SCHEMA ch15_e;
+CREATE SCHEMA
+CREATE TABLE ch15_e.accounts (
+  id bigint PRIMARY KEY
+);
+CREATE TABLE
+-- 同じ形の表を 3 つ。外部キーの置き方だけが違う
+CREATE TABLE ch15_e.events_none (
+  account_id bigint NOT NULL,
+  amount     integer NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch15_e.events_fk (
+  account_id bigint NOT NULL REFERENCES ch15_e.accounts (id),
+  amount     integer NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch15_e.events_ne (
+  account_id bigint NOT NULL,
+  amount     integer NOT NULL,
+  CONSTRAINT events_ne_account_fk FOREIGN KEY (account_id)
+    REFERENCES ch15_e.accounts (id) NOT ENFORCED,
+  CONSTRAINT events_ne_amount_ck CHECK (amount > 0) NOT ENFORCED
+);
+CREATE TABLE
+
+TRUNCATE ch15_e.accounts CASCADE;
+psql:/tmp/run-sql.sql:1: NOTICE:  truncate cascades to table "events_fk"
+psql:/tmp/run-sql.sql:1: NOTICE:  truncate cascades to table "events_ne"
+TRUNCATE TABLE
+INSERT INTO ch15_e.accounts
+SELECT i FROM generate_series(1, 100000) AS i ORDER BY i;
+INSERT 0 100000
+ANALYZE ch15_e.accounts;
+ANALYZE
+
+-- run-as: book_owner
+-- 100 万行を一括で入れる。3 つの表を交互に 5 回ずつ入れ、Time の中央値で比べる
+SELECT setseed(0.15);
+ setseed 
+---------
+ 
+(1 row)
+
+CREATE TEMP TABLE src AS
+SELECT (random() * 99999)::bigint + 1 AS account_id,
+       (random() * 999)::int + 1      AS amount
+  FROM generate_series(1, 1000000);
+SELECT 1000000
+\timing on
+Timing is on.
+-- 1 回目
+TRUNCATE ch15_e.events_none;
+TRUNCATE TABLE
+Time: 0.679 ms
+INSERT INTO ch15_e.events_none SELECT * FROM src;
+INSERT 0 1000000
+Time: 313.479 ms
+TRUNCATE ch15_e.events_fk;
+TRUNCATE TABLE
+Time: 0.911 ms
+INSERT INTO ch15_e.events_fk SELECT * FROM src;
+INSERT 0 1000000
+Time: 2932.189 ms (00:02.932)
+TRUNCATE ch15_e.events_ne;
+TRUNCATE TABLE
+Time: 0.548 ms
+INSERT INTO ch15_e.events_ne SELECT * FROM src;
+INSERT 0 1000000
+Time: 319.382 ms
+-- 2 回目
+TRUNCATE ch15_e.events_none;
+TRUNCATE TABLE
+Time: 2.601 ms
+INSERT INTO ch15_e.events_none SELECT * FROM src;
+INSERT 0 1000000
+Time: 303.814 ms
+TRUNCATE ch15_e.events_fk;
+TRUNCATE TABLE
+Time: 3.651 ms
+INSERT INTO ch15_e.events_fk SELECT * FROM src;
+INSERT 0 1000000
+Time: 2844.521 ms (00:02.845)
+TRUNCATE ch15_e.events_ne;
+TRUNCATE TABLE
+Time: 2.831 ms
+INSERT INTO ch15_e.events_ne SELECT * FROM src;
+INSERT 0 1000000
+Time: 311.766 ms
+-- 3 回目
+TRUNCATE ch15_e.events_none;
+TRUNCATE TABLE
+Time: 2.550 ms
+INSERT INTO ch15_e.events_none SELECT * FROM src;
+INSERT 0 1000000
+Time: 300.894 ms
+TRUNCATE ch15_e.events_fk;
+TRUNCATE TABLE
+Time: 4.001 ms
+INSERT INTO ch15_e.events_fk SELECT * FROM src;
+INSERT 0 1000000
+Time: 2922.774 ms (00:02.923)
+TRUNCATE ch15_e.events_ne;
+TRUNCATE TABLE
+Time: 2.701 ms
+INSERT INTO ch15_e.events_ne SELECT * FROM src;
+INSERT 0 1000000
+Time: 296.676 ms
+-- 4 回目
+TRUNCATE ch15_e.events_none;
+TRUNCATE TABLE
+Time: 735.298 ms
+INSERT INTO ch15_e.events_none SELECT * FROM src;
+INSERT 0 1000000
+Time: 324.126 ms
+TRUNCATE ch15_e.events_fk;
+TRUNCATE TABLE
+Time: 29.744 ms
+INSERT INTO ch15_e.events_fk SELECT * FROM src;
+INSERT 0 1000000
+Time: 2927.779 ms (00:02.928)
+TRUNCATE ch15_e.events_ne;
+TRUNCATE TABLE
+Time: 2.528 ms
+INSERT INTO ch15_e.events_ne SELECT * FROM src;
+INSERT 0 1000000
+Time: 363.899 ms
+-- 5 回目
+TRUNCATE ch15_e.events_none;
+TRUNCATE TABLE
+Time: 2.383 ms
+INSERT INTO ch15_e.events_none SELECT * FROM src;
+INSERT 0 1000000
+Time: 314.106 ms
+TRUNCATE ch15_e.events_fk;
+TRUNCATE TABLE
+Time: 4.056 ms
+INSERT INTO ch15_e.events_fk SELECT * FROM src;
+INSERT 0 1000000
+Time: 2995.004 ms (00:02.995)
+TRUNCATE ch15_e.events_ne;
+TRUNCATE TABLE
+Time: 2.587 ms
+INSERT INTO ch15_e.events_ne SELECT * FROM src;
+INSERT 0 1000000
+Time: 301.927 ms
+\timing off
+Timing is off.
+
+-- run-as: book_owner
+-- NOT ENFORCED の制約は、違反する行も受け入れる
+INSERT INTO ch15_e.events_ne VALUES (999999, -5);
+INSERT 0 1
+SELECT count(*) AS violations
+  FROM ch15_e.events_ne AS e
+ WHERE e.amount <= 0
+    OR NOT EXISTS (SELECT 1 FROM ch15_e.accounts AS a
+                    WHERE a.id = e.account_id);
+ violations 
+------------
+          1
+(1 row)
+
+
+-- run-as: book_owner
+-- expect-error: 23503
+-- 外部キーは ENFORCED に戻せる。そのとき既存の全行を検査するので、違反が残っていれば失敗する
+ALTER TABLE ch15_e.events_ne
+  ALTER CONSTRAINT events_ne_account_fk ENFORCED;
+psql:/tmp/run-sql.sql:5: ERROR:  insert or update on table "events_ne" violates foreign key constraint "events_ne_account_fk"
+DETAIL:  Key (account_id)=(999999) is not present in table "accounts".
+
+-- run-as: book_owner
+-- expect-error: cannot alter enforceability of constraint
+-- CHECK 制約は、違反の有無にかかわらず ENFORCED に戻せない（作り直すしかない）
+DELETE FROM ch15_e.events_ne WHERE amount <= 0;
+DELETE 1
+ALTER TABLE ch15_e.events_ne
+  ALTER CONSTRAINT events_ne_amount_ck ENFORCED;
+psql:/tmp/run-sql.sql:6: ERROR:  cannot alter enforceability of constraint "events_ne_amount_ck" of relation "events_ne"
+
+-- run-as: book_owner
+-- 違反を消してから、外部キーを ENFORCED に戻す。100 万行を検査する時間を測る
+DELETE FROM ch15_e.events_ne AS e
+ WHERE NOT EXISTS (SELECT 1 FROM ch15_e.accounts AS a
+                    WHERE a.id = e.account_id);
+DELETE 0
+\timing on
+Timing is on.
+ALTER TABLE ch15_e.events_ne
+  ALTER CONSTRAINT events_ne_account_fk ENFORCED;
+ALTER TABLE
+Time: 76.558 ms
+\timing off
+Timing is off.
+SELECT conname, conenforced, convalidated
+  FROM pg_constraint
+ WHERE conrelid = 'ch15_e.events_ne'::regclass
+ ORDER BY conname;
+            conname            | conenforced | convalidated 
+-------------------------------+-------------+--------------
+ events_ne_account_fk          | t           | t
+ events_ne_account_id_not_null | t           | t
+ events_ne_amount_ck           | f           | f
+ events_ne_amount_not_null     | t           | t
+(4 rows)
+
