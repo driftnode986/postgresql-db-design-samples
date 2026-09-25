@@ -1,0 +1,83 @@
+-- run-as: book_owner
+-- 3 案の中身が一致していることの検査。
+--
+-- 🔴 返す全行の先頭列が 0 であること。
+--    そして、**必ず 1 行返す**こと。0 行を返す検査は「一致した」と
+--    「検査が走らなかった」を区別できない（第5章 C1 と同じ落とし穴）。
+--    そのため `HAVING` は使わず、`count(DISTINCT …) - 1` の形で書く。
+--
+-- 🔴 対称差は必ず (A EXCEPT B) UNION ALL (B EXCEPT A) と括弧で囲む。
+--    囲まないと左結合で片方向にしか働かない（第9章 C1）。
+
+-- 検査1: 売上の合計が 3 案で一致する（退会の有無によらない）
+-- 値が 1 通りなら 0、食い違えば 1 以上。
+SELECT count(*) - 1 AS sales_total_mismatch FROM (
+  SELECT sum(amount) AS s FROM ch14_a.orders
+  UNION
+  SELECT sum(amount) FROM ch14_b.orders
+  UNION
+  SELECT sum(amount) FROM ch14_c.orders
+) t;
+
+-- 検査2: 注文の件数が 3 案で一致する
+SELECT count(*) - 1 AS order_count_mismatch FROM (
+  SELECT count(*) AS c FROM ch14_a.orders
+  UNION
+  SELECT count(*) FROM ch14_b.orders
+  UNION
+  SELECT count(*) FROM ch14_c.orders
+) t;
+
+-- 検査3: コメントの件数が 3 案で一致する（退会後も残る）
+SELECT count(*) - 1 AS comment_count_mismatch FROM (
+  SELECT count(*) AS c FROM ch14_a.comments
+  UNION
+  SELECT count(*) FROM ch14_b.comments
+  UNION
+  SELECT count(*) FROM ch14_c.comments
+) t;
+
+-- 検査4: 月次の売上集計が案A と案C で完全に一致する（対称差・双方向）
+SELECT count(*) AS monthly_diff_ac FROM (
+  (SELECT date_trunc('month', ordered_at) m, sum(amount) s
+     FROM ch14_a.orders GROUP BY 1
+   EXCEPT
+   SELECT date_trunc('month', ordered_at), sum(amount)
+     FROM ch14_c.orders GROUP BY 1)
+  UNION ALL
+  (SELECT date_trunc('month', ordered_at), sum(amount)
+     FROM ch14_c.orders GROUP BY 1
+   EXCEPT
+   SELECT date_trunc('month', ordered_at), sum(amount)
+     FROM ch14_a.orders GROUP BY 1)
+) t;
+
+-- 検査5: 月次の売上集計が案A と案B でも一致する（対称差・双方向）
+SELECT count(*) AS monthly_diff_ab FROM (
+  (SELECT date_trunc('month', ordered_at) m, sum(amount) s
+     FROM ch14_a.orders GROUP BY 1
+   EXCEPT
+   SELECT date_trunc('month', ordered_at), sum(amount)
+     FROM ch14_b.orders GROUP BY 1)
+  UNION ALL
+  (SELECT date_trunc('month', ordered_at), sum(amount)
+     FROM ch14_b.orders GROUP BY 1
+   EXCEPT
+   SELECT date_trunc('month', ordered_at), sum(amount)
+     FROM ch14_a.orders GROUP BY 1)
+) t;
+
+-- 検査6: 退会していない利用者の数が 3 案で一致する
+SELECT count(*) - 1 AS active_count_mismatch FROM (
+  SELECT count(*) AS c FROM ch14_a.users WHERE deleted_at IS NULL
+  UNION
+  SELECT count(*) FROM ch14_b.users
+  UNION
+  SELECT count(*) FROM ch14_c.accounts WHERE status = 'active'
+) t;
+
+-- 検査7: 🔴 検査が本当に走っていることの確認。
+--    母集団が空なら、上のすべてが偶然 0 になりうる。
+--    注文が 1 件以上あることを確かめる（0 なら 1 を返して落ちる）。
+SELECT CASE WHEN count(*) > 0 THEN 0 ELSE 1 END AS orders_must_not_be_empty
+FROM ch14_a.orders;

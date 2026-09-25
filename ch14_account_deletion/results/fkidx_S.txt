@@ -1,0 +1,75 @@
+# 採取日時: 2026-09-19 17:16:10 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- standalone
+--
+-- 子の外部キー列に索引が無いと、親 1 行の削除で子を全件走査する。
+-- 🔴 案B・案C は退会で親の行を消すので、この差が退会の速さに直接効く。
+--
+-- 索引の有無だけを変えるため、親も子も 2 組つくって分ける
+-- （1 つの親に両方の子をぶら下げると連鎖が同時に走り、分けて測れない）。
+CREATE SCHEMA IF NOT EXISTS ch14_z;
+psql:/tmp/run-sql.sql:9: NOTICE:  schema "ch14_z" already exists, skipping
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch14_z.c_noidx, ch14_z.c_idx, ch14_z.pa_n, ch14_z.pa_i;
+psql:/tmp/run-sql.sql:10: NOTICE:  table "c_noidx" does not exist, skipping
+psql:/tmp/run-sql.sql:10: NOTICE:  table "c_idx" does not exist, skipping
+psql:/tmp/run-sql.sql:10: NOTICE:  table "pa_n" does not exist, skipping
+psql:/tmp/run-sql.sql:10: NOTICE:  table "pa_i" does not exist, skipping
+DROP TABLE
+CREATE TABLE ch14_z.pa_n (id bigint PRIMARY KEY);
+CREATE TABLE
+CREATE TABLE ch14_z.pa_i (id bigint PRIMARY KEY);
+CREATE TABLE
+INSERT INTO ch14_z.pa_n SELECT generate_series(1, 1000);
+INSERT 0 1000
+INSERT INTO ch14_z.pa_i SELECT generate_series(1, 1000);
+INSERT 0 1000
+CREATE TABLE ch14_z.c_noidx (
+  id bigint PRIMARY KEY, p bigint REFERENCES ch14_z.pa_n(id) ON DELETE CASCADE);
+CREATE TABLE
+CREATE TABLE ch14_z.c_idx (
+  id bigint PRIMARY KEY, p bigint REFERENCES ch14_z.pa_i(id) ON DELETE CASCADE);
+CREATE TABLE
+INSERT INTO ch14_z.c_noidx SELECT i, 1 + (i % 1000) FROM generate_series(1, 500000) i;
+INSERT 0 500000
+INSERT INTO ch14_z.c_idx   SELECT i, 1 + (i % 1000) FROM generate_series(1, 500000) i;
+INSERT 0 500000
+CREATE INDEX c_idx_p ON ch14_z.c_idx (p);
+CREATE INDEX
+VACUUM ANALYZE ch14_z.pa_n, ch14_z.pa_i, ch14_z.c_noidx, ch14_z.c_idx;
+VACUUM
+-- 3 回ずつ交互に測る（キャッシュの状態をそろえるため）
+\timing on
+Timing is on.
+DELETE FROM ch14_z.pa_n WHERE id = 5;   -- 索引なし 1 回目
+DELETE 1
+Time: 12.675 ms
+DELETE FROM ch14_z.pa_i WHERE id = 5;   -- 索引あり 1 回目
+DELETE 1
+Time: 1.303 ms
+DELETE FROM ch14_z.pa_n WHERE id = 6;   -- 索引なし 2 回目
+DELETE 1
+Time: 13.618 ms
+DELETE FROM ch14_z.pa_i WHERE id = 6;   -- 索引あり 2 回目
+DELETE 1
+Time: 2.024 ms
+DELETE FROM ch14_z.pa_n WHERE id = 7;   -- 索引なし 3 回目
+DELETE 1
+Time: 12.968 ms
+DELETE FROM ch14_z.pa_i WHERE id = 7;   -- 索引あり 3 回目
+DELETE 1
+Time: 1.698 ms
+\timing off
+Timing is off.

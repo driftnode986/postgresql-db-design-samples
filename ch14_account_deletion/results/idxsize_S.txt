@@ -1,0 +1,104 @@
+# 採取日時: 2026-09-26 07:27:17 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_owner
+-- standalone
+-- 削除済みの割合ごとに、全体インデックスと部分インデックスのサイズを比べる。
+--
+-- 🔴 案A の users そのものは触らない（ほかの測定に影響するため）。
+--    別のスキーマに同じ形の表を作って測る。
+--
+-- 🔴 割合は毎回「絶対値で置き直す」。前の状態に UPDATE を重ねると、
+--    50% のあとに「id % 10 <> 0」を足して 95%、さらに重ねて 100% になり、
+--    部分インデックスが空（8 kB）になったまま「90% の値」として読める。
+--    実際に一度そうなった。各段で割合そのものを測って記録する。
+CREATE SCHEMA IF NOT EXISTS ch14_z;
+psql:/tmp/run-sql.sql:12: NOTICE:  schema "ch14_z" already exists, skipping
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch14_z.ratio;
+DROP TABLE
+CREATE TABLE ch14_z.ratio (
+  id bigint PRIMARY KEY, email text NOT NULL, deleted_at timestamptz
+);
+CREATE TABLE
+INSERT INTO ch14_z.ratio SELECT i, 'u' || i || '@example.com', NULL
+FROM generate_series(1, 200000) i;
+INSERT 0 200000
+CREATE INDEX ratio_all  ON ch14_z.ratio (email);
+CREATE INDEX
+CREATE INDEX ratio_part ON ch14_z.ratio (email) WHERE deleted_at IS NULL;
+CREATE INDEX
+-- 割合 0%
+UPDATE ch14_z.ratio SET deleted_at = NULL;
+UPDATE 200000
+REINDEX TABLE ch14_z.ratio;
+REINDEX
+ANALYZE ch14_z.ratio;
+ANALYZE
+SELECT '削除済み 0%' AS label,
+       round(100.0 * count(*) FILTER (WHERE deleted_at IS NOT NULL) / count(*), 1)
+         AS measured_pct,
+       pg_relation_size('ch14_z.ratio_all')  AS idx_all_bytes,
+       pg_relation_size('ch14_z.ratio_part') AS idx_partial_bytes
+FROM ch14_z.ratio;
+    label    | measured_pct | idx_all_bytes | idx_partial_bytes 
+-------------+--------------+---------------+-------------------
+ 削除済み 0% |          0.0 |       8151040 |           8151040
+(1 row)
+
+-- 割合 50%（絶対値で置き直す）
+UPDATE ch14_z.ratio SET deleted_at = CASE WHEN id % 2 = 0 THEN now() END;
+UPDATE 200000
+REINDEX TABLE ch14_z.ratio;
+REINDEX
+ANALYZE ch14_z.ratio;
+ANALYZE
+SELECT '削除済み 50%' AS label,
+       round(100.0 * count(*) FILTER (WHERE deleted_at IS NOT NULL) / count(*), 1)
+         AS measured_pct,
+       pg_relation_size('ch14_z.ratio_all')  AS idx_all_bytes,
+       pg_relation_size('ch14_z.ratio_part') AS idx_partial_bytes
+FROM ch14_z.ratio;
+    label     | measured_pct | idx_all_bytes | idx_partial_bytes 
+--------------+--------------+---------------+-------------------
+ 削除済み 50% |         50.0 |       8151040 |           4087808
+(1 row)
+
+-- 割合 90%（絶対値で置き直す）
+UPDATE ch14_z.ratio SET deleted_at = CASE WHEN id % 10 <> 0 THEN now() END;
+UPDATE 200000
+REINDEX TABLE ch14_z.ratio;
+REINDEX
+ANALYZE ch14_z.ratio;
+ANALYZE
+SELECT '削除済み 90%' AS label,
+       round(100.0 * count(*) FILTER (WHERE deleted_at IS NOT NULL) / count(*), 1)
+         AS measured_pct,
+       pg_relation_size('ch14_z.ratio_all')  AS idx_all_bytes,
+       pg_relation_size('ch14_z.ratio_part') AS idx_partial_bytes
+FROM ch14_z.ratio;
+    label     | measured_pct | idx_all_bytes | idx_partial_bytes 
+--------------+--------------+---------------+-------------------
+ 削除済み 90% |         90.0 |       8151040 |            827392
+(1 row)
+
+-- 🔴 検査: 最後の段で「残っている行」が 0 でないこと。
+--    0 だと部分インデックスが空になり、サイズの比較が意味を失う（先頭列 0）。
+SELECT CASE WHEN count(*) FILTER (WHERE deleted_at IS NULL) > 0 THEN 0 ELSE 1 END
+         AS active_rows_must_remain
+FROM ch14_z.ratio;
+ active_rows_must_remain 
+-------------------------
+                       0
+(1 row)
+

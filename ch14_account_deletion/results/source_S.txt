@@ -1,0 +1,168 @@
+# 採取日時: 2026-09-19 17:15:14 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 第14章の元データ。3 案（案A・案B・案C）はここから同じ中身を写す。
+--
+-- 🔴 案ごとにデータを作り直すと、案の違いではなく乱数の違いを測ることになる。
+--    元データを 1 回だけ作り、各案の load.sql が ORDER BY id で写す。
+--
+-- 元データが持つのは「利用者」「注文」「コメント」の 3 つだけである。
+-- 個人情報を利用者の行に置くか（案A・案B）、別のテーブルに分けるか（案C）は各案が決める。
+CREATE SCHEMA IF NOT EXISTS ch14_r;
+CREATE SCHEMA
+DROP TABLE IF EXISTS ch14_r.src_comment;
+psql:/tmp/run-sql.sql:10: NOTICE:  table "src_comment" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch14_r.src_order;
+psql:/tmp/run-sql.sql:11: NOTICE:  table "src_order" does not exist, skipping
+DROP TABLE
+DROP TABLE IF EXISTS ch14_r.src_user;
+psql:/tmp/run-sql.sql:12: NOTICE:  table "src_user" does not exist, skipping
+DROP TABLE
+-- 利用者。withdrawn が真の行は「すでに退会している」利用者を表す。
+-- 退会済みの割合を変えて測るため、元データの時点で印を持たせる。
+CREATE TABLE ch14_r.src_user (
+  id         bigint      PRIMARY KEY,
+  email      text        NOT NULL,
+  full_name  text        NOT NULL,
+  postal     text        NOT NULL,
+  address    text        NOT NULL,
+  phone      text        NOT NULL,
+  registered timestamptz NOT NULL,
+  withdrawn  boolean     NOT NULL
+);
+CREATE TABLE
+-- 注文。売上集計は退会の前後で変わってはいけないので、金額と日時だけを持つ。
+-- 宛名と住所は注文時点の値で、これは個人情報である（配送先として残りがちな場所）。
+CREATE TABLE ch14_r.src_order (
+  id         bigint        PRIMARY KEY,
+  user_id    bigint        NOT NULL REFERENCES ch14_r.src_user(id),
+  ordered_at timestamptz   NOT NULL,
+  amount     numeric(12,0) NOT NULL CHECK (amount >= 0),
+  recipient  text          NOT NULL,
+  ship_addr  text          NOT NULL,
+  ship_phone text          NOT NULL
+);
+CREATE TABLE
+-- 掲示板のコメント。退会後も本文は残り、表示名だけが「退会した利用者」になる。
+CREATE TABLE ch14_r.src_comment (
+  id        bigint      PRIMARY KEY,
+  user_id   bigint      NOT NULL REFERENCES ch14_r.src_user(id),
+  body      text        NOT NULL,
+  posted_at timestamptz NOT NULL
+);
+CREATE TABLE
+
+-- 第14章の元データを作る。SIZE=XS / S / M で行数を変える。
+--
+-- 🔴 乱数は setseed で固定する。同じ SIZE なら何度流しても同じ中身になる。
+-- 🔴 入れ直しても同じ結果になるよう、先頭で TRUNCATE する。
+--
+-- 偏りを 2 か所に入れている。均等に配ると案の差が出ない。
+--   (1) 注文の数: 一部の利用者だけが多く注文する（上位 1% が全体の約 2 割）
+--   (2) 退会済みの割合: 既定で 50%。割合を変えて測る節では別に作り直す
+--
+-- 🔴 日付は now() から「引く」。足すと未来の行ができる（第11章で 996 行できた）。
+TRUNCATE ch14_r.src_comment, ch14_r.src_order, ch14_r.src_user RESTART IDENTITY CASCADE;
+TRUNCATE TABLE
+-- XS は検査を速く回すためだけの量。偏りの作り方は S・M と同じ。
+-- 🔴 本文に載せる測定値は S。XS の値を本文に書かない。
+-- ELSE 1/0 は「知らない SIZE が来たら止める」ため。
+SELECT CASE :'size' WHEN 'XS' THEN 2000  WHEN 'S' THEN 100000  WHEN 'M' THEN 1000000
+       ELSE 1/0 END AS users \gset
+SELECT CASE :'size' WHEN 'XS' THEN 20000 WHEN 'S' THEN 1000000 WHEN 'M' THEN 10000000
+       ELSE 1/0 END AS orders \gset
+SELECT CASE :'size' WHEN 'XS' THEN 4000  WHEN 'S' THEN 200000  WHEN 'M' THEN 2000000
+       ELSE 1/0 END AS cmts \gset
+SELECT setseed(0.14);
+ setseed 
+---------
+ 
+(1 row)
+
+-- 利用者。退会済みは 50%（id が偶数）。
+-- 🔴 退会済みを乱数で決めると、割合を変えた比較で母集団がずれる。id で決めて再現できるようにする。
+INSERT INTO ch14_r.src_user (id, email, full_name, postal, address, phone, registered, withdrawn)
+SELECT i,
+       'user' || i || '@example.com',
+       '利用者 ' || i,
+       lpad((i % 1000)::text, 3, '0') || '-' || lpad((i % 10000)::text, 4, '0'),
+       '東京都テスト区テスト ' || (i % 500 + 1) || '-' || (i % 30 + 1),
+       '090-' || lpad((i % 10000)::text, 4, '0') || '-' || lpad(((i * 7) % 10000)::text, 4, '0'),
+       now() - (i % 1000) * interval '1 day',
+       (i % 2 = 0)
+FROM generate_series(1, :users) i;
+INSERT 0 100000
+-- 注文。上位 1% の利用者に注文を集める（べき分布のかわりに、決定的な偏りを入れる）。
+-- 🔴 WITH ... AS MATERIALIZED を付けないと random() が外側で再評価される。
+INSERT INTO ch14_r.src_order (id, user_id, ordered_at, amount, recipient, ship_addr, ship_phone)
+WITH pick AS MATERIALIZED (
+  SELECT i,
+         CASE WHEN i % 5 = 0
+              -- 5 件に 1 件は上位 1% の利用者（id が :users/100 以下）へ寄せる
+              THEN 1 + floor(random() * greatest(:users / 100, 1))::bigint
+              ELSE 1 + floor(random() * :users)::bigint
+         END AS uid,
+         random() AS r1,
+         random() AS r2
+  FROM generate_series(1, :orders) i
+)
+SELECT p.i,
+       p.uid,
+       now() - (p.r1 * 730) * interval '1 day',
+       (100 + floor(p.r2 * 50000))::numeric(12,0),
+       u.full_name,
+       u.address,
+       u.phone
+FROM pick p
+JOIN ch14_r.src_user u ON u.id = p.uid;
+INSERT 0 1000000
+-- コメント。
+INSERT INTO ch14_r.src_comment (id, user_id, body, posted_at)
+WITH pick AS MATERIALIZED (
+  SELECT i, 1 + floor(random() * :users)::bigint AS uid, random() AS r
+  FROM generate_series(1, :cmts) i
+)
+SELECT p.i, p.uid, 'コメント本文 ' || p.i, now() - (p.r * 365) * interval '1 day'
+FROM pick p;
+INSERT 0 200000
+ANALYZE ch14_r.src_user, ch14_r.src_order, ch14_r.src_comment;
+ANALYZE
+-- 🔴 生成の検査。未来の日付が 1 件でもあれば止める（第11章の教訓）。
+--    返す全行の先頭列が 0 であること。
+SELECT count(*) AS future_rows_must_be_zero
+FROM ch14_r.src_order WHERE ordered_at > now();
+ future_rows_must_be_zero 
+--------------------------
+                        0
+(1 row)
+
+SELECT count(*) AS future_comments_must_be_zero
+FROM ch14_r.src_comment WHERE posted_at > now();
+ future_comments_must_be_zero 
+------------------------------
+                            0
+(1 row)
+
+-- 生成された中身を確かめる（先頭列は 0 でなくてよい。verify ではなく観測）。
+SELECT 'users' AS t, count(*) AS rows, count(*) FILTER (WHERE withdrawn) AS withdrawn
+FROM ch14_r.src_user
+UNION ALL SELECT 'orders',   count(*), NULL FROM ch14_r.src_order
+UNION ALL SELECT 'comments', count(*), NULL FROM ch14_r.src_comment;
+    t     |  rows   | withdrawn 
+----------+---------+-----------
+ users    |  100000 |     50000
+ comments |  200000 |          
+ orders   | 1000000 |          
+(3 rows)
+

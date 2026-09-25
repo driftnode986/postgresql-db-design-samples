@@ -1,0 +1,59 @@
+# 採取日時: 2026-09-19 17:15:58 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- run-as: book_app
+-- 3 案のサイズ。個人情報を分けると表が増えるので、合計で比べる。
+SELECT 'A 論理削除' AS plan,
+       pg_size_pretty(sum(pg_total_relation_size(c.oid))) AS total
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'ch14_a' AND c.relkind = 'r'
+UNION ALL
+SELECT 'B 物理削除+控え',
+       pg_size_pretty(sum(pg_total_relation_size(c.oid)))
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'ch14_b' AND c.relkind = 'r'
+UNION ALL
+SELECT 'C 個人情報を分離',
+       pg_size_pretty(sum(pg_total_relation_size(c.oid)))
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'ch14_c' AND c.relkind = 'r'
+ORDER BY 1;
+       plan       | total  
+------------------+--------
+ A 論理削除       | 234 MB
+ B 物理削除+控え  | 226 MB
+ C 個人情報を分離 | 227 MB
+(3 rows)
+
+-- 内訳（バイト）。図の数値はここから取る。
+SELECT n.nspname AS schema, c.relname AS tbl,
+       pg_total_relation_size(c.oid) AS total_bytes
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname IN ('ch14_a','ch14_b','ch14_c') AND c.relkind = 'r'
+ORDER BY n.nspname, c.relname;
+ schema |       tbl       | total_bytes 
+--------+-----------------+-------------
+ ch14_a | comments        |    26157056
+ ch14_a | orders          |   197328896
+ ch14_a | users           |    21684224
+ ch14_b | comments        |    23347200
+ ch14_b | orders          |   190767104
+ ch14_b | users           |    12591104
+ ch14_b | withdrawn_users |     9986048
+ ch14_c | accounts        |     9281536
+ ch14_c | comments        |    26157056
+ ch14_c | order_shipments |    65830912
+ ch14_c | orders          |   125460480
+ ch14_c | profiles        |    11722752
+(12 rows)
+

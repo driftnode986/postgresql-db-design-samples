@@ -1,0 +1,91 @@
+# 採取日時: 2026-09-19 17:15:24 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案A: 論理削除。個人情報を利用者の行に置いたまま、deleted_at で印を付ける。
+--
+-- 採取した案（haiku）がこの形だった。ただし採取した DDL は
+--   CONSTRAINT email_unique_when_active UNIQUE (email) WHERE (deleted_at IS NULL)
+-- と書いており、これは構文エラーで作れない（x_firstidea/10_haiku_ddl_fails.sql で確かめる）。
+-- 部分的な一意は制約では書けず、部分一意インデックスでしか作れないので、そう直してある。
+CREATE SCHEMA IF NOT EXISTS ch14_a;
+CREATE SCHEMA
+CREATE TABLE ch14_a.users (
+  id         bigint      PRIMARY KEY,
+  email      text        NOT NULL,
+  full_name  text        NOT NULL,
+  postal     text        NOT NULL,
+  address    text        NOT NULL,
+  phone      text        NOT NULL,
+  registered timestamptz NOT NULL,
+  deleted_at timestamptz
+);
+CREATE TABLE
+-- 退会していない利用者の中でだけメールを一意にする。
+-- これで「退会後に同じメールで再登録」が通る（r_source の withdrawn を deleted_at に写す）。
+CREATE UNIQUE INDEX users_email_active ON ch14_a.users (email) WHERE deleted_at IS NULL;
+CREATE INDEX
+-- 一覧は「退会していない利用者を登録の新しい順」。部分インデックスで引く。
+CREATE INDEX users_active_registered ON ch14_a.users (registered DESC) WHERE deleted_at IS NULL;
+CREATE INDEX
+CREATE TABLE ch14_a.orders (
+  id         bigint        PRIMARY KEY,
+  user_id    bigint        NOT NULL REFERENCES ch14_a.users(id),
+  ordered_at timestamptz   NOT NULL,
+  amount     numeric(12,0) NOT NULL CHECK (amount >= 0),
+  -- 🔴 配送先は注文時点の値。ここにも個人情報が写っている。
+  recipient  text          NOT NULL,
+  ship_addr  text          NOT NULL,
+  ship_phone text          NOT NULL
+);
+CREATE TABLE
+CREATE INDEX orders_user ON ch14_a.orders (user_id);
+CREATE INDEX
+CREATE INDEX orders_at   ON ch14_a.orders (ordered_at);
+CREATE INDEX
+CREATE TABLE ch14_a.comments (
+  id        bigint      PRIMARY KEY,
+  user_id   bigint      NOT NULL REFERENCES ch14_a.users(id),
+  body      text        NOT NULL,
+  posted_at timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE INDEX comments_user ON ch14_a.comments (user_id);
+CREATE INDEX
+
+-- 案A に元データを写す。
+-- 🔴 元データが空なら、何も消す前にここで止める（第2章の教訓。
+--    load の実行順が先だと、全案が空のまま「全件 OK」になる）。
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM ch14_r.src_user) = 0 THEN
+    RAISE EXCEPTION '元データ ch14_r.src_user が空。先に r_source/ を実行する';
+  END IF;
+END $$;
+DO
+TRUNCATE ch14_a.comments, ch14_a.orders, ch14_a.users;
+TRUNCATE TABLE
+-- 元データの withdrawn を deleted_at に写す。退会日時は登録日より後になるようにそろえる。
+INSERT INTO ch14_a.users (id, email, full_name, postal, address, phone, registered, deleted_at)
+SELECT id, email, full_name, postal, address, phone, registered,
+       CASE WHEN withdrawn THEN registered + interval '10 day' END
+FROM ch14_r.src_user ORDER BY id;
+INSERT 0 100000
+INSERT INTO ch14_a.orders (id, user_id, ordered_at, amount, recipient, ship_addr, ship_phone)
+SELECT id, user_id, ordered_at, amount, recipient, ship_addr, ship_phone
+FROM ch14_r.src_order ORDER BY id;
+INSERT 0 1000000
+INSERT INTO ch14_a.comments (id, user_id, body, posted_at)
+SELECT id, user_id, body, posted_at FROM ch14_r.src_comment ORDER BY id;
+INSERT 0 200000
+ANALYZE ch14_a.users, ch14_a.orders, ch14_a.comments;
+ANALYZE

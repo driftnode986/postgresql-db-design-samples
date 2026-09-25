@@ -1,0 +1,86 @@
+-- 第14章の元データを作る。SIZE=XS / S / M で行数を変える。
+--
+-- 🔴 乱数は setseed で固定する。同じ SIZE なら何度流しても同じ中身になる。
+-- 🔴 入れ直しても同じ結果になるよう、先頭で TRUNCATE する。
+--
+-- 偏りを 2 か所に入れている。均等に配ると案の差が出ない。
+--   (1) 注文の数: 一部の利用者だけが多く注文する（上位 1% が全体の約 2 割）
+--   (2) 退会済みの割合: 既定で 50%。割合を変えて測る節では別に作り直す
+--
+-- 🔴 日付は now() から「引く」。足すと未来の行ができる（第11章で 996 行できた）。
+
+TRUNCATE ch14_r.src_comment, ch14_r.src_order, ch14_r.src_user RESTART IDENTITY CASCADE;
+
+-- XS は検査を速く回すためだけの量。偏りの作り方は S・M と同じ。
+-- 🔴 本文に載せる測定値は S。XS の値を本文に書かない。
+-- ELSE 1/0 は「知らない SIZE が来たら止める」ため。
+SELECT CASE :'size' WHEN 'XS' THEN 2000  WHEN 'S' THEN 100000  WHEN 'M' THEN 1000000
+       ELSE 1/0 END AS users \gset
+SELECT CASE :'size' WHEN 'XS' THEN 20000 WHEN 'S' THEN 1000000 WHEN 'M' THEN 10000000
+       ELSE 1/0 END AS orders \gset
+SELECT CASE :'size' WHEN 'XS' THEN 4000  WHEN 'S' THEN 200000  WHEN 'M' THEN 2000000
+       ELSE 1/0 END AS cmts \gset
+
+SELECT setseed(0.14);
+
+-- 利用者。退会済みは 50%（id が偶数）。
+-- 🔴 退会済みを乱数で決めると、割合を変えた比較で母集団がずれる。id で決めて再現できるようにする。
+INSERT INTO ch14_r.src_user (id, email, full_name, postal, address, phone, registered, withdrawn)
+SELECT i,
+       'user' || i || '@example.com',
+       '利用者 ' || i,
+       lpad((i % 1000)::text, 3, '0') || '-' || lpad((i % 10000)::text, 4, '0'),
+       '東京都テスト区テスト ' || (i % 500 + 1) || '-' || (i % 30 + 1),
+       '090-' || lpad((i % 10000)::text, 4, '0') || '-' || lpad(((i * 7) % 10000)::text, 4, '0'),
+       now() - (i % 1000) * interval '1 day',
+       (i % 2 = 0)
+FROM generate_series(1, :users) i;
+
+-- 注文。上位 1% の利用者に注文を集める（べき分布のかわりに、決定的な偏りを入れる）。
+-- 🔴 WITH ... AS MATERIALIZED を付けないと random() が外側で再評価される。
+INSERT INTO ch14_r.src_order (id, user_id, ordered_at, amount, recipient, ship_addr, ship_phone)
+WITH pick AS MATERIALIZED (
+  SELECT i,
+         CASE WHEN i % 5 = 0
+              -- 5 件に 1 件は上位 1% の利用者（id が :users/100 以下）へ寄せる
+              THEN 1 + floor(random() * greatest(:users / 100, 1))::bigint
+              ELSE 1 + floor(random() * :users)::bigint
+         END AS uid,
+         random() AS r1,
+         random() AS r2
+  FROM generate_series(1, :orders) i
+)
+SELECT p.i,
+       p.uid,
+       now() - (p.r1 * 730) * interval '1 day',
+       (100 + floor(p.r2 * 50000))::numeric(12,0),
+       u.full_name,
+       u.address,
+       u.phone
+FROM pick p
+JOIN ch14_r.src_user u ON u.id = p.uid;
+
+-- コメント。
+INSERT INTO ch14_r.src_comment (id, user_id, body, posted_at)
+WITH pick AS MATERIALIZED (
+  SELECT i, 1 + floor(random() * :users)::bigint AS uid, random() AS r
+  FROM generate_series(1, :cmts) i
+)
+SELECT p.i, p.uid, 'コメント本文 ' || p.i, now() - (p.r * 365) * interval '1 day'
+FROM pick p;
+
+ANALYZE ch14_r.src_user, ch14_r.src_order, ch14_r.src_comment;
+
+-- 🔴 生成の検査。未来の日付が 1 件でもあれば止める（第11章の教訓）。
+--    返す全行の先頭列が 0 であること。
+SELECT count(*) AS future_rows_must_be_zero
+FROM ch14_r.src_order WHERE ordered_at > now();
+
+SELECT count(*) AS future_comments_must_be_zero
+FROM ch14_r.src_comment WHERE posted_at > now();
+
+-- 生成された中身を確かめる（先頭列は 0 でなくてよい。verify ではなく観測）。
+SELECT 'users' AS t, count(*) AS rows, count(*) FILTER (WHERE withdrawn) AS withdrawn
+FROM ch14_r.src_user
+UNION ALL SELECT 'orders',   count(*), NULL FROM ch14_r.src_order
+UNION ALL SELECT 'comments', count(*), NULL FROM ch14_r.src_comment;

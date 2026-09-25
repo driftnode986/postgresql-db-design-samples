@@ -1,0 +1,122 @@
+# 採取日時: 2026-09-19 17:15:45 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
+
+-- 案C: 個人情報を別のテーブルに分ける。退会したらその行だけを消す。
+--
+-- 🔴 採取した 3 本のうち 2 本（既定・opus）がこの形を推した。
+--    既定は前提の 1 行目に「論理削除フラグ 1 本で済ませる設計は取りません。
+--    個人情報を『消す』要件があるので、フラグでは消えません」と書いている。
+CREATE SCHEMA IF NOT EXISTS ch14_c;
+CREATE SCHEMA
+-- 本体。個人情報を一切持たない。注文とコメントはこの id を指す。
+CREATE TABLE ch14_c.accounts (
+  id           bigint      PRIMARY KEY,
+  status       text        NOT NULL DEFAULT 'active'
+               CHECK (status IN ('active', 'withdrawn')),
+  registered   timestamptz NOT NULL,
+  withdrawn_at timestamptz,
+  -- 退会していないのに退会日時がある、という矛盾を止める
+  CONSTRAINT accounts_withdrawn_consistent CHECK (
+    (status = 'active'    AND withdrawn_at IS NULL) OR
+    (status = 'withdrawn' AND withdrawn_at IS NOT NULL)
+  )
+);
+CREATE TABLE
+CREATE INDEX c_accounts_active ON ch14_c.accounts (registered DESC) WHERE status = 'active';
+CREATE INDEX
+-- 30日を過ぎた退会アカウントを探すため
+CREATE INDEX c_accounts_withdrawn ON ch14_c.accounts (withdrawn_at) WHERE status = 'withdrawn';
+CREATE INDEX
+-- 個人情報。退会したら行ごと消す。消す対象はこの 1 テーブルに集まっている。
+CREATE TABLE ch14_c.profiles (
+  account_id bigint PRIMARY KEY REFERENCES ch14_c.accounts(id) ON DELETE CASCADE,
+  email      text   NOT NULL,
+  full_name  text   NOT NULL,
+  postal     text   NOT NULL,
+  address    text   NOT NULL,
+  phone      text   NOT NULL
+);
+CREATE TABLE
+-- 行ごと消えるので、通常の一意で「退会後に同じメールで再登録」が通る。
+CREATE UNIQUE INDEX c_profiles_email ON ch14_c.profiles (email);
+CREATE INDEX
+-- 注文。個人情報を持たない。売上集計はこのテーブルだけで完結する。
+CREATE TABLE ch14_c.orders (
+  id         bigint        PRIMARY KEY,
+  account_id bigint        NOT NULL REFERENCES ch14_c.accounts(id),
+  ordered_at timestamptz   NOT NULL,
+  amount     numeric(12,0) NOT NULL CHECK (amount >= 0)
+);
+CREATE TABLE
+CREATE INDEX c_orders_account ON ch14_c.orders (account_id);
+CREATE INDEX
+CREATE INDEX c_orders_at      ON ch14_c.orders (ordered_at);
+CREATE INDEX
+-- 🔴 配送先は注文時点の個人情報。注文本体から切り離し、退会時に消せるようにする。
+--    案A・案B では orders の列なので、消すと注文の行に触ることになる。
+CREATE TABLE ch14_c.order_shipments (
+  order_id   bigint PRIMARY KEY REFERENCES ch14_c.orders(id) ON DELETE CASCADE,
+  recipient  text   NOT NULL,
+  ship_addr  text   NOT NULL,
+  ship_phone text   NOT NULL
+);
+CREATE TABLE
+CREATE TABLE ch14_c.comments (
+  id         bigint      PRIMARY KEY,
+  account_id bigint      NOT NULL REFERENCES ch14_c.accounts(id),
+  body       text        NOT NULL,
+  posted_at  timestamptz NOT NULL
+);
+CREATE TABLE
+CREATE INDEX c_comments_account ON ch14_c.comments (account_id);
+CREATE INDEX
+
+-- 案C に元データを写す。
+-- 🔴 元データが空なら、何も消す前にここで止める。
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM ch14_r.src_user) = 0 THEN
+    RAISE EXCEPTION '元データ ch14_r.src_user が空。先に r_source/ を実行する';
+  END IF;
+END $$;
+DO
+TRUNCATE ch14_c.comments, ch14_c.order_shipments, ch14_c.orders,
+         ch14_c.profiles, ch14_c.accounts;
+TRUNCATE TABLE
+INSERT INTO ch14_c.accounts (id, status, registered, withdrawn_at)
+SELECT id,
+       CASE WHEN withdrawn THEN 'withdrawn' ELSE 'active' END,
+       registered,
+       CASE WHEN withdrawn THEN registered + interval '10 day' END
+FROM ch14_r.src_user ORDER BY id;
+INSERT 0 100000
+-- 退会した利用者の個人情報は、この案では既に消えている（行が無い）。
+INSERT INTO ch14_c.profiles (account_id, email, full_name, postal, address, phone)
+SELECT id, email, full_name, postal, address, phone
+FROM ch14_r.src_user WHERE NOT withdrawn ORDER BY id;
+INSERT 0 50000
+INSERT INTO ch14_c.orders (id, account_id, ordered_at, amount)
+SELECT id, user_id, ordered_at, amount FROM ch14_r.src_order ORDER BY id;
+INSERT 0 1000000
+-- 配送先も、退会した利用者のぶんは消えている。
+INSERT INTO ch14_c.order_shipments (order_id, recipient, ship_addr, ship_phone)
+SELECT o.id, o.recipient, o.ship_addr, o.ship_phone
+FROM ch14_r.src_order o JOIN ch14_r.src_user u ON u.id = o.user_id
+WHERE NOT u.withdrawn ORDER BY o.id;
+INSERT 0 499824
+INSERT INTO ch14_c.comments (id, account_id, body, posted_at)
+SELECT id, user_id, body, posted_at FROM ch14_r.src_comment ORDER BY id;
+INSERT 0 200000
+ANALYZE ch14_c.accounts, ch14_c.profiles, ch14_c.orders,
+        ch14_c.order_shipments, ch14_c.comments;
+ANALYZE

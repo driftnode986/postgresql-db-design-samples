@@ -1,0 +1,56 @@
+# 採取日時: 2026-09-19 17:13:14 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=XS
+
+-- run-as: book_app
+-- 案B: 退会した利用者は users に居ないので、条件そのものが要らない。
+EXPLAIN (ANALYZE) SELECT id, registered FROM ch14_b.users
+ ORDER BY registered DESC LIMIT 20;
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..2.16 rows=20 width=16) (actual time=0.010..0.018 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using b_users_registered on users  (cost=0.28..94.60 rows=1000 width=16) (actual time=0.009..0.014 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=147
+ Planning Time: 0.259 ms
+ Execution Time: 0.029 ms
+(9 rows)
+
+EXPLAIN (ANALYZE) SELECT id, registered FROM ch14_b.users
+ ORDER BY registered DESC LIMIT 20;
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..2.16 rows=20 width=16) (actual time=0.007..0.012 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using b_users_registered on users  (cost=0.28..94.60 rows=1000 width=16) (actual time=0.006..0.011 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.023 ms
+ Execution Time: 0.017 ms
+(7 rows)
+
+EXPLAIN (ANALYZE) SELECT id, registered FROM ch14_b.users
+ ORDER BY registered DESC LIMIT 20;
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.28..2.16 rows=20 width=16) (actual time=0.004..0.009 rows=20.00 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using b_users_registered on users  (cost=0.28..94.60 rows=1000 width=16) (actual time=0.004..0.008 rows=20.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=22
+ Planning Time: 0.017 ms
+ Execution Time: 0.013 ms
+(7 rows)
+
