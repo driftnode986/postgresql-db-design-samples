@@ -85,6 +85,7 @@ append enforced.txt book_owner ch15_e $CH/e_enforced/30_accepts_violation.sql
 append_expect_fail enforced.txt book_owner ch15_e $CH/e_enforced/40_fk_enforce_fails.sql 'violates foreign key constraint' || exit 1
 append_expect_fail enforced.txt book_owner ch15_e $CH/e_enforced/50_check_enforce_fails.sql 'cannot alter enforceability' || exit 1
 append enforced.txt book_owner ch15_e $CH/e_enforced/60_fk_enforce.sql
+append enforced.txt book_owner ch15_e $CH/e_enforced/70_enforce_locks.sql
 
 echo "■ 欠番のない連番"
 save serial.txt book_owner ch15_f $CH/f_serial/schema.sql

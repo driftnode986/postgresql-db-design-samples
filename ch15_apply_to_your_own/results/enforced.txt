@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-26 08:08:35 +0900
+# 採取日時: 2026-09-26 08:17:00 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -66,98 +66,98 @@ Timing is on.
 -- 1 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 0.753 ms
+Time: 0.580 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 355.777 ms
+Time: 317.504 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 0.962 ms
+Time: 0.859 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 3124.543 ms (00:03.125)
+Time: 2851.112 ms (00:02.851)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 0.499 ms
+Time: 0.508 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 342.790 ms
+Time: 359.829 ms
 -- 2 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 3.069 ms
+Time: 3.061 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 328.409 ms
+Time: 326.702 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 4.757 ms
+Time: 4.178 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 3232.693 ms (00:03.233)
+Time: 2931.051 ms (00:02.931)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 3.047 ms
+Time: 3.067 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 343.289 ms
+Time: 320.399 ms
 -- 3 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 3.660 ms
+Time: 3.209 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 334.311 ms
+Time: 311.239 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 4.211 ms
+Time: 4.224 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 3084.467 ms (00:03.084)
+Time: 2858.129 ms (00:02.858)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 2.856 ms
+Time: 3.110 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 324.939 ms
+Time: 316.640 ms
 -- 4 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 2.846 ms
+Time: 3.313 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 322.990 ms
+Time: 433.297 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 4.162 ms
+Time: 7.330 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 3031.553 ms (00:03.032)
+Time: 2868.272 ms (00:02.868)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 2.767 ms
+Time: 3.139 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 307.761 ms
+Time: 292.232 ms
 -- 5 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 2.655 ms
+Time: 2.821 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 297.085 ms
+Time: 302.211 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 3.829 ms
+Time: 4.519 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 2874.809 ms (00:02.875)
+Time: 2863.779 ms (00:02.864)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 2.854 ms
+Time: 3.048 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 331.825 ms
+Time: 295.432 ms
 \timing off
 Timing is off.
 
@@ -204,7 +204,7 @@ Timing is on.
 ALTER TABLE ch15_e.events_ne
   ALTER CONSTRAINT events_ne_account_fk ENFORCED;
 ALTER TABLE
-Time: 72.652 ms
+Time: 76.395 ms
 \timing off
 Timing is off.
 SELECT conname, conenforced, convalidated
@@ -219,3 +219,32 @@ SELECT conname, conenforced, convalidated
  events_ne_amount_not_null     | t           | t
 (4 rows)
 
+
+-- run-as: book_owner
+-- ENFORCED に戻す ALTER が取るロックを、トランザクションの中で見る。
+-- 実行しても元に戻るように ROLLBACK で終える。
+ALTER TABLE ch15_e.events_ne
+  ALTER CONSTRAINT events_ne_account_fk NOT ENFORCED;
+ALTER TABLE
+BEGIN;
+BEGIN
+ALTER TABLE ch15_e.events_ne
+  ALTER CONSTRAINT events_ne_account_fk ENFORCED;
+ALTER TABLE
+SELECT c.relname, l.mode
+  FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation
+ WHERE l.pid = pg_backend_pid()
+   AND c.relname IN ('events_ne', 'accounts')
+ ORDER BY c.relname, l.mode;
+  relname  |         mode          
+-----------+-----------------------
+ accounts  | AccessShareLock
+ accounts  | RowShareLock
+ accounts  | ShareRowExclusiveLock
+ events_ne | AccessExclusiveLock
+ events_ne | AccessShareLock
+ events_ne | ShareRowExclusiveLock
+(6 rows)
+
+ROLLBACK;
+ROLLBACK
