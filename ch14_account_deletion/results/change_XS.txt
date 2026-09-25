@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 17:13:23 +0900
+# 採取日時: 2026-09-26 07:36:29 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -51,7 +51,7 @@ BEGIN
 Timing is on.
 ALTER TABLE ch14_a.users ADD COLUMN birthday date;
 ALTER TABLE
-Time: 0.406 ms
+Time: 0.311 ms
 \timing off
 Timing is off.
 ROLLBACK;
@@ -63,10 +63,10 @@ BEGIN
 Timing is on.
 ALTER TABLE ch14_b.users ADD COLUMN birthday date;
 ALTER TABLE
-Time: 0.177 ms
+Time: 0.165 ms
 ALTER TABLE ch14_b.withdrawn_users ADD COLUMN birthday date;
 ALTER TABLE
-Time: 0.156 ms
+Time: 0.237 ms
 \timing off
 Timing is off.
 ROLLBACK;
@@ -79,7 +79,7 @@ BEGIN
 Timing is on.
 ALTER TABLE ch14_c.profiles ADD COLUMN birthday date;
 ALTER TABLE
-Time: 0.205 ms
+Time: 0.167 ms
 \timing off
 Timing is off.
 ROLLBACK;

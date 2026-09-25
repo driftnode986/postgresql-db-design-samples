@@ -64,6 +64,7 @@ save "source_$SIZE.txt" book_owner ch14_r "$CH/r_source/schema_10_table.sql" || 
 append "source_$SIZE.txt" book_owner ch14_r "$CH/r_source/schema_20_generate.sql"
 
 echo "■ 🔴 採取した案の検算（3 つとも失敗するのが正しい）"
+{ bash scripts/collect-env.sh; echo "# SIZE=$SIZE"; } > "$R/firstidea_$SIZE.txt"
 append_expect_fail "firstidea_$SIZE.txt" book_owner ch14_x \
   "$CH/x_firstidea/10_haiku_ddl_fails.sql" 'syntax error at or near "WHERE"' || exit 1
 append_expect_fail "firstidea_$SIZE.txt" book_owner ch14_x \
@@ -122,6 +123,9 @@ save "vacuum_$SIZE.txt" book_owner ch14_z "$CH/change/20_vacuum_after_purge.sql"
 
 echo "■ NOT NULL の NOT VALID と VALIDATE のロック"
 save "validate_$SIZE.txt" book_owner ch14_z "$CH/change/30_validate_lock.sql"
+
+echo "■ 案A → 案C への切り出し（ROLLBACK で戻す）"
+save "split_$SIZE.txt" book_owner ch14_a "$CH/change/70_split_pii_a_to_c.sql"
 
 echo "■ 🔴 期間つき外部キーに退会の連鎖を付ける（2 つとも失敗するのが正しい）"
 { bash scripts/collect-env.sh; echo "# SIZE=$SIZE"; } > "$R/period_$SIZE.txt"

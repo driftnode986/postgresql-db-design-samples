@@ -1,3 +1,15 @@
+# 採取日時: 2026-09-26 07:35:47 +0900
+# ホスト: Darwin arm64
+# Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
+# PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+# default_transaction_isolation = read committed
+# effective_cache_size = 524288 8kB
+# io_method = worker
+# jit = on
+# max_parallel_workers_per_gather = 2
+# shared_buffers = 16384 8kB
+# work_mem = 4096 kB
+# SIZE=S
 
 -- expect-error: syntax error at or near "WHERE"
 -- run-as: book_owner
@@ -5,8 +17,10 @@
 --
 -- 採取した案（haiku）の DDL をそのまま実行する。
 -- 部分的な一意を「制約」として書いているが、PostgreSQL にこの構文は無い。
--- 部分的な一意は「部分一意インデックス」でしか作れない。
+-- 部分的な一意は、部分一意インデックスか WHERE つきの EXCLUDE 制約で作る。
+-- また email 列そのものにも UNIQUE があるので、仮に通っても再登録はできない。
 CREATE SCHEMA IF NOT EXISTS ch14_x;
+psql:/tmp/run-sql.sql:9: NOTICE:  schema "ch14_x" already exists, skipping
 CREATE SCHEMA
 CREATE TABLE ch14_x.haiku_users (
     id BIGSERIAL PRIMARY KEY,
@@ -20,7 +34,7 @@ CREATE TABLE ch14_x.haiku_users (
     CONSTRAINT email_unique_when_active
         UNIQUE (email) WHERE (deleted_at IS NULL)
 );
-psql:/tmp/run-sql.sql:22: ERROR:  syntax error at or near "WHERE"
+psql:/tmp/run-sql.sql:23: ERROR:  syntax error at or near "WHERE"
 LINE 11:         UNIQUE (email) WHERE (deleted_at IS NULL)
                                 ^
 
@@ -34,7 +48,6 @@ CREATE SCHEMA IF NOT EXISTS ch14_x;
 psql:/tmp/run-sql.sql:7: NOTICE:  schema "ch14_x" already exists, skipping
 CREATE SCHEMA
 DROP TABLE IF EXISTS ch14_x.plain_users;
-psql:/tmp/run-sql.sql:8: NOTICE:  table "plain_users" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch14_x.plain_users (
     id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -59,17 +72,15 @@ DETAIL:  Key (email)=(t@example.com) already exists.
 -- 🔴 この章の入口。「同じメールで再登録できる」と「30日以内なら戻せる」は
 --    両方をメールの一意で実現しようとすると衝突する。
 --
--- 採取した案（opus）が 1 回目の応答で、DDL を出す前にこれを指摘した:
---   「田中さんが退会して、3日後に同じメールで新しく登録し直した。
---     その10日後に『やっぱり前のアカウントに戻したい』と言ってきた。
---     メールアドレスは新アカウントが使っている。どう戻しますか。」
+-- 採取した案（opus）が 1 回目の応答で、DDL を出す前にこれを指摘した（採取記録からの要約）:
+--   退会の 3 日後に同じメールアドレスで別のアカウントが登録され、その 10 日後に
+--   元のアカウントを戻そうとすると、メールアドレスは新しいアカウントが使っている。
 --
 -- 部分一意インデックスで再登録を通した場合に、本当に戻せなくなるかを確かめる。
 CREATE SCHEMA IF NOT EXISTS ch14_x;
-psql:/tmp/run-sql.sql:14: NOTICE:  schema "ch14_x" already exists, skipping
+psql:/tmp/run-sql.sql:13: NOTICE:  schema "ch14_x" already exists, skipping
 CREATE SCHEMA
 DROP TABLE IF EXISTS ch14_x.collide;
-psql:/tmp/run-sql.sql:15: NOTICE:  table "collide" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch14_x.collide (
     id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -99,5 +110,5 @@ FROM ch14_x.collide ORDER BY id;
 
 -- 4. さらに 10 日後（退会から 13 日 = 30 日以内）、元に戻したいと申し出る
 UPDATE ch14_x.collide SET deleted_at = NULL WHERE id = 1;
-psql:/tmp/run-sql.sql:38: ERROR:  duplicate key value violates unique constraint "x_email_active"
+psql:/tmp/run-sql.sql:37: ERROR:  duplicate key value violates unique constraint "x_email_active"
 DETAIL:  Key (email)=(t@example.com) already exists.

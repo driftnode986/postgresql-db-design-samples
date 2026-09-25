@@ -4,7 +4,8 @@
 --
 -- 採取した案（haiku）の DDL をそのまま実行する。
 -- 部分的な一意を「制約」として書いているが、PostgreSQL にこの構文は無い。
--- 部分的な一意は「部分一意インデックス」でしか作れない。
+-- 部分的な一意は、部分一意インデックスか WHERE つきの EXCLUDE 制約で作る。
+-- また email 列そのものにも UNIQUE があるので、仮に通っても再登録はできない。
 CREATE SCHEMA IF NOT EXISTS ch14_x;
 
 CREATE TABLE ch14_x.haiku_users (

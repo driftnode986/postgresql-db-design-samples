@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 17:15:45 +0900
+# 採取日時: 2026-09-26 07:36:15 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,7 +9,7 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
-# SIZE=S
+# SIZE=XS
 
 -- 案C: 個人情報を別のテーブルに分ける。退会したらその行だけを消す。
 --
@@ -99,24 +99,24 @@ SELECT id,
        registered,
        CASE WHEN withdrawn THEN registered + interval '10 day' END
 FROM ch14_r.src_user ORDER BY id;
-INSERT 0 100000
+INSERT 0 2000
 -- 退会した利用者の個人情報は、この案では既に消えている（行が無い）。
 INSERT INTO ch14_c.profiles (account_id, email, full_name, postal, address, phone)
 SELECT id, email, full_name, postal, address, phone
 FROM ch14_r.src_user WHERE NOT withdrawn ORDER BY id;
-INSERT 0 50000
+INSERT 0 1000
 INSERT INTO ch14_c.orders (id, account_id, ordered_at, amount)
 SELECT id, user_id, ordered_at, amount FROM ch14_r.src_order ORDER BY id;
-INSERT 0 1000000
+INSERT 0 20000
 -- 配送先も、退会した利用者のぶんは消えている。
 INSERT INTO ch14_c.order_shipments (order_id, recipient, ship_addr, ship_phone)
 SELECT o.id, o.recipient, o.ship_addr, o.ship_phone
 FROM ch14_r.src_order o JOIN ch14_r.src_user u ON u.id = o.user_id
 WHERE NOT u.withdrawn ORDER BY o.id;
-INSERT 0 499824
+INSERT 0 9827
 INSERT INTO ch14_c.comments (id, account_id, body, posted_at)
 SELECT id, user_id, body, posted_at FROM ch14_r.src_comment ORDER BY id;
-INSERT 0 200000
+INSERT 0 4000
 ANALYZE ch14_c.accounts, ch14_c.profiles, ch14_c.orders,
         ch14_c.order_shipments, ch14_c.comments;
 ANALYZE

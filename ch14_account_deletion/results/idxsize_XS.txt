@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-26 07:27:22 +0900
+# 採取日時: 2026-09-26 07:36:19 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -23,9 +23,9 @@
 --    部分インデックスが空（8 kB）になったまま「90% の値」として読める。
 --    実際に一度そうなった。各段で割合そのものを測って記録する。
 CREATE SCHEMA IF NOT EXISTS ch14_z;
-psql:/tmp/run-sql.sql:12: NOTICE:  schema "ch14_z" already exists, skipping
 CREATE SCHEMA
 DROP TABLE IF EXISTS ch14_z.ratio;
+psql:/tmp/run-sql.sql:13: NOTICE:  table "ratio" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch14_z.ratio (
   id bigint PRIMARY KEY, email text NOT NULL, deleted_at timestamptz

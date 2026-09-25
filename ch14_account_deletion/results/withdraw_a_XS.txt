@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 17:13:22 +0900
+# 採取日時: 2026-09-26 07:36:28 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -20,19 +20,19 @@ Timing is on.
 -- (1) 印を立てるだけ
 UPDATE ch14_a.users SET deleted_at = now() WHERE id = 1 AND deleted_at IS NULL;
 UPDATE 1
-Time: 1.665 ms
+Time: 2.187 ms
 -- (2) 要件を満たすには、個人情報の列を全部つぶす必要がある
 UPDATE ch14_a.users
    SET email     = 'deleted-' || id || '@invalid',
        full_name = '', postal = '', address = '', phone = ''
  WHERE id = 3;
 UPDATE 1
-Time: 0.518 ms
+Time: 0.548 ms
 -- (3) 注文の配送先にも同じ個人情報が写っている
 UPDATE ch14_a.orders SET recipient = '', ship_addr = '', ship_phone = ''
  WHERE user_id = 3;
 UPDATE 224
-Time: 1.753 ms
+Time: 1.775 ms
 \timing off
 Timing is off.
 -- (2)(3) のあと、その利用者の個人情報が残っていないことの検査（先頭列 0）

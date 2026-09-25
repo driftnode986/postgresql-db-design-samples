@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 17:15:35 +0900
+# 採取日時: 2026-09-26 07:36:14 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,7 +9,7 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
-# SIZE=S
+# SIZE=XS
 
 -- 案B: 物理削除 + アーカイブ。
 -- 退会したら利用者の行を消す。30日以内に戻せるよう、消す直前の個人情報を
@@ -89,14 +89,14 @@ TRUNCATE TABLE
 INSERT INTO ch14_b.users (id, email, full_name, postal, address, phone, registered)
 SELECT id, email, full_name, postal, address, phone, registered
 FROM ch14_r.src_user WHERE NOT withdrawn ORDER BY id;
-INSERT 0 50000
+INSERT 0 1000
 INSERT INTO ch14_b.withdrawn_users
        (id, email, full_name, postal, address, phone, registered, withdrawn_at, purge_after)
 SELECT id, email, full_name, postal, address, phone, registered,
        registered + interval '10 day',
        registered + interval '10 day' + interval '30 day'
 FROM ch14_r.src_user WHERE withdrawn ORDER BY id;
-INSERT 0 50000
+INSERT 0 1000
 -- 注文とコメントは全件残す。退会した利用者のぶんは user_id を NULL にする
 -- （物理削除で ON DELETE SET NULL が働いた後の状態と同じ）。
 INSERT INTO ch14_b.orders (id, user_id, ordered_at, amount, recipient, ship_addr, ship_phone)
@@ -105,13 +105,13 @@ SELECT o.id,
        o.ordered_at, o.amount, o.recipient, o.ship_addr, o.ship_phone
 FROM ch14_r.src_order o JOIN ch14_r.src_user u ON u.id = o.user_id
 ORDER BY o.id;
-INSERT 0 1000000
+INSERT 0 20000
 INSERT INTO ch14_b.comments (id, user_id, body, posted_at)
 SELECT c.id,
        CASE WHEN u.withdrawn THEN NULL ELSE c.user_id END,
        c.body, c.posted_at
 FROM ch14_r.src_comment c JOIN ch14_r.src_user u ON u.id = c.user_id
 ORDER BY c.id;
-INSERT 0 200000
+INSERT 0 4000
 ANALYZE ch14_b.users, ch14_b.withdrawn_users, ch14_b.orders, ch14_b.comments;
 ANALYZE
