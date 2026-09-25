@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-26 07:53:57 +0900
+# 採取日時: 2026-09-26 08:08:35 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -11,14 +11,14 @@
 # work_mem = 4096 kB
 # SIZE=S
 
--- 制約の第 3 の置き方: 宣言だけして、データベースは検査しない（NOT ENFORCED、18 から）
+-- 宣言だけして、データベースは検査しない（NOT ENFORCED、18 から）
 CREATE SCHEMA ch15_e;
 CREATE SCHEMA
 CREATE TABLE ch15_e.accounts (
   id bigint PRIMARY KEY
 );
 CREATE TABLE
--- 同じ形の表を 3 つ。外部キーの置き方だけが違う
+-- 同じ形のテーブルを 3 つ。外部キーの置き方だけが違う
 CREATE TABLE ch15_e.events_none (
   account_id bigint NOT NULL,
   amount     integer NOT NULL
@@ -66,98 +66,98 @@ Timing is on.
 -- 1 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 0.679 ms
+Time: 0.753 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 313.479 ms
+Time: 355.777 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 0.911 ms
+Time: 0.962 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 2932.189 ms (00:02.932)
+Time: 3124.543 ms (00:03.125)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 0.548 ms
+Time: 0.499 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 319.382 ms
+Time: 342.790 ms
 -- 2 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 2.601 ms
+Time: 3.069 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 303.814 ms
+Time: 328.409 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 3.651 ms
+Time: 4.757 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 2844.521 ms (00:02.845)
+Time: 3232.693 ms (00:03.233)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 2.831 ms
+Time: 3.047 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 311.766 ms
+Time: 343.289 ms
 -- 3 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 2.550 ms
+Time: 3.660 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 300.894 ms
+Time: 334.311 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 4.001 ms
+Time: 4.211 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 2922.774 ms (00:02.923)
+Time: 3084.467 ms (00:03.084)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 2.701 ms
+Time: 2.856 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 296.676 ms
+Time: 324.939 ms
 -- 4 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 735.298 ms
+Time: 2.846 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 324.126 ms
+Time: 322.990 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 29.744 ms
+Time: 4.162 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 2927.779 ms (00:02.928)
+Time: 3031.553 ms (00:03.032)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 2.528 ms
+Time: 2.767 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 363.899 ms
+Time: 307.761 ms
 -- 5 回目
 TRUNCATE ch15_e.events_none;
 TRUNCATE TABLE
-Time: 2.383 ms
+Time: 2.655 ms
 INSERT INTO ch15_e.events_none SELECT * FROM src;
 INSERT 0 1000000
-Time: 314.106 ms
+Time: 297.085 ms
 TRUNCATE ch15_e.events_fk;
 TRUNCATE TABLE
-Time: 4.056 ms
+Time: 3.829 ms
 INSERT INTO ch15_e.events_fk SELECT * FROM src;
 INSERT 0 1000000
-Time: 2995.004 ms (00:02.995)
+Time: 2874.809 ms (00:02.875)
 TRUNCATE ch15_e.events_ne;
 TRUNCATE TABLE
-Time: 2.587 ms
+Time: 2.854 ms
 INSERT INTO ch15_e.events_ne SELECT * FROM src;
 INSERT 0 1000000
-Time: 301.927 ms
+Time: 331.825 ms
 \timing off
 Timing is off.
 
@@ -204,7 +204,7 @@ Timing is on.
 ALTER TABLE ch15_e.events_ne
   ALTER CONSTRAINT events_ne_account_fk ENFORCED;
 ALTER TABLE
-Time: 76.558 ms
+Time: 72.652 ms
 \timing off
 Timing is off.
 SELECT conname, conenforced, convalidated

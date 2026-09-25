@@ -1,11 +1,11 @@
--- 制約の第 3 の置き方: 宣言だけして、データベースは検査しない（NOT ENFORCED、18 から）
+-- 宣言だけして、データベースは検査しない（NOT ENFORCED、18 から）
 CREATE SCHEMA ch15_e;
 
 CREATE TABLE ch15_e.accounts (
   id bigint PRIMARY KEY
 );
 
--- 同じ形の表を 3 つ。外部キーの置き方だけが違う
+-- 同じ形のテーブルを 3 つ。外部キーの置き方だけが違う
 CREATE TABLE ch15_e.events_none (
   account_id bigint NOT NULL,
   amount     integer NOT NULL
