@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:45:58 +0900
+# 採取日時: 2026-09-26 09:12:36 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -73,20 +73,20 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && daterange('2024-04-01','2024-05-01');
                                                             QUERY PLAN                                                             
 -----------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.032..17.406 rows=10239.00 loops=1)
+ Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.028..16.882 rows=10239.00 loops=1)
    Join Filter: (p.id = s.plan_id)
    Rows Removed by Join Filter: 20187
    Buffers: shared hit=94
-   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.024..11.856 rows=10239.00 loops=1)
+   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.024..11.495 rows=10239.00 loops=1)
          Hash Cond: (s.plan_id = pr.plan_id)
          Join Filter: (pr.valid @> lower((s.period * '[2024-04-01,2024-05-01)'::daterange)))
          Rows Removed by Join Filter: 51195
          Buffers: shared hit=93
-         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.007..1.221 rows=10239.00 loops=1)
+         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.008..1.225 rows=10239.00 loops=1)
                Filter: (period && '[2024-04-01,2024-05-01)'::daterange)
                Rows Removed by Filter: 685
                Buffers: shared hit=92
-         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.010..0.011 rows=30.00 loops=1)
+         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.010..0.010 rows=30.00 loops=1)
                Buckets: 1024  Batches: 1  Memory Usage: 10kB
                Buffers: shared hit=1
                ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.004..0.006 rows=30.00 loops=1)
@@ -94,12 +94,12 @@ WHERE s.period && daterange('2024-04-01','2024-05-01');
    ->  Materialize  (cost=0.00..1.07 rows=5 width=22) (actual time=0.000..0.000 rows=2.97 loops=10239)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=1
-         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.002..0.002 rows=5.00 loops=1)
+         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.001..0.001 rows=5.00 loops=1)
                Buffers: shared hit=1
  Planning:
-   Buffers: shared hit=306
- Planning Time: 0.399 ms
- Execution Time: 17.727 ms
+   Buffers: shared hit=312
+ Planning Time: 0.387 ms
+ Execution Time: 17.206 ms
 (27 rows)
 
 ## 40_sizes_and_plan.sql run 2
@@ -164,33 +164,33 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && daterange('2024-04-01','2024-05-01');
                                                             QUERY PLAN                                                             
 -----------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.048..17.011 rows=10239.00 loops=1)
+ Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.035..16.841 rows=10239.00 loops=1)
    Join Filter: (p.id = s.plan_id)
    Rows Removed by Join Filter: 20187
    Buffers: shared hit=94
-   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.028..11.636 rows=10239.00 loops=1)
+   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.030..11.459 rows=10239.00 loops=1)
          Hash Cond: (s.plan_id = pr.plan_id)
          Join Filter: (pr.valid @> lower((s.period * '[2024-04-01,2024-05-01)'::daterange)))
          Rows Removed by Join Filter: 51195
          Buffers: shared hit=93
-         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.010..1.294 rows=10239.00 loops=1)
+         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.011..1.287 rows=10239.00 loops=1)
                Filter: (period && '[2024-04-01,2024-05-01)'::daterange)
                Rows Removed by Filter: 685
                Buffers: shared hit=92
          ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.009..0.009 rows=30.00 loops=1)
                Buckets: 1024  Batches: 1  Memory Usage: 10kB
                Buffers: shared hit=1
-               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.002..0.004 rows=30.00 loops=1)
+               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.003..0.004 rows=30.00 loops=1)
                      Buffers: shared hit=1
    ->  Materialize  (cost=0.00..1.07 rows=5 width=22) (actual time=0.000..0.000 rows=2.97 loops=10239)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=1
-         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.005..0.005 rows=5.00 loops=1)
+         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.001..0.001 rows=5.00 loops=1)
                Buffers: shared hit=1
  Planning:
-   Buffers: shared hit=306
- Planning Time: 0.471 ms
- Execution Time: 17.326 ms
+   Buffers: shared hit=312
+ Planning Time: 0.437 ms
+ Execution Time: 17.192 ms
 (27 rows)
 
 ## 40_sizes_and_plan.sql run 3
@@ -255,32 +255,32 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && daterange('2024-04-01','2024-05-01');
                                                             QUERY PLAN                                                             
 -----------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.029..17.012 rows=10239.00 loops=1)
+ Nested Loop  (cost=1.56..1219.01 rows=51 width=30) (actual time=0.027..16.742 rows=10239.00 loops=1)
    Join Filter: (p.id = s.plan_id)
    Rows Removed by Join Filter: 20187
    Buffers: shared hit=94
-   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.022..11.598 rows=10239.00 loops=1)
+   ->  Hash Join  (cost=1.56..1213.98 rows=51 width=42) (actual time=0.022..11.303 rows=10239.00 loops=1)
          Hash Cond: (s.plan_id = pr.plan_id)
          Join Filter: (pr.valid @> lower((s.period * '[2024-04-01,2024-05-01)'::daterange)))
          Rows Removed by Join Filter: 51195
          Buffers: shared hit=93
-         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.007..1.218 rows=10239.00 loops=1)
+         ->  Seq Scan on subscriptions s  (cost=0.00..228.55 rows=10222 width=30) (actual time=0.006..1.242 rows=10239.00 loops=1)
                Filter: (period && '[2024-04-01,2024-05-01)'::daterange)
                Rows Removed by Filter: 685
                Buffers: shared hit=92
-         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.009..0.010 rows=30.00 loops=1)
+         ->  Hash  (cost=1.25..1.25 rows=25 width=25) (actual time=0.009..0.009 rows=30.00 loops=1)
                Buckets: 1024  Batches: 1  Memory Usage: 10kB
                Buffers: shared hit=1
-               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.002..0.004 rows=30.00 loops=1)
+               ->  Seq Scan on plan_prices pr  (cost=0.00..1.25 rows=25 width=25) (actual time=0.003..0.005 rows=30.00 loops=1)
                      Buffers: shared hit=1
    ->  Materialize  (cost=0.00..1.07 rows=5 width=22) (actual time=0.000..0.000 rows=2.97 loops=10239)
          Storage: Memory  Maximum Storage: 17kB
          Buffers: shared hit=1
-         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.002..0.002 rows=5.00 loops=1)
+         ->  Seq Scan on plans p  (cost=0.00..1.05 rows=5 width=22) (actual time=0.001..0.002 rows=5.00 loops=1)
                Buffers: shared hit=1
  Planning:
-   Buffers: shared hit=306
- Planning Time: 0.428 ms
- Execution Time: 17.321 ms
+   Buffers: shared hit=312
+ Planning Time: 0.353 ms
+ Execution Time: 17.052 ms
 (27 rows)
 

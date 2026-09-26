@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:45:57 +0900
+# 採取日時: 2026-09-26 09:12:34 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -37,7 +37,7 @@ FROM ch08_a.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 82.790 ms
+Time: 75.805 ms
 -- 案B: 料金の版から、その期間の開始時点の額を引いて写す。
 -- 据え置きの契約は grandfathered_yen を使い、料金表を引かない
 INSERT INTO ch08_b.invoice_lines
@@ -55,7 +55,7 @@ JOIN ch08_b.plan_prices pr
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 98.811 ms
+Time: 84.439 ms
 -- 案C: 金額を写さず、plan_id と日数だけを記録する
 INSERT INTO ch08_c.invoice_lines
   (subscription_id, billed_month, plan_id, charged_days, days_in_month)
@@ -66,7 +66,7 @@ FROM ch08_c.subscriptions s
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 57.177 ms
+Time: 48.312 ms
 -- 案D: 写しと、どの版から引いたかの両方を記録する
 --
 -- 🔴 priced_on には、引いた版そのものの開始日（lower(pr.valid)）を入れる。
@@ -88,7 +88,7 @@ JOIN ch08_d.plan_prices pr
 WHERE s.period && :mr
 ORDER BY s.id;
 INSERT 0 10239
-Time: 68.278 ms
+Time: 61.112 ms
 \echo '--- 発行した明細の件数 ---'
 --- 発行した明細の件数 ---
 SELECT (SELECT count(*) FROM ch08_a.invoice_lines) AS a,
@@ -100,4 +100,4 @@ SELECT (SELECT count(*) FROM ch08_a.invoice_lines) AS a,
  10239 | 10239 | 10239 | 10239
 (1 row)
 
-Time: 1.895 ms
+Time: 1.998 ms

@@ -41,9 +41,11 @@ FROM ch08_b.subscriptions s
 WHERE NOT (
   SELECT COALESCE(range_agg(pr.valid), '{}'::datemultirange)
   FROM ch08_b.plan_prices pr WHERE pr.plan_id = s.plan_id
-) @> datemultirange(
-      daterange(lower(s.period),
-                COALESCE(upper(s.period), DATE '2030-01-01')));
+) @> datemultirange(s.period);
+-- 🔴 契約の期間をそのまま渡す。上端の無い契約は、上端の無い版で覆われている必要がある
+--    （期間つき外部キーの検査と同じ）。以前は上端を 2030-01-01 に置き換えていたため、
+--    料金表が 2030 年の途中で終わっていても 0 件を返し、2030 年以降に始まる契約では
+--    range lower bound must be less than or equal to range upper bound で止まった（2026-09-26 最終レビュー）
 
 \echo '--- 4. 日割りの日数が、その月の日数を超えている明細（0 が正常）---'
 SELECT count(*) AS bad_days FROM ch08_b.invoice_lines

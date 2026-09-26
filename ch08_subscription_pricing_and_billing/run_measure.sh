@@ -45,6 +45,16 @@ done
 echo "■ 4 月分の発行"
 save "issue_$SIZE.txt" book_owner ch08_r "$CH/r_source/40_issue_april.sql" || exit 1
 
+echo "■ 案C の改定を、検査を遅らせずに流す（どちらの順序でも失敗するのが正しい）"
+# 🔴 失敗しなければ止める。本文の「1 文目で止まる」「順序を入れ替えると主キーに弾かれる」の根拠
+#    （2026-09-26 最終レビュー: 以前は実行したログが無かった）
+save "revise_fails_$SIZE.txt" book_owner ch08_c "$CH/c_temporal/45_revise_close_first_fails.sql" \
+  && { echo "❌ 45 が成功した"; exit 1; }
+grep -q 'violates foreign key constraint' "$R/revise_fails_$SIZE.txt" || { echo "❌ 45 の失敗理由が違う"; exit 1; }
+{ echo; SIZE="$SIZE" bash scripts/run-sql.sh book_owner ch08_c "$CH/c_temporal/46_revise_insert_first_fails.sql"; } \
+  >> "$R/revise_fails_$SIZE.txt" 2>&1 && { echo "❌ 46 が成功した"; exit 1; }
+grep -q 'conflicting key value violates exclusion constraint' "$R/revise_fails_$SIZE.txt" || { echo "❌ 46 の失敗理由が違う"; exit 1; }
+
 echo "■ 改定して再発行し、差額を出す"
 save "revise_$SIZE.txt" book_owner ch08_r "$CH/r_source/50_revise_and_reissue.sql" || exit 1
 

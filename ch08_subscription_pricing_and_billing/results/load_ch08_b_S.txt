@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 07:45:55 +0900
+# 採取日時: 2026-09-26 09:12:32 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -24,41 +24,41 @@ DO
 Timing is on.
 TRUNCATE ch08_b.invoice_lines RESTART IDENTITY;
 TRUNCATE TABLE
-Time: 2.037 ms
+Time: 2.709 ms
 TRUNCATE ch08_b.subscriptions RESTART IDENTITY CASCADE;
 psql:/tmp/run-sql.sql:13: NOTICE:  truncate cascades to table "invoice_lines"
 TRUNCATE TABLE
-Time: 1.589 ms
+Time: 2.164 ms
 TRUNCATE ch08_b.plan_prices RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 1.409 ms
+Time: 1.309 ms
 TRUNCATE ch08_b.plans RESTART IDENTITY CASCADE;
 psql:/tmp/run-sql.sql:15: NOTICE:  truncate cascades to table "plan_prices"
 psql:/tmp/run-sql.sql:15: NOTICE:  truncate cascades to table "subscriptions"
 psql:/tmp/run-sql.sql:15: NOTICE:  truncate cascades to table "invoice_lines"
 TRUNCATE TABLE
-Time: 2.650 ms
+Time: 2.928 ms
 INSERT INTO ch08_b.plans (code, name)
 SELECT code, name FROM ch08_r.src_plan ORDER BY id;
 INSERT 0 5
-Time: 0.609 ms
+Time: 0.639 ms
 INSERT INTO ch08_b.plan_prices (plan_id, valid, price_yen)
 SELECT plan_id, valid, price_yen FROM ch08_r.src_price ORDER BY id;
 INSERT 0 25
-Time: 0.742 ms
+Time: 0.840 ms
 INSERT INTO ch08_b.subscriptions (customer_id, plan_id, period, grandfathered_yen)
 SELECT s.customer_id, sp.plan_id, sp.period, sp.grandfathered_yen
 FROM ch08_r.src_sub_period sp
 JOIN ch08_r.src_subscription s ON s.id = sp.subscription_id
 ORDER BY sp.id;
 INSERT 0 10924
-Time: 62.752 ms
+Time: 52.437 ms
 ANALYZE ch08_b.plans;
 ANALYZE
-Time: 0.471 ms
+Time: 0.553 ms
 ANALYZE ch08_b.plan_prices;
 ANALYZE
-Time: 0.522 ms
+Time: 1.257 ms
 ANALYZE ch08_b.subscriptions;
 ANALYZE
-Time: 4.635 ms
+Time: 4.445 ms
