@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 04:01:20 +0900
+# 採取日時: 2026-09-26 10:20:31 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -22,32 +22,35 @@ EXPLAIN (ANALYZE)
 SELECT range_agg(period) FROM ch06_b.reservations
 WHERE room_id = 1 AND cancelled_at IS NULL
   AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
-                                                                       QUERY PLAN                                                                        
----------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=1909.75..1909.76 rows=1 width=32) (actual time=17.459..17.463 rows=1.00 loops=1)
-   Buffers: shared hit=3479
-   ->  Index Only Scan using reservations_no_overlap on reservations  (cost=0.28..1909.74 rows=3 width=22) (actual time=2.276..17.429 rows=2.00 loops=1)
-         Index Cond: (period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange)
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5094.98..5094.99 rows=1 width=32) (actual time=19.633..19.639 rows=1.00 loops=1)
+   Buffers: shared hit=6547
+   ->  Bitmap Heap Scan on reservations  (cost=1573.85..5094.97 rows=3 width=22) (actual time=15.820..19.619 rows=2.00 loops=1)
+         Recheck Cond: ((period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange) AND (cancelled_at IS NULL))
          Filter: (room_id = 1)
          Rows Removed by Filter: 24002
-         Heap Fetches: 0
-         Index Searches: 1
-         Buffers: shared hit=3477
+         Heap Blocks: exact=3117
+         Buffers: shared hit=6545
+         ->  Bitmap Index Scan on reservations_no_overlap  (cost=0.00..1573.85 rows=26875 width=0) (actual time=15.544..15.544 rows=24004.00 loops=1)
+               Index Cond: (period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange)
+               Index Searches: 1
+               Buffers: shared hit=3428
  Planning:
-   Buffers: shared hit=113
+   Buffers: shared hit=127
  Planning Time: 0.295 ms
- Execution Time: 17.495 ms
-(13 rows)
+ Execution Time: 19.926 ms
+(16 rows)
 
-Time: 18.465 ms
+Time: 20.808 ms
 -- 2. 部屋を引くための B-tree を足す。有効な予約だけの部分インデックスにする
 CREATE INDEX reservations_room_idx
   ON ch06_b.reservations (room_id) WHERE cancelled_at IS NULL;
 CREATE INDEX
-Time: 40.407 ms
+Time: 36.499 ms
 ANALYZE ch06_b.reservations;
 ANALYZE
-Time: 26.801 ms
+Time: 24.177 ms
 -- 3. 同じ問い合わせ。インデックス条件が room_id に変わる
 EXPLAIN (ANALYZE)
 SELECT range_agg(period) FROM ch06_b.reservations
@@ -55,21 +58,21 @@ WHERE room_id = 1 AND cancelled_at IS NULL
   AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
                                                                   QUERY PLAN                                                                  
 ----------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=8.85..8.86 rows=1 width=32) (actual time=0.038..0.039 rows=1.00 loops=1)
+ Aggregate  (cost=8.85..8.86 rows=1 width=32) (actual time=0.030..0.030 rows=1.00 loops=1)
    Buffers: shared hit=4 read=2
-   ->  Index Scan using reservations_room_idx on reservations  (cost=0.30..8.84 rows=3 width=22) (actual time=0.032..0.035 rows=2.00 loops=1)
+   ->  Index Scan using reservations_room_idx on reservations  (cost=0.30..8.84 rows=3 width=22) (actual time=0.023..0.025 rows=2.00 loops=1)
          Index Cond: (room_id = 1)
          Filter: (period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange)
          Rows Removed by Filter: 26
          Index Searches: 1
          Buffers: shared hit=4 read=2
  Planning:
-   Buffers: shared hit=24 read=1
- Planning Time: 0.151 ms
- Execution Time: 0.051 ms
+   Buffers: shared hit=30 read=1
+ Planning Time: 0.142 ms
+ Execution Time: 0.041 ms
 (12 rows)
 
-Time: 0.394 ms
+Time: 0.347 ms
 -- 4. 足したインデックスの大きさ（守るためのインデックスに、探すためのインデックスを足す費用）
 SELECT pg_size_pretty(pg_relation_size('ch06_b.reservations_room_idx')) AS search_index_size,
        pg_size_pretty(pg_relation_size('ch06_b.reservations_no_overlap')) AS constraint_index_size;
@@ -78,11 +81,11 @@ SELECT pg_size_pretty(pg_relation_size('ch06_b.reservations_room_idx')) AS searc
  2008 kB           | 27 MB
 (1 row)
 
-Time: 0.182 ms
+Time: 0.206 ms
 -- 後片付け（ほかの測定の条件を変えないように戻す）
 DROP INDEX ch06_b.reservations_room_idx;
 DROP INDEX
-Time: 0.663 ms
+Time: 0.982 ms
 ANALYZE ch06_b.reservations;
 ANALYZE
-Time: 22.679 ms
+Time: 22.053 ms

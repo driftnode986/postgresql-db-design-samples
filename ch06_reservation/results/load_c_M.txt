@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 04:01:05 +0900
+# 採取日時: 2026-09-26 10:20:16 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,16 +9,16 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
--- 案D: PostgreSQL 18 の PRIMARY KEY (..., period WITHOUT OVERLAPS)
+-- 案C: PostgreSQL 18 の PRIMARY KEY (..., period WITHOUT OVERLAPS)
 --
--- 案B・案C と守る約束は同じだが、制約の種類が主キーになる。
+-- 案A・案B と守る約束は同じだが、制約の種類が主キーになる。
 -- インデックスは一意な GiST インデックスとして作られる（pg_indexes で確認できる）。
 --
--- 案C との違いは 2 つ。どちらも実機で確かめたもの。
+-- 案B との違いは 2 つ。どちらも実機で確かめたもの。
 --   1. WHERE を付けられない（構文エラーになる）。キャンセル済みを判定から外せないので、
 --      キャンセルは別の表に移すか、行を消すかで表す
 --   2. 空の範囲を自分で拒否する。EXCLUDE は空の範囲を 2 件とも通すので、
---      案C では CHECK (NOT isempty(period)) を自分で書く必要がある
+--      案B では CHECK (NOT isempty(period)) を自分で書く必要がある
 --
 -- また、第8章で使う期間つき外部キー（PERIOD）の参照先になれるのはこちらである。
 CREATE SCHEMA ch06_c;
@@ -56,9 +56,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 GRANT
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_c TO book_app;
 GRANT
--- 案D の予約登録。主キーの違反を捕まえる。
+-- 案C の予約登録。主キーの違反を捕まえる。
 -- 🔴 WITHOUT OVERLAPS の違反は unique_violation ではなく exclusion_violation (23P01) で出る。
---    中身が排他制約だからである（実機で確認した）。案B・案C と同じ例外節で書ける
+--    中身が排他制約だからである（実機で確認した）。案A・案B と同じ例外節で書ける
 CREATE FUNCTION ch06_c.reserve(p_room bigint, p_user bigint,
                                p_start timestamptz, p_end timestamptz)
 RETURNS boolean LANGUAGE plpgsql SET search_path = ch06_c, public AS $$
@@ -87,23 +87,23 @@ Timing is on.
 TRUNCATE ch06_c.reservations, ch06_c.cancelled_reservations, ch06_c.rooms
   RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 6.896 ms
+Time: 6.074 ms
 INSERT INTO ch06_c.rooms (id, name)
 SELECT id, name FROM ch06_r.src_room ORDER BY id;
 INSERT 0 10000
-Time: 10.583 ms
+Time: 10.830 ms
 INSERT INTO ch06_c.reservations (room_id, period, user_id, reservation_no)
 OVERRIDING SYSTEM VALUE
 SELECT room_id, tstzrange(start_at, end_at, '[)'), user_id, id
 FROM ch06_r.src_reservation WHERE cancelled_at IS NULL ORDER BY id;
 INSERT 0 268835
-Time: 4937.950 ms (00:04.938)
+Time: 4408.522 ms (00:04.409)
 INSERT INTO ch06_c.cancelled_reservations
        (reservation_no, room_id, period, user_id, cancelled_at)
 SELECT id, room_id, tstzrange(start_at, end_at, '[)'), user_id, cancelled_at
 FROM ch06_r.src_reservation WHERE cancelled_at IS NOT NULL ORDER BY id;
 INSERT 0 30121
-Time: 41.390 ms
+Time: 46.485 ms
 SELECT setval(pg_get_serial_sequence('ch06_c.reservations', 'reservation_no'),
               (SELECT max(reservation_no) FROM ch06_c.reservations));
  setval  
@@ -111,10 +111,10 @@ SELECT setval(pg_get_serial_sequence('ch06_c.reservations', 'reservation_no'),
  1000000
 (1 row)
 
-Time: 0.583 ms
+Time: 1.780 ms
 ANALYZE ch06_c.rooms, ch06_c.reservations, ch06_c.cancelled_reservations;
 ANALYZE
-Time: 84.244 ms
+Time: 82.101 ms
 -- 重なっている予約の組（0 であること）。本体にはキャンセル済みが入らない
 SELECT count(*) AS overlapping_pairs
 FROM ch06_c.reservations AS a JOIN ch06_c.reservations AS b

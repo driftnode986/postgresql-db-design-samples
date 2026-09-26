@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 04:01:20 +0900
+# 採取日時: 2026-09-26 10:20:30 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -10,7 +10,7 @@
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
 -- 「ある日のある部屋の空き時間」を求める。
--- 範囲型を持つ案C では、営業時間の範囲から予約済みの範囲をまとめて引ける。
+-- 範囲型を持つ案B では、営業時間の範囲から予約済みの範囲をまとめて引ける。
 --
 -- range_agg は複数の範囲を 1 つの multirange にまとめる集約関数。
 -- multirange どうしの差（-）が、そのまま空き時間になる。
@@ -24,24 +24,27 @@ FROM ch06_b.reservations
 WHERE room_id = 1
   AND cancelled_at IS NULL
   AND period && tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)');
-                                                                       QUERY PLAN                                                                        
----------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=1909.75..1909.77 rows=1 width=32) (actual time=34.742..34.745 rows=1.00 loops=1)
-   Buffers: shared hit=42 read=3435 written=2627
-   ->  Index Only Scan using reservations_no_overlap on reservations  (cost=0.28..1909.74 rows=3 width=22) (actual time=4.130..34.731 rows=2.00 loops=1)
-         Index Cond: (period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange)
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=5094.98..5094.99 rows=1 width=32) (actual time=39.410..39.413 rows=1.00 loops=1)
+   Buffers: shared hit=1870 read=4675 written=1803
+   ->  Bitmap Heap Scan on reservations  (cost=1573.85..5094.97 rows=3 width=22) (actual time=33.387..39.386 rows=2.00 loops=1)
+         Recheck Cond: ((period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange) AND (cancelled_at IS NULL))
          Filter: (room_id = 1)
          Rows Removed by Filter: 24002
-         Heap Fetches: 0
-         Index Searches: 1
-         Buffers: shared hit=42 read=3435 written=2627
+         Heap Blocks: exact=3117
+         Buffers: shared hit=1870 read=4675 written=1803
+         ->  Bitmap Index Scan on reservations_no_overlap  (cost=0.00..1573.85 rows=26875 width=0) (actual time=33.003..33.004 rows=24004.00 loops=1)
+               Index Cond: (period && '["2026-01-02 00:00:00+00","2026-01-02 09:00:00+00")'::tstzrange)
+               Index Searches: 1
+               Buffers: shared read=3428 written=1479
  Planning:
-   Buffers: shared hit=103 read=7
- Planning Time: 0.396 ms
- Execution Time: 34.773 ms
-(13 rows)
+   Buffers: shared hit=117 read=7
+ Planning Time: 0.400 ms
+ Execution Time: 39.888 ms
+(16 rows)
 
-Time: 36.359 ms
+Time: 41.454 ms
 -- 結果そのもの
 SELECT tstzmultirange(tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)'))
        - coalesce(range_agg(period), tstzmultirange()) AS free
@@ -54,8 +57,8 @@ WHERE room_id = 1
  {["2026-01-02 01:00:00+00","2026-01-02 07:00:00+00"),["2026-01-02 08:00:00+00","2026-01-02 09:00:00+00")}
 (1 row)
 
-Time: 15.725 ms
--- 同じことを案B（2 列）で書くと、範囲を組み立て直すことになる
+Time: 16.818 ms
+-- 同じことを案A（2 列）で書くと、範囲を組み立て直すことになる
 EXPLAIN (ANALYZE)
 SELECT tstzmultirange(tstzrange('2026-01-02 09:00+09','2026-01-02 18:00+09','[)'))
        - coalesce(range_agg(tstzrange(start_at, end_at, '[)')), tstzmultirange()) AS free
@@ -66,20 +69,20 @@ WHERE room_id = 1
   AND end_at   > timestamptz '2026-01-02 09:00+09';
                                                                                                QUERY PLAN                                                                                               
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=6901.23..6901.24 rows=1 width=32) (actual time=9.067..10.748 rows=1.00 loops=1)
-   Buffers: shared hit=2613 read=210 written=209
-   ->  Gather  (cost=1000.00..6901.19 rows=7 width=16) (actual time=0.226..10.737 rows=2.00 loops=1)
+ Aggregate  (cost=6901.23..6901.24 rows=1 width=32) (actual time=9.492..10.586 rows=1.00 loops=1)
+   Buffers: shared hit=882 read=1941 written=720
+   ->  Gather  (cost=1000.00..6901.19 rows=7 width=16) (actual time=0.192..10.575 rows=2.00 loops=1)
          Workers Planned: 1
          Workers Launched: 1
-         Buffers: shared hit=2613 read=210 written=209
-         ->  Parallel Seq Scan on reservations  (cost=0.00..5900.49 rows=4 width=16) (actual time=3.528..7.920 rows=1.00 loops=2)
+         Buffers: shared hit=882 read=1941 written=720
+         ->  Parallel Seq Scan on reservations  (cost=0.00..5900.49 rows=4 width=16) (actual time=3.781..8.401 rows=1.00 loops=2)
                Filter: ((cancelled_at IS NULL) AND (start_at < '2026-01-02 09:00:00+00'::timestamp with time zone) AND (end_at > '2026-01-02 00:00:00+00'::timestamp with time zone) AND (room_id = 1))
                Rows Removed by Filter: 149477
-               Buffers: shared hit=2613 read=210 written=209
+               Buffers: shared hit=882 read=1941 written=720
  Planning:
-   Buffers: shared hit=37 read=4 dirtied=1 written=4
- Planning Time: 0.153 ms
- Execution Time: 10.765 ms
+   Buffers: shared hit=45 read=4 written=2
+ Planning Time: 0.154 ms
+ Execution Time: 10.603 ms
 (14 rows)
 
-Time: 11.243 ms
+Time: 11.052 ms

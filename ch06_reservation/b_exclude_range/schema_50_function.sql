@@ -1,4 +1,4 @@
--- 案C の予約登録。案B と同じ形で、範囲型を組み立てて入れる
+-- 案B の予約登録。案A と同じ形で、範囲型を組み立てて入れる
 CREATE FUNCTION ch06_b.reserve(p_room bigint, p_user bigint,
                                p_start timestamptz, p_end timestamptz)
 RETURNS boolean LANGUAGE plpgsql SET search_path = ch06_b, public AS $$

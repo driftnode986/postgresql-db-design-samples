@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 第5章の同時実行の測定。
-#   bash ch05_order_and_inventory/run_bench.sh > ch05_order_and_inventory/results/bench.txt
+#   bash ch05_order_and_inventory/run_bench.sh > ch05_order_and_inventory/results/bench_M.txt   （書籍の数値は M で取った bench_M.txt）
 #
 # 4 つを測る。
 #   1. ロックを取らない案C が売り越しを出すこと（pgbench はエラー 0 と報告する）

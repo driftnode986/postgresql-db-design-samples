@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 04:01:12 +0900
+# 採取日時: 2026-09-26 10:20:22 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,7 +9,7 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
--- 案E: 時間枠を行として持ち、UNIQUE (room_id, slot_start) で守る
+-- 案D: 時間枠を行として持ち、UNIQUE (room_id, slot_start) で守る
 --
 -- 範囲型も GiST も使わない。B-tree の一意制約だけで重複を防ぐ。
 -- 予約は「枠の集まり」になるので、10:00-12:00 の予約は 2 行（10 時台と 11 時台）になる。
@@ -56,7 +56,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 GRANT
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_d TO book_app;
 GRANT
--- 案E の予約登録。予約の行を入れ、占める枠を展開して入れる。
+-- 案D の予約登録。予約の行を入れ、占める枠を展開して入れる。
 -- 枠のどれか 1 つでも埋まっていれば一意制約の違反になり、予約ごと取り消される
 -- （関数の中の INSERT は同じトランザクションなので、途中で失敗すれば予約の行も残らない）。
 CREATE FUNCTION ch06_d.reserve(p_room bigint, p_user bigint,
@@ -92,17 +92,17 @@ Timing is on.
 TRUNCATE ch06_d.reservation_slots, ch06_d.reservations, ch06_d.rooms
   RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.863 ms
+Time: 4.463 ms
 INSERT INTO ch06_d.rooms (id, name)
 SELECT id, name FROM ch06_r.src_room ORDER BY id;
 INSERT 0 10000
-Time: 10.868 ms
+Time: 10.080 ms
 INSERT INTO ch06_d.reservations (id, room_id, user_id, cancelled_at)
 OVERRIDING SYSTEM VALUE
 SELECT id, room_id, user_id, cancelled_at
 FROM ch06_r.src_reservation ORDER BY id;
 INSERT 0 298956
-Time: 1118.049 ms (00:01.118)
+Time: 1035.759 ms (00:01.036)
 SELECT setval(pg_get_serial_sequence('ch06_d.reservations', 'id'),
               (SELECT max(id) FROM ch06_d.reservations));
  setval  
@@ -110,9 +110,9 @@ SELECT setval(pg_get_serial_sequence('ch06_d.reservations', 'id'),
  1000000
 (1 row)
 
-Time: 0.654 ms
+Time: 0.666 ms
 -- 🔴 キャンセル済みの予約は枠を占めない。枠の行を入れない形で表す
---    （一意制約に WHERE を付けられないため、案B の EXCLUDE ... WHERE と同じことを
+--    （一意制約に WHERE を付けられないため、案A の EXCLUDE ... WHERE と同じことを
 --      「行を入れない」で実現している）
 INSERT INTO ch06_d.reservation_slots (room_id, slot_start, reservation_id)
 SELECT r.room_id, s.slot_start, r.id
@@ -122,10 +122,10 @@ CROSS JOIN LATERAL generate_series(r.start_at, r.end_at - interval '1 second',
 WHERE r.cancelled_at IS NULL
 ORDER BY r.id, s.slot_start;
 INSERT 0 268835
-Time: 1500.516 ms (00:01.501)
+Time: 1422.274 ms (00:01.422)
 ANALYZE ch06_d.rooms, ch06_d.reservations, ch06_d.reservation_slots;
 ANALYZE
-Time: 87.307 ms
+Time: 79.335 ms
 -- 1 つの枠を 2 件の有効な予約が占めていないこと（0 であること）。
 -- 一意制約があるので構造上起きないが、キャンセルの扱いを間違えると起きうる
 SELECT count(*) AS double_booked_slots FROM (

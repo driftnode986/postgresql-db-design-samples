@@ -18,7 +18,7 @@ SELECT setval(pg_get_serial_sequence('ch06_d.reservations', 'id'),
               (SELECT max(id) FROM ch06_d.reservations));
 
 -- 🔴 キャンセル済みの予約は枠を占めない。枠の行を入れない形で表す
---    （一意制約に WHERE を付けられないため、案B の EXCLUDE ... WHERE と同じことを
+--    （一意制約に WHERE を付けられないため、案A の EXCLUDE ... WHERE と同じことを
 --      「行を入れない」で実現している）
 INSERT INTO ch06_d.reservation_slots (room_id, slot_start, reservation_id)
 SELECT r.room_id, s.slot_start, r.id

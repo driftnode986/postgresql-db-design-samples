@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 04:01:19 +0900
+# 採取日時: 2026-09-26 10:20:30 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -35,7 +35,7 @@ UNION ALL SELECT 'd 枠の行+UNIQUE', 'ch06_d.reservation_slots',
  d 枠の行+UNIQUE    | ch06_d.reservation_slots | 13 MB      | 14 MB        | 27 MB
 (4 rows)
 
--- 案E は予約の表と枠の表の合計で見る必要がある
+-- 案D は予約の表と枠の表の合計で見る必要がある
 SELECT 'd 合計（予約＋枠）' AS plan,
        pg_size_pretty(pg_total_relation_size('ch06_d.reservations')
                     + pg_total_relation_size('ch06_d.reservation_slots')) AS total;

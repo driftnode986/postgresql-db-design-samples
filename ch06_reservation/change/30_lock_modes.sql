@@ -1,6 +1,6 @@
 -- run-as: book_owner
 --
--- 移行の各段階で、どのロードを取るかを 1 つずつ確かめる。
+-- 移行の各段階で、どのロックを取るかを 1 つずつ確かめる。
 --
 -- 🔴 読み取りを止めるのは AccessExclusiveLock だけである。
 --    行を埋める UPDATE は RowExclusiveLock なので、その間も読み書きは続けられる。

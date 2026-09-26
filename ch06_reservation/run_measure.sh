@@ -53,7 +53,7 @@ save "find_free$T.txt" run book_owner ch06_b $D/queries/30_find_free.sql
 # 制約のインデックスは「探す」ためには使われない。検索用の B-tree を足した前後を測る
 save "search_index$T.txt" run book_owner ch06_b $D/queries/40_search_index.sql
 
-# 変更の手数（2 列の案B を範囲型の案C へ移す）。ROLLBACK で終わる
+# 変更の手数（2 列の案A を範囲型の案B へ移す）。ROLLBACK で終わる
 save "change_a_to_b$T.txt" run book_owner ch06_a $D/change/10_a_to_b.sql
 
 # 排他制約は NOT VALID で足せない（止めずに移す逃げ道が無いことの確認）。

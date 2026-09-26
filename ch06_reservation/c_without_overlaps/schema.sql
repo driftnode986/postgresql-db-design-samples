@@ -1,13 +1,13 @@
--- 案D: PostgreSQL 18 の PRIMARY KEY (..., period WITHOUT OVERLAPS)
+-- 案C: PostgreSQL 18 の PRIMARY KEY (..., period WITHOUT OVERLAPS)
 --
--- 案B・案C と守る約束は同じだが、制約の種類が主キーになる。
+-- 案A・案B と守る約束は同じだが、制約の種類が主キーになる。
 -- インデックスは一意な GiST インデックスとして作られる（pg_indexes で確認できる）。
 --
--- 案C との違いは 2 つ。どちらも実機で確かめたもの。
+-- 案B との違いは 2 つ。どちらも実機で確かめたもの。
 --   1. WHERE を付けられない（構文エラーになる）。キャンセル済みを判定から外せないので、
 --      キャンセルは別の表に移すか、行を消すかで表す
 --   2. 空の範囲を自分で拒否する。EXCLUDE は空の範囲を 2 件とも通すので、
---      案C では CHECK (NOT isempty(period)) を自分で書く必要がある
+--      案B では CHECK (NOT isempty(period)) を自分で書く必要がある
 --
 -- また、第8章で使う期間つき外部キー（PERIOD）の参照先になれるのはこちらである。
 CREATE SCHEMA ch06_c;

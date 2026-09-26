@@ -2,7 +2,7 @@
 -- expect-error: syntax error at or near "WHERE"
 --
 -- WITHOUT OVERLAPS に WHERE は付けられない。
--- EXCLUDE は WHERE を取れる（案B・案C はこれでキャンセル済みを判定から外している）が、
+-- EXCLUDE は WHERE を取れる（案A・案B はこれでキャンセル済みを判定から外している）が、
 -- 主キーと一意制約の構文には WHERE が無いので、構文エラーになる。
 -- この案でキャンセル済みを外すには、別のテーブルへ移すことになる。
 CREATE TABLE ch06_c.where_demo (

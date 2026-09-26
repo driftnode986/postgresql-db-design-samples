@@ -17,7 +17,7 @@ UNION ALL SELECT 'd 枠の行+UNIQUE', 'ch06_d.reservation_slots',
        pg_size_pretty(pg_indexes_size('ch06_d.reservation_slots')),
        pg_size_pretty(pg_total_relation_size('ch06_d.reservation_slots'));
 
--- 案E は予約の表と枠の表の合計で見る必要がある
+-- 案D は予約の表と枠の表の合計で見る必要がある
 SELECT 'd 合計（予約＋枠）' AS plan,
        pg_size_pretty(pg_total_relation_size('ch06_d.reservations')
                     + pg_total_relation_size('ch06_d.reservation_slots')) AS total;

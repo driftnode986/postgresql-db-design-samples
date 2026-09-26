@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 04:00:50 +0900
+# 採取日時: 2026-09-26 10:20:03 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -63,20 +63,20 @@ SELECT setseed(0.42);
  
 (1 row)
 
-Time: 0.301 ms
+Time: 0.187 ms
 TRUNCATE ch06_r.src_reservation;
 TRUNCATE TABLE
-Time: 1.486 ms
+Time: 1.950 ms
 TRUNCATE ch06_r.src_room CASCADE;
 TRUNCATE TABLE
-Time: 1.220 ms
+Time: 2.739 ms
 \echo '生成する部屋数:' :n_rooms
 生成する部屋数: 10000
 INSERT INTO ch06_r.src_room (id, name)
 SELECT g, '会議室' || g
 FROM generate_series(1, :n_rooms) AS g;
 INSERT 0 10000
-Time: 11.388 ms
+Time: 12.398 ms
 -- 各部屋の 100 枠のうち 3 割を埋める。
 -- id は (部屋, 枠) から決まる式で振るので、どの案でも同じ id が同じ予約を指す。
 INSERT INTO ch06_r.src_reservation (id, room_id, user_id, start_at, end_at, cancelled_at)
@@ -94,14 +94,14 @@ FROM ch06_r.src_room AS r
 CROSS JOIN generate_series(0, 99) AS s(slot)
 WHERE random() < 0.3;
 INSERT 0 298956
-Time: 460.291 ms
+Time: 467.515 ms
 SELECT count(*)                                   AS rooms          FROM ch06_r.src_room;
  rooms 
 -------
  10000
 (1 row)
 
-Time: 0.573 ms
+Time: 0.511 ms
 SELECT count(*)                                   AS reservations,
        count(*) FILTER (WHERE cancelled_at IS NULL) AS active,
        count(*) FILTER (WHERE cancelled_at IS NOT NULL) AS cancelled
@@ -111,4 +111,4 @@ FROM ch06_r.src_reservation;
        298956 | 268835 |     30121
 (1 row)
 
-Time: 12.102 ms
+Time: 11.909 ms

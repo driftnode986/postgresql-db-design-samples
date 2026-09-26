@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 04:00:52 +0900
+# 採取日時: 2026-09-26 10:20:04 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -9,7 +9,7 @@
 # max_parallel_workers_per_gather = 2
 # shared_buffers = 16384 8kB
 # work_mem = 4096 kB
--- 案B: 開始・終了を 2 列のまま持ち、排他制約の中で範囲を組み立てる
+-- 案A: 開始・終了を 2 列のまま持ち、排他制約の中で範囲を組み立てる
 --
 -- 採取した案（sonnet）がこの形だった。列は start_at / end_at のままなので、
 -- 既にある表の構造を変えずに制約だけを足せる。ORM や既存の問い合わせも書き換えずに済む。
@@ -47,7 +47,7 @@ GRANT SELECT, INSERT, UPDATE ON ch06_a.rooms, ch06_a.reservations TO book_app;
 GRANT
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ch06_a TO book_app;
 GRANT
--- 案B の予約登録。いきなり INSERT し、制約違反を捕まえる。
+-- 案A の予約登録。いきなり INSERT し、制約違反を捕まえる。
 -- 空きの確認はしない（確認しても、確認と INSERT の間に他の接続が入る）。
 --
 -- 🔴 例外を関数の中で捕まえているので、測定値には例外処理の費用が含まれる。
@@ -78,17 +78,17 @@ SELECT CASE WHEN :src_rows = 0 THEN 1/0 ELSE 1 END AS source_must_not_be_empty;
 Timing is on.
 TRUNCATE ch06_a.reservations, ch06_a.rooms RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.248 ms
+Time: 3.560 ms
 INSERT INTO ch06_a.rooms (id, name)
 SELECT id, name FROM ch06_r.src_room ORDER BY id;
 INSERT 0 10000
-Time: 10.400 ms
+Time: 9.980 ms
 INSERT INTO ch06_a.reservations (id, room_id, user_id, start_at, end_at, cancelled_at)
 OVERRIDING SYSTEM VALUE
 SELECT id, room_id, user_id, start_at, end_at, cancelled_at
 FROM ch06_r.src_reservation ORDER BY id;
 INSERT 0 298956
-Time: 5053.480 ms (00:05.053)
+Time: 4410.471 ms (00:04.410)
 SELECT setval(pg_get_serial_sequence('ch06_a.reservations', 'id'),
               (SELECT max(id) FROM ch06_a.reservations));
  setval  
@@ -96,10 +96,10 @@ SELECT setval(pg_get_serial_sequence('ch06_a.reservations', 'id'),
  1000000
 (1 row)
 
-Time: 0.732 ms
+Time: 1.516 ms
 ANALYZE ch06_a.rooms, ch06_a.reservations;
 ANALYZE
-Time: 83.850 ms
+Time: 76.509 ms
 -- 重なっている有効な予約の組（0 であること）
 SELECT count(*) AS overlapping_pairs
 FROM ch06_a.reservations AS a JOIN ch06_a.reservations AS b
