@@ -79,6 +79,7 @@ docker compose down -v             # データごと消す
 - `ch12_permission/` … 第12章 権限（`ch12_a` から）
 - `ch13_multi_tenant/` … 第13章 マルチテナント（`ch13_a` から）
 - `ch14_account_deletion/` … 第14章 退会とデータ削除（`ch14_a` から）
+- `ch15_apply_to_your_own/` … 第15章 自分の題材に当てはめる（`ch15_a` から）
 
 章のディレクトリの中は、次の形にそろえています。
 
