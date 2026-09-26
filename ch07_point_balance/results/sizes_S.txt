@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 06:44:02 +0900
+# 採取日時: 2026-09-26 09:08:49 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -21,11 +21,11 @@ ORDER BY n.nspname, c.relname;
  schema |    table_name    |    heap    | indexes |  total  
 --------+------------------+------------+---------+---------
  ch07_a | lot_consumptions | 2200 kB    | 1336 kB | 3568 kB
- ch07_a | point_lots       | 7776 kB    | 6240 kB | 14 MB
+ ch07_a | point_lots       | 7776 kB    | 6232 kB | 14 MB
  ch07_a | point_txns       | 6736 kB    | 5680 kB | 12 MB
  ch07_b | lot_consumptions | 2200 kB    | 1336 kB | 3560 kB
  ch07_b | point_balances   | 2096 kB    | 160 kB  | 2280 kB
- ch07_b | point_lots       | 7776 kB    | 6240 kB | 14 MB
+ ch07_b | point_lots       | 7776 kB    | 6232 kB | 14 MB
  ch07_b | point_txns       | 6736 kB    | 5680 kB | 12 MB
  ch07_c | point_txns       | 7232 kB    | 5664 kB | 13 MB
  ch07_d | point_snapshots  | 8192 bytes | 16 kB   | 24 kB
@@ -43,8 +43,8 @@ GROUP BY n.nspname ORDER BY sum(pg_total_relation_size(c.oid));
 --------+-------------+-------
  ch07_c |    13238272 | 13 MB
  ch07_d |    13262848 | 13 MB
- ch07_a |    30793728 | 29 MB
- ch07_b |    33120256 | 32 MB
+ ch07_a |    30785536 | 29 MB
+ ch07_b |    33112064 | 32 MB
 (4 rows)
 
 -- 🔴 案D の締めの行は、取引が締めの間隔を超えた会員にだけできる。
@@ -68,6 +68,6 @@ FROM (SELECT user_id, count(*) AS c FROM ch07_a.point_lots
       WHERE remaining > 0 AND expires_at > now() GROUP BY user_id) AS t;
  min_live_lots | max_live_lots | users_upto_100 | users_over_100 
 ---------------+---------------+----------------+----------------
-             1 |          2920 |            990 |             10
+             1 |          2837 |            990 |             10
 (1 row)
 

@@ -17,19 +17,30 @@ CREATE TABLE ch07_a.point_balances (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- 2. 初期値を入れる。ロットの残りを会員ごとに合計する
---    🔴 ここで期限切れを含めるか外すかを決めることになる。
---    含めないと、案A で見えていた残高と案B で見える残高が食い違う
+-- 2. 初期値を入れる。期限の切れていないロットの残りを、会員ごとに合計する
+--    🔴 期限切れを外す。案A の残高は期限切れを数えないので、含めると、
+--    移行した瞬間に表示される残高が増える（2026-09-26 最終レビューで検出。以前は含めていた）。
+--    案B では、この先の期限切れは失効の処理で残高から引く
 INSERT INTO ch07_a.point_balances (user_id, balance)
-SELECT user_id, sum(remaining) FROM ch07_a.point_lots GROUP BY user_id;
+SELECT user_id, sum(remaining) FROM ch07_a.point_lots
+ WHERE expires_at > now()
+ GROUP BY user_id;
 
--- 3. 入れた値がロットの合計と一致するか検算する（移行の検算はここでしかできない）
-SELECT count(*) AS balance_vs_lots_mismatch
+-- 3. 入れた値が、案A の残高照会（queries/10_balance_plans.sql と同じ条件）と一致するか検算する。
+--    🔴 全会員について、案A が表示していた残高と比べる。入れたときと同じ式どうしを比べると、
+--    同じ誤りを両側に含んだまま 0 件になる（第8章の教訓）。ここでは会員の表から出発し、
+--    どちらか片方にしかいない会員も数える
+SELECT count(*) AS balance_vs_case_a_mismatch
 FROM (
-  SELECT b.user_id FROM ch07_a.point_balances AS b
-  LEFT JOIN (SELECT user_id, sum(remaining) AS r FROM ch07_a.point_lots GROUP BY user_id) AS l
-    ON l.user_id = b.user_id
-  WHERE b.balance <> coalesce(l.r, 0)
+  SELECT u.user_id
+  FROM (SELECT DISTINCT user_id FROM ch07_a.point_lots) AS u
+  LEFT JOIN ch07_a.point_balances AS b ON b.user_id = u.user_id
+  CROSS JOIN LATERAL (
+    SELECT coalesce(sum(remaining), 0) AS shown
+    FROM ch07_a.point_lots
+    WHERE user_id = u.user_id AND remaining > 0 AND expires_at > now()
+  ) AS a
+  WHERE coalesce(b.balance, 0) <> a.shown
 ) AS t;
 
 -- 既にある表（ロット）が書き換わったか。filenode が変わっていれば書き換え

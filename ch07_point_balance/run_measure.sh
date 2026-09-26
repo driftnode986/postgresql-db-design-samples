@@ -55,5 +55,7 @@ save "sizes$T.txt" run book_app ch07_a $D/queries/90_sizes.sql
 
 # 変更の手数（案A に残高の列を足して案B の形にする）。ROLLBACK で終わる
 save "change_a_to_b$T.txt" run book_owner ch07_a $D/change/10_a_to_b.sql
+# 検算が、期限切れを含めた誤った移行を見つけられるか（canary）
+save "change_canary$T.txt" run book_owner ch07_a $D/change/11_a_to_b_expired_included.sql
 
 echo "done. 同時実行の測定は run_bench.sh で取る"

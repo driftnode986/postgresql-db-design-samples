@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 06:44:02 +0900
+# 採取日時: 2026-09-26 09:08:49 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -21,7 +21,7 @@ BEGIN
 Timing is on.
 -- 移す前のファイルノード（表が書き換わったかを見る）
 SELECT pg_relation_filenode('ch07_a.point_lots') AS filenode_before \gset
-Time: 0.390 ms
+Time: 0.335 ms
 -- 1. 残高の表を作る
 CREATE TABLE ch07_a.point_balances (
   user_id    bigint PRIMARY KEY,
@@ -29,28 +29,39 @@ CREATE TABLE ch07_a.point_balances (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE
-Time: 1.889 ms
--- 2. 初期値を入れる。ロットの残りを会員ごとに合計する
---    🔴 ここで期限切れを含めるか外すかを決めることになる。
---    含めないと、案A で見えていた残高と案B で見える残高が食い違う
+Time: 1.433 ms
+-- 2. 初期値を入れる。期限の切れていないロットの残りを、会員ごとに合計する
+--    🔴 期限切れを外す。案A の残高は期限切れを数えないので、含めると、
+--    移行した瞬間に表示される残高が増える（2026-09-26 最終レビューで検出。以前は含めていた）。
+--    案B では、この先の期限切れは失効の処理で残高から引く
 INSERT INTO ch07_a.point_balances (user_id, balance)
-SELECT user_id, sum(remaining) FROM ch07_a.point_lots GROUP BY user_id;
+SELECT user_id, sum(remaining) FROM ch07_a.point_lots
+ WHERE expires_at > now()
+ GROUP BY user_id;
 INSERT 0 1000
-Time: 8.367 ms
--- 3. 入れた値がロットの合計と一致するか検算する（移行の検算はここでしかできない）
-SELECT count(*) AS balance_vs_lots_mismatch
+Time: 7.565 ms
+-- 3. 入れた値が、案A の残高照会（queries/10_balance_plans.sql と同じ条件）と一致するか検算する。
+--    🔴 全会員について、案A が表示していた残高と比べる。入れたときと同じ式どうしを比べると、
+--    同じ誤りを両側に含んだまま 0 件になる（第8章の教訓）。ここでは会員の表から出発し、
+--    どちらか片方にしかいない会員も数える
+SELECT count(*) AS balance_vs_case_a_mismatch
 FROM (
-  SELECT b.user_id FROM ch07_a.point_balances AS b
-  LEFT JOIN (SELECT user_id, sum(remaining) AS r FROM ch07_a.point_lots GROUP BY user_id) AS l
-    ON l.user_id = b.user_id
-  WHERE b.balance <> coalesce(l.r, 0)
+  SELECT u.user_id
+  FROM (SELECT DISTINCT user_id FROM ch07_a.point_lots) AS u
+  LEFT JOIN ch07_a.point_balances AS b ON b.user_id = u.user_id
+  CROSS JOIN LATERAL (
+    SELECT coalesce(sum(remaining), 0) AS shown
+    FROM ch07_a.point_lots
+    WHERE user_id = u.user_id AND remaining > 0 AND expires_at > now()
+  ) AS a
+  WHERE coalesce(b.balance, 0) <> a.shown
 ) AS t;
- balance_vs_lots_mismatch 
---------------------------
-                        0
+ balance_vs_case_a_mismatch 
+----------------------------
+                          0
 (1 row)
 
-Time: 6.042 ms
+Time: 30.891 ms
 -- 既にある表（ロット）が書き換わったか。filenode が変わっていれば書き換え
 SELECT :'filenode_before' AS filenode_before,
        pg_relation_filenode('ch07_a.point_lots') AS filenode_after,
@@ -58,10 +69,10 @@ SELECT :'filenode_before' AS filenode_before,
          AS lots_untouched;
  filenode_before | filenode_after | lots_untouched 
 -----------------+----------------+----------------
- 37604           |          37604 | t
+ 997184          |         997184 | t
 (1 row)
 
-Time: 0.229 ms
+Time: 0.173 ms
 -- このトランザクションが取っているロック（既存の表を止めるかどうか）
 SELECT c.relname, l.mode
 FROM pg_locks AS l JOIN pg_class AS c ON c.oid = l.relation
@@ -81,7 +92,7 @@ ORDER BY c.relname, l.mode;
  point_lots_pkey     | AccessShareLock
 (9 rows)
 
-Time: 0.830 ms
+Time: 0.746 ms
 ROLLBACK;
 ROLLBACK
-Time: 0.325 ms
+Time: 0.253 ms

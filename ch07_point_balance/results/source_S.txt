@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-19 06:41:11 +0900
+# 採取日時: 2026-09-26 09:06:20 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -73,20 +73,20 @@ SELECT setseed(0.42);
  
 (1 row)
 
-Time: 0.235 ms
+Time: 0.288 ms
 TRUNCATE ch07_r.src_txn;
 TRUNCATE TABLE
-Time: 2.342 ms
+Time: 1.456 ms
 TRUNCATE ch07_r.src_user CASCADE;
 TRUNCATE TABLE
-Time: 0.760 ms
+Time: 1.694 ms
 \echo '生成する会員数:' :n_users '  取引件数:' :n_txns
 生成する会員数: 1000   取引件数: 100000
 INSERT INTO ch07_r.src_user (id, name)
 SELECT g, '会員' || g
 FROM generate_series(1, :n_users) AS g;
 INSERT 0 1000
-Time: 2.047 ms
+Time: 1.530 ms
 -- 取引を会員に割り当てる。
 -- 会員の 1%（id が n_users/100 以下）に全取引の 80% を集める。
 -- 残り 20% を、残りの会員へ均等に配る。
@@ -131,7 +131,7 @@ SELECT s.id, s.user_id, s.kind,
        s.created_at
 FROM src AS s;
 INSERT 0 100000
-Time: 194.952 ms
+Time: 165.871 ms
 -- 🔴 会員ごとに「期限の遠い付与」を 1 件ずつ足す（入会時のボーナスにあたる）。
 --    これが無いと、取引の少ない会員で付与が全部期限切れになり、利用ぶんを引けなくなる。
 --    乱数の引き方を調整して避けようとすると、種を変えるたびに壊れる。
@@ -143,14 +143,14 @@ SELECT :n_txns + u.id, u.id, 'grant', 20000,
        timestamptz '2025-12-01 00:00+09'
 FROM ch07_r.src_user AS u;
 INSERT 0 1000
-Time: 2.623 ms
+Time: 2.500 ms
 SELECT count(*) AS users FROM ch07_r.src_user;
  users 
 -------
   1000
 (1 row)
 
-Time: 0.172 ms
+Time: 0.205 ms
 SELECT count(*)                                  AS txns,
        count(*) FILTER (WHERE kind = 'grant')    AS grants,
        count(*) FILTER (WHERE kind = 'use')      AS uses
@@ -160,7 +160,7 @@ FROM ch07_r.src_txn;
  101000 |  60921 | 40079
 (1 row)
 
-Time: 7.551 ms
+Time: 6.871 ms
 -- 1 人あたりの取引件数の偏り。章の主張はこの偏りの上に立つ
 SELECT max(c) AS max_per_user, round(avg(c)) AS avg_per_user, min(c) AS min_per_user
 FROM (SELECT count(*) AS c FROM ch07_r.src_txn GROUP BY user_id) AS t;
@@ -169,7 +169,7 @@ FROM (SELECT count(*) AS c FROM ch07_r.src_txn GROUP BY user_id) AS t;
          8160 |          101 |            8
 (1 row)
 
-Time: 8.735 ms
+Time: 8.453 ms
 -- 🔴 検査: 利用の合計が「期限内の付与の合計」を超える会員が 1 人でもいたら、
 --    その会員は消し込みが最後まで通らず、案の比較にならない。0 でなければ止める。
 --    この検査が無いと、案ごとに残高が食い違う原因が「設計の違い」なのか
@@ -188,7 +188,7 @@ WHERE used > alive;
                                0
 (1 row)
 
-Time: 13.977 ms
+Time: 12.211 ms
 -- 🔴 検査に失敗したら、ここで止める。
 --    `CASE WHEN ... THEN 1/0 END` は使えない。PostgreSQL は定数の 1/0 を
 --    条件の判定より先に畳み込むので、条件が偽でも必ずエラーになる（実際に踏んだ）。
@@ -207,7 +207,7 @@ HAVING count(*) > 0;
 ----------------------
 (0 rows)
 
-Time: 13.115 ms
+Time: 11.614 ms
 -- 付与された順と、期限の切れる順が食い違う会員が何人いるか（§6 の教材が成り立つ確認）
 SELECT count(*) AS users_with_fifo_fefo_mismatch
 FROM (
@@ -223,4 +223,4 @@ FROM (
                           1000
 (1 row)
 
-Time: 41.665 ms
+Time: 38.360 ms
