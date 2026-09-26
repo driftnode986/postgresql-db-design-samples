@@ -11,19 +11,17 @@
 - 複数の商品をまとめて引き当てるとき、ロックを取る順序をどうそろえるか
 - 分離レベルを上げて正しさを買う案の代償
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["注文が集中しても売り越しを出さない"]
-  R[("元データ<br/>r_source/ ・ ch05_r")]
-  Q --> A["案A 在庫の行をロックしてから減らす<br/>a_forupdate/ ・ ch05_a"]
-  Q --> B["案B 条件つき UPDATE を 1 文だけ実行する<br/>b_condupdate/ ・ ch05_b"]
-  Q --> C["案C 増減を行として追記し、合計で求める<br/>c_ledger/ ・ ch05_c"]
-  F["対照: 読んだ値を書き戻す書き方<br/>f_naive/ ・ ch05_f"] -.->|売り越しが出ることを確かめる| Q
-  R -.->|同じ商品を写す| A
-  R -.-> B
-  R -.-> C
+flowchart LR
+  F["対照<br/>読んだ値を書き戻す<br/>f_naive/ ・ ch05_f"] -.->|売り越す| Q
+  Q["注文が集中しても<br/>売り越しを出さない"]
+  R[("元データ<br/>r_source/ ・ ch05_r<br/>各案に同じ商品を写す")]
+  Q --> A["案A<br/>在庫の行をロックしてから減らす<br/>a_forupdate/<br/>ch05_a"]
+  Q --> B["案B<br/>条件つき UPDATE を<br/>1 文だけ実行する<br/>b_condupdate/<br/>ch05_b"]
+  Q --> C["案C<br/>増減を行として追記し、<br/>合計で求める<br/>c_ledger/ ・ ch05_c"]
+  R ~~~ Q
 ```
 
 - `f_naive/` は、なぜロックが要るのかを見せるための対照です。在庫の列に `CHECK (qty >= 0)` を付けても売り越します
@@ -33,6 +31,8 @@ flowchart TD
 ### 案A 在庫の行をロックしてから減らす（`ch05_a`）
 
 <!-- ER:ch05_a -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   inventory {
@@ -40,6 +40,18 @@ erDiagram
     integer qty
     timestamptz updated_at
   }
+  products {
+    bigint id PK "IDENTITY"
+    text sku UK
+    text name
+    integer price_yen
+    timestamptz created_at
+  }
+  products ||--o{ inventory : "product_id"
+```
+
+```mermaid
+erDiagram
   order_items {
     bigint order_id FK, PK
     bigint product_id PK, FK
@@ -51,16 +63,7 @@ erDiagram
     text status
     timestamptz created_at
   }
-  products {
-    bigint id PK "IDENTITY"
-    text sku UK
-    text name
-    integer price_yen
-    timestamptz created_at
-  }
-  products ||--o{ inventory : "product_id"
   orders ||--o{ order_items : "order_id"
-  products ||--o{ order_items : "product_id"
 ```
 <!-- /ER -->
 
@@ -69,23 +72,14 @@ erDiagram
 案A と同じテーブルで、引当の関数（`schema_50_function.sql`）の書き方だけが違います。
 
 <!-- ER:ch05_b -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   inventory {
     bigint product_id PK, FK
     integer qty
     timestamptz updated_at
-  }
-  order_items {
-    bigint order_id FK, PK
-    bigint product_id PK, FK
-    integer qty
-  }
-  orders {
-    bigint id PK "IDENTITY"
-    bigint user_id
-    text status
-    timestamptz created_at
   }
   products {
     bigint id PK "IDENTITY"
@@ -95,29 +89,10 @@ erDiagram
     timestamptz created_at
   }
   products ||--o{ inventory : "product_id"
-  orders ||--o{ order_items : "order_id"
-  products ||--o{ order_items : "product_id"
 ```
-<!-- /ER -->
 
-### 案C 増減を行として追記し、合計で求める（`ch05_c`）
-
-在庫の現在値は、増減の行を合計するビュー `available` で求めます。
-
-<!-- ER:ch05_c -->
 ```mermaid
 erDiagram
-  available["available（ビュー）"] {
-    bigint product_id
-    integer qty
-  }
-  inventory_entries {
-    bigint id PK "IDENTITY"
-    bigint product_id FK
-    integer delta
-    text reason
-    timestamptz created_at
-  }
   order_items {
     bigint order_id FK, PK
     bigint product_id PK, FK
@@ -127,6 +102,34 @@ erDiagram
     bigint id PK "IDENTITY"
     bigint user_id
     text status
+    timestamptz created_at
+  }
+  orders ||--o{ order_items : "order_id"
+```
+<!-- /ER -->
+
+### 案C 増減を行として追記し、合計で求める（`ch05_c`）
+
+在庫の現在値は、増減の行を合計するビュー `available` で求めます。
+
+<!-- ER:ch05_c -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
+```mermaid
+erDiagram
+  available["available（ビュー）"] {
+    bigint product_id
+    integer qty
+  }
+```
+
+```mermaid
+erDiagram
+  inventory_entries {
+    bigint id PK "IDENTITY"
+    bigint product_id FK
+    integer delta
+    text reason
     timestamptz created_at
   }
   products {
@@ -137,8 +140,22 @@ erDiagram
     timestamptz created_at
   }
   products ||--o{ inventory_entries : "product_id"
+```
+
+```mermaid
+erDiagram
+  order_items {
+    bigint order_id FK, PK
+    bigint product_id PK, FK
+    integer qty
+  }
+  orders {
+    bigint id PK "IDENTITY"
+    bigint user_id
+    text status
+    timestamptz created_at
+  }
   orders ||--o{ order_items : "order_id"
-  products ||--o{ order_items : "product_id"
 ```
 <!-- /ER -->
 

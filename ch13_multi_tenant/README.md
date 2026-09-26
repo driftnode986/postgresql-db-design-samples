@@ -11,20 +11,17 @@
 - 会社が 1,000 社・10,000 社に増えたとき、どの分け方が先に限界に当たるか
 - 解約した会社のデータを消す時間
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["他社のデータが見えない分け方"]
-  R[("元データ<br/>r_source/ ・ ch13_r")]
-  Q --> A["案A tenant_id の列を持ち、アプリが条件を書く<br/>a_column/ ・ ch13_a"]
-  Q --> B["案B 案A に行レベルセキュリティを足す<br/>b_rls/ ・ ch13_b"]
-  Q --> C["案C 会社ごとにスキーマを分ける<br/>c_schema/ ・ ch13_c と ch13_c_t0001 …"]
-  Q --> D["案D tenant_id でパーティションに分ける<br/>d_partition/ ・ ch13_d"]
-  R -.->|同じ会社と案件を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> D
+flowchart LR
+  Q["他社のデータが<br/>見えない分け方"]
+  R[("元データ<br/>r_source/ ・ ch13_r<br/>各案に同じ会社と<br/>案件を写す")]
+  Q --> A["案A<br/>tenant_id の列を持ち、<br/>アプリが条件を書く<br/>a_column/ ・ ch13_a"]
+  Q --> B["案B<br/>案A に行レベル<br/>セキュリティを足す<br/>b_rls/ ・ ch13_b"]
+  Q --> C["案C<br/>会社ごとにスキーマを分ける<br/>c_schema/ ・ ch13_c<br/>と ch13_c_t0001 …"]
+  Q --> D["案D<br/>tenant_id で<br/>パーティションに分ける<br/>d_partition/<br/>ch13_d"]
+  R ~~~ Q
 ```
 
 ## 各案のテーブル

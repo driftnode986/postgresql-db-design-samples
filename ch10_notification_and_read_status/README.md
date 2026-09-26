@@ -11,18 +11,16 @@
 - 未読の件数を、そのつど数えるか
 - 90 日より古い通知を、どう消すか
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["未読の件数と一覧を速く出す"]
-  R[("元データ<br/>r_source/ ・ ch10_r")]
-  Q --> A["案A 受信者ごとに行を作る<br/>a_row_per_recipient/ ・ ch10_a"]
-  Q --> B["案B 告知は 1 行、既読は別のテーブル<br/>b_broadcast_one_row/ ・ ch10_b"]
-  Q --> C["案C ここまで読んだ位置を持つ<br/>c_read_cursor/ ・ ch10_c"]
-  R -.->|同じ通知を写す| A
-  R -.-> B
-  R -.-> C
+flowchart LR
+  Q["未読の件数と一覧を<br/>速く出す"]
+  R[("元データ<br/>r_source/ ・ ch10_r<br/>各案に同じ通知を写す")]
+  Q --> A["案A<br/>受信者ごとに行を作る<br/>a_row_per_recipient/<br/>ch10_a"]
+  Q --> B["案B<br/>告知は 1 行、<br/>既読は別のテーブル<br/>b_broadcast_one_row/<br/>ch10_b"]
+  Q --> C["案C<br/>ここまで読んだ位置を持つ<br/>c_read_cursor/<br/>ch10_c"]
+  R ~~~ Q
 ```
 
 ## 各案のテーブル
@@ -74,6 +72,8 @@ erDiagram
 ### 案C ここまで読んだ位置を持つ（`ch10_c`）
 
 <!-- ER:ch10_c -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   broadcasts {
@@ -82,6 +82,10 @@ erDiagram
     text body
     timestamptz created_at
   }
+```
+
+```mermaid
+erDiagram
   notifications {
     bigint id PK "IDENTITY"
     bigint user_id
@@ -90,6 +94,10 @@ erDiagram
     timestamptz read_at
     timestamptz created_at
   }
+```
+
+```mermaid
+erDiagram
   read_cursors {
     bigint user_id PK
     bigint broadcast_read_upto

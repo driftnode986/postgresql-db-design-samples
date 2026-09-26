@@ -11,23 +11,18 @@
 - 修正前の内容をどこに残すか
 - ある時点の内容を 1 つに決められる形
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["状態の変化と修正前の値を残す"]
-  R[("元データ<br/>r_source/ ・ ch09_r")]
-  Q --> S["状態の持ち方"]
-  Q --> H["内容の履歴の持ち方"]
-  S --> A["案A 状態の列 + 遷移の履歴<br/>a_status_column/ ・ ch09_a"]
-  S --> B["案B 遷移の追記のみ<br/>b_events_only/ ・ ch09_b"]
-  H --> C["案C 本体に現在の内容、履歴に更新前の行<br/>c_current_plus_history/ ・ ch09_c"]
-  H --> D["案D 期間の範囲型と WITHOUT OVERLAPS<br/>d_range_pk/ ・ ch09_d"]
-  X["検算: 最初に思いつく案<br/>期間を 2 列で持つ<br/>x_first_idea/ ・ ch09_x"] -.->|重なりとすき間が入ることを確かめる| H
-  R -.->|同じ申請を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> D
+flowchart LR
+  Q["状態の変化と<br/>修正前の値を残す"]
+  R[("元データ<br/>r_source/ ・ ch09_r<br/>各案に同じ申請を写す")]
+  Q --> A["案A 状態の持ち方<br/>状態の列 + 遷移の履歴<br/>a_status_column/<br/>ch09_a"]
+  Q --> B["案B 状態の持ち方<br/>遷移の追記のみ<br/>b_events_only/<br/>ch09_b"]
+  Q --> C["案C 内容の履歴<br/>本体に現在の内容、<br/>履歴に更新前の行<br/>c_current_plus_history/<br/>ch09_c"]
+  Q --> D["案D 内容の履歴<br/>期間の範囲型と<br/>WITHOUT OVERLAPS<br/>d_range_pk/ ・ ch09_d"]
+  X["検算<br/>期間を 2 列で持つ<br/>x_first_idea/<br/>ch09_x"]
+  R ~~~ Q
 ```
 
 ## 各案のテーブル
@@ -35,6 +30,8 @@ flowchart TD
 ### 案A 状態の列 + 遷移の履歴（`ch09_a`）
 
 <!-- ER:ch09_a -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   categories {
@@ -42,6 +39,10 @@ erDiagram
     text code UK
     text name
   }
+```
+
+```mermaid
+erDiagram
   employees {
     bigint id PK
     text name

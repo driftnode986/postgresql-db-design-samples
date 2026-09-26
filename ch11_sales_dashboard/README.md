@@ -11,20 +11,17 @@ EC サイトの管理画面に日別の売上を出す仕組みを、4 つの案
 - 集計をいつ更新するか。当日の数字をどう扱うか
 - 集計の粒度をどう決めるか
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["集計を都度計算するか、保存しておくか"]
-  R[("元データ<br/>r_source/ ・ ch11_r")]
-  Q --> A["案A 保存せず、そのつど数える<br/>a_on_the_fly/ ・ ch11_a"]
-  Q --> B["案B マテリアライズドビュー<br/>b_matview/ ・ ch11_b"]
-  Q --> C["案C 集計テーブルに、注文と同時に足す<br/>c_summary_table/ ・ ch11_c"]
-  Q --> D["案D 確定した日は集計、当日だけそのつど数える<br/>d_hybrid/ ・ ch11_d"]
-  R -.->|同じ明細を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> D
+flowchart LR
+  Q["集計を都度計算するか、<br/>保存しておくか"]
+  R[("元データ<br/>r_source/ ・ ch11_r<br/>各案に同じ明細を写す")]
+  Q --> A["案A<br/>保存せず、そのつど数える<br/>a_on_the_fly/<br/>ch11_a"]
+  Q --> B["案B<br/>マテリアライズドビュー<br/>b_matview/ ・ ch11_b"]
+  Q --> C["案C<br/>集計テーブルに、<br/>注文と同時に足す<br/>c_summary_table/<br/>ch11_c"]
+  Q --> D["案D<br/>確定した日は集計、<br/>当日だけそのつど数える<br/>d_hybrid/ ・ ch11_d"]
+  R ~~~ Q
 ```
 
 ## 各案のテーブル
@@ -59,6 +56,8 @@ erDiagram
 マテリアライズドビュー `daily_sales` は、`load.sql` の中で作ります。
 
 <!-- ER:ch11_b -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   daily_sales["daily_sales（マテリアライズドビュー）"] {
@@ -70,6 +69,10 @@ erDiagram
     numeric refund_yen
     numeric net_yen
   }
+```
+
+```mermaid
+erDiagram
   order_lines {
     bigint id PK
     bigint order_id
@@ -79,6 +82,10 @@ erDiagram
     bigint amount_yen
     timestamptz ordered_at
   }
+```
+
+```mermaid
+erDiagram
   returns {
     bigint id PK
     bigint order_line_id
@@ -93,6 +100,8 @@ erDiagram
 ### 案C 集計テーブルに、注文と同時に足す（`ch11_c`）
 
 <!-- ER:ch11_c -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   daily_sales {
@@ -104,6 +113,10 @@ erDiagram
     bigint refund_yen
     bigint net_yen "生成列 STORED"
   }
+```
+
+```mermaid
+erDiagram
   order_lines {
     bigint id PK
     bigint order_id
@@ -113,6 +126,10 @@ erDiagram
     bigint amount_yen
     timestamptz ordered_at
   }
+```
+
+```mermaid
+erDiagram
   returns {
     bigint id PK
     bigint order_line_id
@@ -127,6 +144,8 @@ erDiagram
 ### 案D 確定した日は集計、当日だけそのつど数える（`ch11_d`）
 
 <!-- ER:ch11_d -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   daily_sales_final {
@@ -138,6 +157,10 @@ erDiagram
     bigint refund_yen
     bigint net_yen "生成列 STORED"
   }
+```
+
+```mermaid
+erDiagram
   order_lines {
     bigint id PK
     bigint order_id
@@ -147,6 +170,10 @@ erDiagram
     bigint amount_yen
     timestamptz ordered_at
   }
+```
+
+```mermaid
+erDiagram
   returns {
     bigint id PK
     bigint order_line_id

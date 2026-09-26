@@ -11,21 +11,18 @@
 - 期限切れのポイントを、いつ残高から外すか
 - 同じ会員に複数の端末から書き込まれたとき、何で守るか
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["残高を列に持つか、取引から計算するか"]
-  R[("元データ<br/>r_source/ ・ ch07_r")]
-  Q --> A["案A ロットの残りを合計する<br/>a_lots/ ・ ch07_a"]
-  Q --> B["案B 残高の列を持つ<br/>b_balance/ ・ ch07_b"]
-  Q --> C["案C 取引を全件合計する<br/>c_sum/ ・ ch07_c"]
-  Q --> D["案D 締め残高を置く<br/>d_snapshot/ ・ ch07_d"]
-  F["検算: 残高を読んで書き戻す書き方<br/>f_rmw/ ・ ch07_f"] -.->|更新が失われることを確かめる| Q
-  R -.->|同じ履歴を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> D
+flowchart LR
+  F["検算<br/>残高を読んで<br/>書き戻す<br/>f_rmw/ ・ ch07_f"] -.->|更新が消える| Q
+  Q["残高を列に持つか、<br/>取引から計算するか"]
+  R[("元データ<br/>r_source/ ・ ch07_r<br/>各案に同じ履歴を写す")]
+  Q --> A["案A<br/>ロットの残りを合計する<br/>a_lots/ ・ ch07_a"]
+  Q --> B["案B<br/>残高の列を持つ<br/>b_balance/ ・ ch07_b"]
+  Q --> C["案C<br/>取引を全件合計する<br/>c_sum/ ・ ch07_c"]
+  Q --> D["案D<br/>締め残高を置く<br/>d_snapshot/ ・ ch07_d"]
+  R ~~~ Q
 ```
 
 - 同じ履歴を入れても、案によって残高の値そのものが変わります。案A は期限切れを問い合わせのたびに外し、ほかの案は失効の処理が走るまで数えます
@@ -35,6 +32,8 @@ flowchart TD
 ### 案A ロットの残りを合計する（`ch07_a`）
 
 <!-- ER:ch07_a -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   lot_consumptions {
@@ -50,6 +49,11 @@ erDiagram
     timestamptz expires_at
     timestamptz granted_at
   }
+  point_lots ||--o{ lot_consumptions : "lot_id"
+```
+
+```mermaid
+erDiagram
   point_txns {
     bigint id PK "IDENTITY"
     bigint user_id
@@ -57,25 +61,20 @@ erDiagram
     bigint amount
     timestamptz created_at
   }
-  point_lots ||--o{ lot_consumptions : "lot_id"
-  point_txns ||--o{ lot_consumptions : "txn_id"
 ```
 <!-- /ER -->
 
 ### 案B 残高の列を持つ（`ch07_b`）
 
 <!-- ER:ch07_b -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   lot_consumptions {
     bigint txn_id PK, FK
     bigint lot_id FK, PK
     bigint taken
-  }
-  point_balances {
-    bigint user_id PK
-    bigint balance
-    timestamptz updated_at
   }
   point_lots {
     bigint id PK "IDENTITY"
@@ -85,6 +84,11 @@ erDiagram
     timestamptz expires_at
     timestamptz granted_at
   }
+  point_lots ||--o{ lot_consumptions : "lot_id"
+```
+
+```mermaid
+erDiagram
   point_txns {
     bigint id PK "IDENTITY"
     bigint user_id
@@ -94,8 +98,15 @@ erDiagram
     bigint balance_after
     timestamptz created_at
   }
-  point_lots ||--o{ lot_consumptions : "lot_id"
-  point_txns ||--o{ lot_consumptions : "txn_id"
+```
+
+```mermaid
+erDiagram
+  point_balances {
+    bigint user_id PK
+    bigint balance
+    timestamptz updated_at
+  }
 ```
 <!-- /ER -->
 

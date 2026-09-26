@@ -10,21 +10,18 @@
 - 料金の改定を、上書きで表すか、期間つきの行（版）で表すか
 - 旧料金の据え置き、日割り、消費税の端数の扱い
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["料金を改定しても、過去の請求書の金額を変えない"]
-  R[("元データと、4 案をまたぐ手順<br/>r_source/ ・ ch08_r")]
-  Q --> A["案A 料金を上書きする<br/>a_overwrite/ ・ ch08_a"]
-  Q --> B["案B 請求明細に、確定した時点の値を写す<br/>b_snapshot/ ・ ch08_b"]
-  Q --> C["案C 18 の期間つきの主キーと外部キーを使う<br/>c_temporal/ ・ ch08_c"]
-  Q --> D["案D 写しと版の両方を持つ<br/>d_both/ ・ ch08_d"]
-  X["検算: 最初に思いつく案<br/>UNIQUE だけの料金表<br/>x_first_idea/ ・ ch08_x"] -.->|期間の重なりが止まらないことを確かめる| Q
-  R -.->|同じ契約を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> D
+flowchart LR
+  X["検算<br/>UNIQUE だけの料金表<br/>x_first_idea/<br/>ch08_x"] -.->|重なる| Q
+  Q["料金を改定しても、<br/>過去の請求書の<br/>金額を変えない"]
+  R[("元データと、4 案を<br/>またぐ手順<br/>r_source/ ・ ch08_r")]
+  Q --> A["案A<br/>料金を上書きする<br/>a_overwrite/<br/>ch08_a"]
+  Q --> B["案B<br/>請求明細に、<br/>確定した時点の値を写す<br/>b_snapshot/ ・ ch08_b"]
+  Q --> C["案C<br/>18 の期間つきの<br/>主キーと外部キー<br/>c_temporal/ ・ ch08_c"]
+  Q --> D["案D<br/>写しと版の両方を持つ<br/>d_both/ ・ ch08_d"]
+  R ~~~ Q
 ```
 
 - この章では、4 案をまたいで流す手順も `r_source/` に置いています。
@@ -66,6 +63,8 @@ erDiagram
 ### 案B 請求明細に、確定した時点の値を写す（`ch08_b`）
 
 <!-- ER:ch08_b -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   invoice_lines {
@@ -79,17 +78,26 @@ erDiagram
     integer days_in_month
     integer subtotal_yen "生成列 STORED"
   }
+  plans {
+    bigint id PK "IDENTITY"
+    text code UK
+    text name
+  }
+  plans ||--o{ invoice_lines : "plan_id"
+```
+
+```mermaid
+erDiagram
   plan_prices {
     bigint id PK "IDENTITY"
     bigint plan_id FK
     daterange valid "重なり不可"
     integer price_yen
   }
-  plans {
-    bigint id PK "IDENTITY"
-    text code UK
-    text name
-  }
+```
+
+```mermaid
+erDiagram
   subscriptions {
     bigint id PK "IDENTITY"
     bigint customer_id
@@ -97,10 +105,6 @@ erDiagram
     daterange period
     integer grandfathered_yen
   }
-  plans ||--o{ invoice_lines : "plan_id"
-  subscriptions ||--o{ invoice_lines : "subscription_id"
-  plans ||--o{ plan_prices : "plan_id"
-  plans ||--o{ subscriptions : "plan_id"
 ```
 <!-- /ER -->
 

@@ -32,10 +32,10 @@ bash scripts/run-sql.sh book_owner ch06_c ch06_reservation/c_without_overlaps/ve
 bash ch06_reservation/run_measure.sh
 ```
 
-全体の流れは次のとおりです。
+実行の流れは次のとおりです。
 
 ```mermaid
-flowchart LR
+flowchart TD
   U["docker compose up<br/>PostgreSQL 18.6 を起動"] --> CH["章のディレクトリを開く<br/>README.md に案と ER 図"]
   CH --> RM["run_measure.sh<br/>テーブル・データ・測定を通しで"]
   RM --> RS["results/<br/>先頭に版・設定・日時"]
@@ -99,7 +99,7 @@ docker compose down -v             # データごと消す
 章のディレクトリの中は、次の形にそろえています（章によって、無いものもあります）。
 
 ```
-<章>/README.md            この章の問い・案の見取り図・各案の ER 図・動かし方
+<章>/README.md            この章の問い・設計案の構成図・各案の ER 図・動かし方
 <章>/run_measure.sh       この章の測定を最初から通しで流し、results/ に保存する
 <章>/run_bench.sh         pgbench で同時実行を測る（同時実行を扱う章だけ）
 <章>/r_source/            元データ（スキーマ chNN_r）。各案がここから同じ中身を写す

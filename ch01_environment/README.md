@@ -72,6 +72,8 @@ erDiagram
 `bigint`・UUIDv7・UUIDv4 の 3 組を、同じ形のテーブル 4 つずつで比べます。3 組は主キーの型だけが違うので、ここでは `bigint` の組（`b_`）を描きます。
 
 <!-- ER:ch01 only=b_orders,b_items,b_payments,b_shipments -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   b_items {
@@ -83,6 +85,11 @@ erDiagram
     bigint id PK "IDENTITY"
     timestamptz ordered_at
   }
+  b_orders ||--o{ b_items : "order_id"
+```
+
+```mermaid
+erDiagram
   b_payments {
     bigint id PK "IDENTITY"
     bigint order_id FK
@@ -93,9 +100,6 @@ erDiagram
     bigint order_id FK
     timestamptz shipped_at
   }
-  b_orders ||--o{ b_items : "order_id"
-  b_orders ||--o{ b_payments : "order_id"
-  b_orders ||--o{ b_shipments : "order_id"
 ```
 <!-- /ER -->
 

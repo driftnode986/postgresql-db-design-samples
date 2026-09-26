@@ -11,21 +11,18 @@
 - 排他制約（`EXCLUDE`）と、PostgreSQL 18 の `WITHOUT OVERLAPS` のどちらを使うか
 - 固定の枠を行として持つ案が成り立つ条件
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["同じ部屋の同じ時間に 2 件入れない"]
-  R[("元データ<br/>r_source/ ・ ch06_r")]
-  Q --> A["案A 2 列のまま、制約の中で範囲を組み立てる<br/>a_exclude2col/ ・ ch06_a"]
-  Q --> B["案B 期間を範囲型の 1 列で持つ<br/>b_exclude_range/ ・ ch06_b"]
-  Q --> C["案C PostgreSQL 18 の WITHOUT OVERLAPS<br/>c_without_overlaps/ ・ ch06_c"]
-  Q --> D["案D 時間の範囲をやめて、枠を行として持つ<br/>d_slot/ ・ ch06_d"]
-  F["検算: 最初に思いつく案<br/>FOR UPDATE してから INSERT<br/>f_forupdate/ ・ ch06_f"] -.->|重複予約が出ることを確かめる| Q
-  R -.->|同じ予約を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> D
+flowchart LR
+  F["検算（重複予約が出る）<br/>FOR UPDATE してから<br/>INSERT する案<br/>f_forupdate/<br/>ch06_f"] -.-> Q
+  Q["同じ部屋の同じ時間に<br/>2 件入れない"]
+  R[("元データ<br/>r_source/ ・ ch06_r<br/>各案に同じ予約を写す")]
+  Q --> A["案A<br/>2 列のまま、制約の中で<br/>範囲を組み立てる<br/>a_exclude2col/<br/>ch06_a"]
+  Q --> B["案B<br/>期間を範囲型の<br/>1 列で持つ<br/>b_exclude_range/<br/>ch06_b"]
+  Q --> C["案C<br/>PostgreSQL 18 の<br/>WITHOUT OVERLAPS<br/>c_without_overlaps/<br/>ch06_c"]
+  Q --> D["案D<br/>時間の範囲をやめて、<br/>枠を行として持つ<br/>d_slot/ ・ ch06_d"]
+  R ~~~ Q
 ```
 
 - `f_forupdate/` は、要件だけを AI に渡して出てきた案です。1 接続では正しく動きますが、同時に申し込むと重複予約ができます

@@ -4,19 +4,19 @@
 
 この章は案どうしを比べる章ではありません。章をまたいで衝突する組み合わせと、PostgreSQL 18 で手数が減った変更の実行例を、例ごとにスキーマを分けて置いています。
 
-## この章の例
+## 例の構成図
 
 ```mermaid
-flowchart TD
-  K["章をまたいで衝突する組み合わせ"]
-  K --> A["追記だけの履歴に個人情報を写すと、退会しても消せない<br/>a_history/ ・ ch15_a"]
-  A -->|解き方| B["個人情報を別のテーブルに置き、履歴には写さない<br/>b_split/ ・ ch15_b"]
-  K --> C["期間つき外部キーの参照先を縮める・RESTRICT を付ける<br/>c_period/ ・ ch15_c"]
-  P["PostgreSQL 18 で手数が減った変更"]
-  P --> D["NOT NULL を NOT VALID で足し、残りを埋めてから検査する<br/>d_notnull/ ・ ch15_d"]
-  P --> E["NOT ENFORCED の外部キーと CHECK<br/>e_enforced/ ・ ch15_e"]
-  O["章にしなかった題材の出発点"]
-  O --> F["取り消した INSERT の番号は欠番になる<br/>f_serial/ ・ ch15_f"]
+flowchart LR
+  K["章をまたいで<br/>衝突する組み合わせ"]
+  K --> A["追記だけの履歴に<br/>個人情報を写すと、<br/>退会しても消せない<br/>a_history/ ・ ch15_a"]
+  A -->|解き方| B["個人情報を<br/>別のテーブルに置き、<br/>履歴には写さない<br/>b_split/ ・ ch15_b"]
+  K --> C["期間つき外部キーの<br/>参照先を縮める・<br/>RESTRICT を付ける<br/>c_period/ ・ ch15_c"]
+  P["PostgreSQL 18 で<br/>手数が減った変更"]
+  P --> D["NOT NULL を<br/>NOT VALID で足し、<br/>残りを埋めて検査する<br/>d_notnull/ ・ ch15_d"]
+  P --> E["NOT ENFORCED の<br/>外部キーと CHECK<br/>e_enforced/ ・ ch15_e"]
+  O["章にしなかった<br/>題材の出発点"]
+  O --> F["取り消した INSERT の<br/>番号は欠番になる<br/>f_serial/ ・ ch15_f"]
 ```
 
 ## 各例のテーブル
@@ -24,6 +24,8 @@ flowchart TD
 ### 追記だけの履歴に個人情報を写す（`ch15_a`）
 
 <!-- ER:ch15_a -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   request_history {
@@ -34,6 +36,10 @@ erDiagram
     text status
     timestamptz recorded_at
   }
+```
+
+```mermaid
+erDiagram
   requests {
     bigint id PK "IDENTITY"
     text applicant_name

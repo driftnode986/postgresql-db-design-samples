@@ -9,20 +9,17 @@
 - 種類ごとに違う属性を、列・JSONB・子テーブルのどれで持つか
 - 「属性 2 つで絞り込み、新しい順に 20 件」を、1 つのインデックスで処理できるか
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["種類ごとに項目が違う商品をどう持つか"]
-  R[("元データ<br/>r_source/ ・ ch02_r")]
-  Q --> A["案A 属性ごとに列を足す<br/>a_columns/ ・ ch02_a"]
-  Q --> B["案B 属性を 1 つの JSONB の列に入れる<br/>b_jsonb/ ・ ch02_b"]
-  Q --> C["案C 種類ごとの子テーブルに分ける<br/>c_child_tables/ ・ ch02_c"]
-  X["採取した案 EAV（比較の外）<br/>d_eav/ ・ ch02_d"]
-  R -.->|同じ商品を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> X
+flowchart LR
+  Q["種類ごとに項目が違う<br/>商品をどう持つか"]
+  R[("元データ<br/>r_source/ ・ ch02_r<br/>各案に同じ商品を写す")]
+  Q --> A["案A<br/>属性ごとに列を足す<br/>a_columns/ ・ ch02_a"]
+  Q --> B["案B<br/>属性を 1 つの JSONB の列に入れる<br/>b_jsonb/ ・ ch02_b"]
+  Q --> C["案C<br/>種類ごとの子テーブルに分ける<br/>c_child_tables/<br/>ch02_c"]
+  X["採取した案 EAV<br/>比較の外<br/>d_eav/ ・ ch02_d"]
+  R ~~~ Q
 ```
 
 - どの案でも、商品のテーブルの名前は `products` です。`search_path` を切り替えるだけで、同じ問い合わせを全部の案に流せます
@@ -95,6 +92,8 @@ erDiagram
 ### 案C 種類ごとの子テーブルに分ける（`ch02_c`）
 
 <!-- ER:ch02_c -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   apparel {
@@ -110,6 +109,18 @@ erDiagram
     integer weight_g
     integer pockets
   }
+  products {
+    bigint id PK "IDENTITY"
+    text kind
+    text name
+    integer price
+    timestamptz created_at
+  }
+  products ||--o{ apparel : "product_id"
+```
+
+```mermaid
+erDiagram
   appliance {
     bigint product_id PK, FK
     integer watt
@@ -136,16 +147,6 @@ erDiagram
     integer age_from
     integer chapters
   }
-  products {
-    bigint id PK "IDENTITY"
-    text kind
-    text name
-    integer price
-    timestamptz created_at
-  }
-  products ||--o{ apparel : "product_id"
-  products ||--o{ appliance : "product_id"
-  products ||--o{ book : "product_id"
 ```
 <!-- /ER -->
 

@@ -11,20 +11,18 @@
 - 絞り込みをアプリで書くか、データベースのポリシー（行レベルセキュリティ）に任せるか
 - 役割と権限の対応を、コードで持つかデータで持つか
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["閲覧できる文書だけを一覧に出す"]
-  R[("元データ<br/>r_source/ ・ ch12_r")]
-  Q --> A["案A 必要なときに階層をたどる<br/>a_traverse/ ・ ch12_a"]
-  Q --> B["案B 役割と権限の対応をデータで持つ<br/>b_rbac/ ・ ch12_b"]
-  Q --> C["案C 判定結果を実体化する<br/>c_materialized/ ・ ch12_c"]
-  M["最小の例: 1 件ずつ判定する関数と、集合としての結合<br/>m_minimal/"] -.->|最初に読む| Q
-  E["階層の深さの実験 d_depth/ ・ ch12_d<br/>GRANT の実演 g_grant/ ・ ch12_g"]
-  R -.->|同じ所属と文書を写す| A
-  R -.-> B
-  R -.-> C
+flowchart LR
+  M["最小の例<br/>最初に読む<br/>m_minimal/"] -.-> Q
+  Q["閲覧できる文書だけを<br/>一覧に出す"]
+  R[("元データ<br/>r_source/ ・ ch12_r<br/>各案に同じ所属と<br/>文書を写す")]
+  Q --> A["案A<br/>必要なときに<br/>階層をたどる<br/>a_traverse/ ・ ch12_a"]
+  Q --> B["案B<br/>役割と権限の対応を<br/>データで持つ<br/>b_rbac/ ・ ch12_b"]
+  Q --> C["案C<br/>判定結果を実体化する<br/>c_materialized/<br/>ch12_c"]
+  E["階層の深さの実験<br/>d_depth/ ・ ch12_d<br/>GRANT の実演<br/>g_grant/ ・ ch12_g"]
+  R ~~~ Q
 ```
 
 - `m_minimal/10_minimal_demo.sql` は、元データを作らずに単独で流せる最小の例です。この章の問題の形を最初に見るのに使えます
@@ -34,6 +32,8 @@ flowchart TD
 ### 案A 必要なときに階層をたどる（`ch12_a`）
 
 <!-- ER:ch12_a -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   documents {
@@ -42,12 +42,6 @@ erDiagram
     text title
     timestamptz created_at
   }
-  memberships {
-    bigint id PK
-    bigint user_id FK
-    bigint scope_id FK
-    text role
-  }
   scopes {
     bigint id PK
     bigint parent_id FK
@@ -55,14 +49,23 @@ erDiagram
     text name
     ltree path
   }
+  scopes ||--o{ documents : "project_id"
+  scopes |o--o{ scopes : "parent_id"
+```
+
+```mermaid
+erDiagram
+  memberships {
+    bigint id PK
+    bigint user_id FK
+    bigint scope_id FK
+    text role
+  }
   users {
     bigint id PK
     text login
   }
-  scopes ||--o{ documents : "project_id"
-  scopes ||--o{ memberships : "scope_id"
   users ||--o{ memberships : "user_id"
-  scopes |o--o{ scopes : "parent_id"
 ```
 <!-- /ER -->
 
@@ -98,6 +101,8 @@ erDiagram
 **所属と文書**（`memberships` が、利用者・範囲・役割を結びます）
 
 <!-- ER:ch12_b only=scopes,users,memberships,documents,roles -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   documents {
@@ -112,11 +117,6 @@ erDiagram
     bigint scope_id FK
     integer role_id FK
   }
-  roles {
-    integer id PK "IDENTITY"
-    text code UK
-    text label
-  }
   scopes {
     bigint id PK
     bigint parent_id FK
@@ -124,21 +124,30 @@ erDiagram
     text name
     ltree path
   }
+  scopes ||--o{ documents : "project_id"
+  scopes ||--o{ memberships : "scope_id"
+  scopes |o--o{ scopes : "parent_id"
+```
+
+```mermaid
+erDiagram
+  roles {
+    integer id PK "IDENTITY"
+    text code UK
+    text label
+  }
   users {
     bigint id PK
     text login
   }
-  scopes ||--o{ documents : "project_id"
-  roles ||--o{ memberships : "role_id"
-  scopes ||--o{ memberships : "scope_id"
-  users ||--o{ memberships : "user_id"
-  scopes |o--o{ scopes : "parent_id"
 ```
 <!-- /ER -->
 
 ### 案C 判定結果を実体化する（`ch12_c`）
 
 <!-- ER:ch12_c -->
+テーブルが多く、1 つの図では字が小さくなるので、3 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   documents {
@@ -147,18 +156,6 @@ erDiagram
     text title
     timestamptz created_at
   }
-  effective_access {
-    bigint user_id PK
-    bigint document_id PK
-    text role
-    timestamptz created_at
-  }
-  memberships {
-    bigint id PK
-    bigint user_id FK
-    bigint scope_id FK
-    text role
-  }
   scopes {
     bigint id PK
     bigint parent_id FK
@@ -166,14 +163,33 @@ erDiagram
     text name
     ltree path
   }
+  scopes ||--o{ documents : "project_id"
+  scopes |o--o{ scopes : "parent_id"
+```
+
+```mermaid
+erDiagram
+  memberships {
+    bigint id PK
+    bigint user_id FK
+    bigint scope_id FK
+    text role
+  }
   users {
     bigint id PK
     text login
   }
-  scopes ||--o{ documents : "project_id"
-  scopes ||--o{ memberships : "scope_id"
   users ||--o{ memberships : "user_id"
-  scopes |o--o{ scopes : "parent_id"
+```
+
+```mermaid
+erDiagram
+  effective_access {
+    bigint user_id PK
+    bigint document_id PK
+    text role
+    timestamptz created_at
+  }
 ```
 <!-- /ER -->
 

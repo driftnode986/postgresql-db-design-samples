@@ -11,20 +11,18 @@
 - 30 日以内に戻せることと、同じメールアドレスで再登録できることを、両立できるか
 - 消したあと、テーブルはいつ小さくなるか
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["個人情報を消し、売上とコメントは残す"]
-  R[("元データ<br/>r_source/ ・ ch14_r")]
-  Q --> A["案A 印を立てる（論理削除）<br/>a_soft/ ・ ch14_a"]
-  Q --> B["案B 行を消し、控えを取る（物理削除）<br/>b_purge/ ・ ch14_b"]
-  Q --> C["案C 個人情報を別のテーブルに分ける<br/>c_split/ ・ ch14_c"]
-  X["検算: 最初に思いつく案<br/>x_firstidea/ ・ ch14_x"] -.->|要件を満たさない箇所を確かめる| Q
-  Z["インデックスのサイズ・VACUUM・ロック・外部キーの実験<br/>change/ の一部 ・ ch14_z"]
-  R -.->|同じ利用者と注文を写す| A
-  R -.-> B
-  R -.-> C
+flowchart LR
+  X["検算<br/>最初に思いつく案<br/>x_firstidea/<br/>ch14_x"] -.->|検算する| Q
+  Q["個人情報を消し、<br/>売上とコメントは残す"]
+  R[("元データ<br/>r_source/ ・ ch14_r<br/>各案に同じ利用者と<br/>注文を写す")]
+  Q --> A["案A<br/>印を立てる<br/>（論理削除）<br/>a_soft/ ・ ch14_a"]
+  Q --> B["案B<br/>行を消し、控えを取る<br/>（物理削除）<br/>b_purge/ ・ ch14_b"]
+  Q --> C["案C<br/>個人情報を<br/>別のテーブルに分ける<br/>c_split/ ・ ch14_c"]
+  Z["実験用<br/>change/ の一部<br/>ch14_z"]
+  R ~~~ Q
 ```
 
 - `x_firstidea/` の 3 つのファイルは、どれも失敗するのが正しい検算です
@@ -69,6 +67,8 @@ erDiagram
 ### 案B 行を消し、控えを取る（`ch14_b`）
 
 <!-- ER:ch14_b -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   comments {
@@ -95,6 +95,12 @@ erDiagram
     text phone
     timestamptz registered
   }
+  users |o--o{ comments : "user_id"
+  users |o--o{ orders : "user_id"
+```
+
+```mermaid
+erDiagram
   withdrawn_users {
     bigint id PK
     text email
@@ -106,14 +112,14 @@ erDiagram
     timestamptz withdrawn_at
     timestamptz purge_after
   }
-  users |o--o{ comments : "user_id"
-  users |o--o{ orders : "user_id"
 ```
 <!-- /ER -->
 
 ### 案C 個人情報を別のテーブルに分ける（`ch14_c`）
 
 <!-- ER:ch14_c -->
+テーブルが多く、1 つの図では字が小さくなるので、2 つの図に分けています。外部キーの参照先が別の図にあるときは、列に FK と付いています。
+
 ```mermaid
 erDiagram
   accounts {
@@ -128,17 +134,23 @@ erDiagram
     text body
     timestamptz posted_at
   }
-  order_shipments {
-    bigint order_id FK, PK
-    text recipient
-    text ship_addr
-    text ship_phone
-  }
   orders {
     bigint id PK
     bigint account_id FK
     timestamptz ordered_at
     numeric amount
+  }
+  accounts ||--o{ comments : "account_id"
+  accounts ||--o{ orders : "account_id"
+```
+
+```mermaid
+erDiagram
+  order_shipments {
+    bigint order_id FK, PK
+    text recipient
+    text ship_addr
+    text ship_phone
   }
   profiles {
     bigint account_id FK, PK
@@ -148,10 +160,6 @@ erDiagram
     text address
     text phone
   }
-  accounts ||--o{ comments : "account_id"
-  orders ||--o{ order_shipments : "order_id"
-  accounts ||--o{ orders : "account_id"
-  accounts ||--o{ profiles : "account_id"
 ```
 <!-- /ER -->
 

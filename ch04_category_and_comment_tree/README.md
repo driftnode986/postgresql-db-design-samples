@@ -11,21 +11,18 @@
 - 親子の循環を制約で防げるか
 - 浅い木と深い木で、結論が変わるか
 
-## 案の見取り図
+## 設計案の構成図
 
 ```mermaid
-flowchart TD
-  Q["親子関係をどう持つか"]
-  R[("元データ<br/>r_source/ ・ ch04_r")]
-  Q --> A["案A 親を指す列だけを持つ（隣接リスト）<br/>a_adjacency/ ・ ch04_a"]
-  Q --> B["案B 先祖と子孫の全組み合わせを持つ（閉包テーブル）<br/>b_closure/ ・ ch04_b"]
-  Q --> C["案C 経路を 1 列に持つ（ltree）<br/>c_ltree/ ・ ch04_c"]
-  D["浅い木（カテゴリ）で 3 案を作り直す<br/>d_cat/ ・ ch04_d"]
-  X["循環と ltree のラベルの制約の実演<br/>x_constraints/"]
-  R -.->|同じ木を写す| A
-  R -.-> B
-  R -.-> C
-  R -.-> D
+flowchart LR
+  Q["親子関係を<br/>どう持つか"]
+  R[("元データ<br/>r_source/ ・ ch04_r<br/>各案に同じ木を写す")]
+  Q --> A["案A<br/>親を指す列だけを持つ<br/>（隣接リスト）<br/>a_adjacency/<br/>ch04_a"]
+  Q --> B["案B<br/>先祖と子孫の全組み合わせ<br/>（閉包テーブル）<br/>b_closure/ ・ ch04_b"]
+  Q --> C["案C<br/>経路を 1 列に持つ<br/>（ltree）<br/>c_ltree/ ・ ch04_c"]
+  D["浅い木（カテゴリ）で<br/>3 案を作り直す<br/>d_cat/ ・ ch04_d"]
+  X["循環と ltree の<br/>ラベルの制約の実演<br/>x_constraints/"]
+  R ~~~ Q
 ```
 
 - 3 案の比較はコメントのスレッド（深い木）で行い、`d_cat/` でカテゴリ（浅い木）について同じ比較をやり直します
