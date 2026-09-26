@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 18:11:22 +0900
+# 採取日時: 2026-09-26 09:02:02 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -125,12 +125,12 @@ Timing is on.
 TRUNCATE ch05_c.orders, ch05_c.order_items, ch05_c.inventory_entries, ch05_c.products
   RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.720 ms
+Time: 4.375 ms
 INSERT INTO ch05_c.products (id, sku, name, price_yen)
 OVERRIDING SYSTEM VALUE
 SELECT id, sku, name, price_yen FROM ch05_r.src_product ORDER BY id;
 INSERT 0 10000
-Time: 28.183 ms
+Time: 26.623 ms
 SELECT setval(pg_get_serial_sequence('ch05_c.products', 'id'),
               (SELECT max(id) FROM ch05_c.products));
  setval 
@@ -138,15 +138,15 @@ SELECT setval(pg_get_serial_sequence('ch05_c.products', 'id'),
   10000
 (1 row)
 
-Time: 0.455 ms
+Time: 0.444 ms
 -- 初期在庫は「入荷が 1 回あった」として記録する
 INSERT INTO ch05_c.inventory_entries (product_id, delta, reason)
 SELECT id, qty, 'receipt' FROM ch05_r.src_product ORDER BY id;
 INSERT 0 10000
-Time: 48.313 ms
+Time: 43.122 ms
 ANALYZE ch05_c.products, ch05_c.inventory_entries;
 ANALYZE
-Time: 59.227 ms
+Time: 56.334 ms
 -- 元データと同じ商品が入り、入荷の合計が初期在庫と一致するか（全行の先頭列が 0 になること）
 SELECT count(*) AS products_diff FROM (
   SELECT id, sku, name, price_yen FROM ch05_c.products

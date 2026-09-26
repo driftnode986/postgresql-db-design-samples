@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 18:11:25 +0900
+# 採取日時: 2026-09-26 09:02:05 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -18,12 +18,12 @@ CREATE SCHEMA
 --    「18 の新機能で入荷処理が 1 文になる」と書くと誤りになる。
 -- run-as: book_owner
 CREATE SCHEMA IF NOT EXISTS ch05_x;
-psql:/tmp/run-sql-57313.sql:7: NOTICE:  schema "ch05_x" already exists, skipping
+psql:/tmp/run-sql.sql:7: NOTICE:  schema "ch05_x" already exists, skipping
 CREATE SCHEMA
 \echo '## MERGE ... RETURNING merge_action()（PostgreSQL 17。挿入と更新を 1 文で区別する）'
 ## MERGE ... RETURNING merge_action()（PostgreSQL 17。挿入と更新を 1 文で区別する）
 DROP TABLE IF EXISTS ch05_x.inv;
-psql:/tmp/run-sql-57313.sql:10: NOTICE:  table "inv" does not exist, skipping
+psql:/tmp/run-sql.sql:10: NOTICE:  table "inv" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch05_x.inv (product_id bigint PRIMARY KEY, qty int NOT NULL);
 CREATE TABLE
@@ -55,7 +55,7 @@ UPDATE 1
 \echo '## FOR UPDATE SKIP LOCKED（期限切れの仮押さえを、掴まれている行を飛ばして取る）'
 ## FOR UPDATE SKIP LOCKED（期限切れの仮押さえを、掴まれている行を飛ばして取る）
 DROP TABLE IF EXISTS ch05_x.holds;
-psql:/tmp/run-sql-57313.sql:26: NOTICE:  table "holds" does not exist, skipping
+psql:/tmp/run-sql.sql:26: NOTICE:  table "holds" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch05_x.holds (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

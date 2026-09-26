@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 18:11:20 +0900
+# 採取日時: 2026-09-26 09:01:59 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -131,12 +131,12 @@ Timing is on.
 TRUNCATE ch05_a.orders, ch05_a.order_items, ch05_a.inventory, ch05_a.products
   RESTART IDENTITY CASCADE;
 TRUNCATE TABLE
-Time: 2.571 ms
+Time: 4.625 ms
 INSERT INTO ch05_a.products (id, sku, name, price_yen)
 OVERRIDING SYSTEM VALUE
 SELECT id, sku, name, price_yen FROM ch05_r.src_product ORDER BY id;
 INSERT 0 10000
-Time: 29.250 ms
+Time: 26.066 ms
 SELECT setval(pg_get_serial_sequence('ch05_a.products', 'id'),
               (SELECT max(id) FROM ch05_a.products));
  setval 
@@ -144,14 +144,14 @@ SELECT setval(pg_get_serial_sequence('ch05_a.products', 'id'),
   10000
 (1 row)
 
-Time: 0.545 ms
+Time: 0.503 ms
 INSERT INTO ch05_a.inventory (product_id, qty)
 SELECT id, qty FROM ch05_r.src_product ORDER BY id;
 INSERT 0 10000
-Time: 37.852 ms
+Time: 35.557 ms
 ANALYZE ch05_a.products, ch05_a.inventory;
 ANALYZE
-Time: 58.070 ms
+Time: 54.235 ms
 -- 元データと同じ商品と在庫が入っているか（全行の先頭列が 0 になること）
 SELECT count(*) AS products_diff FROM (
   SELECT id, sku, name, price_yen FROM ch05_a.products

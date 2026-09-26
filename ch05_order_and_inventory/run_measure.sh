@@ -33,6 +33,11 @@ build() { local p="$1" d; d="$(dir_of "$p")"
   run book_owner "ch05_$p" "$D/$d/verify_content.sql"
 }
 for p in a b c; do save "load_${p}$T.txt" build "$p"; done
+# 保存サイズ。🔴 load 直後に測る（同時実行の測定のあとだと、不要になった行が残って
+# 数倍に膨らむ。実測で案A が 0.8 MB → 3.1 MB になった）。
+# 🔴 ledger_scale（商品 1 に引当を 10 万行積む）より前に置く。以前はこの行が末尾にあり、
+#    案C のサイズを 11 万行の状態で測って「入れた直後」と書いていた（2026-09-26 最終レビューで検出）
+save "sizes$T.txt" run book_app ch05_a $D/queries/90_sizes.sql
 
 # 検算用（読んだ値を書き戻す案）。verify_content は無く、載せるのは verify.sql のほう
 build_naive() {
@@ -60,8 +65,5 @@ save "ledger_scale$T.txt" run book_owner ch05_c $D/queries/30_ledger_scale.sql
 # 変更の手数（案B → 案C の移行）。ROLLBACK で終わるのでサイズは変わらない
 save "change_b_to_c$T.txt" run book_owner ch05_b $D/change/10_b_to_c.sql
 
-# 保存サイズ。🔴 load 直後に測る（同時実行の測定のあとだと、不要になった行が残って
-# 数倍に膨らむ。実測で案A が 0.8 MB → 3.1 MB になった）
-save "sizes$T.txt" run book_app ch05_a $D/queries/90_sizes.sql
 
 echo "done. 同時実行の測定は run_bench.sh で取る"

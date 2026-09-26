@@ -1,4 +1,4 @@
-# 採取日時: 2026-09-18 18:11:19 +0900
+# 採取日時: 2026-09-26 09:01:59 +0900
 # ホスト: Darwin arm64
 # Docker: 29.4.3 / CPU 12 / メモリ 8216776704 bytes
 # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
@@ -15,7 +15,7 @@
 CREATE SCHEMA IF NOT EXISTS ch05_r;
 CREATE SCHEMA
 DROP TABLE IF EXISTS ch05_r.src_product;
-psql:/tmp/run-sql-57060.sql:6: NOTICE:  table "src_product" does not exist, skipping
+psql:/tmp/run-sql.sql:6: NOTICE:  table "src_product" does not exist, skipping
 DROP TABLE
 CREATE TABLE ch05_r.src_product (
   id         bigint PRIMARY KEY,
@@ -30,8 +30,15 @@ CREATE TABLE
 -- 在庫は 1 商品あたり 100 個。測定の 20 秒で在庫が尽きないように、測定のたびに入れ直す。
 --
 -- setseed で乱数の種を固定するので、何度実行しても同じ値になる。
-\set size `echo "${SIZE:-M}"`
-\set n_products `case "${SIZE:-M}" in S) echo 1000 ;; *) echo 10000 ;; esac`
+--
+-- 🔴 サイズは psql の変数 :size で受け取る（run-sql.sh が -v size=$SIZE で渡す）。
+--    \set n `echo "${SIZE}"` のようにバッククォートで書くと、コマンドは psql が動いている
+--    コンテナの中で実行される。SIZE はホスト側のシェル変数なのでコンテナには渡っておらず、
+--    いつも既定値（M）になっていた。本章の results はどれも M で取ったものである。
+SELECT CASE :'size' WHEN 'S' THEN 1000 WHEN 'M' THEN 10000
+       ELSE 1/0 END AS n_products \gset
+\echo '生成する商品数:' :n_products
+生成する商品数: 10000
 \timing on
 Timing is on.
 SELECT setseed(0.42);
@@ -40,10 +47,10 @@ SELECT setseed(0.42);
  
 (1 row)
 
-Time: 0.375 ms
+Time: 0.205 ms
 TRUNCATE ch05_r.src_product;
 TRUNCATE TABLE
-Time: 1.659 ms
+Time: 1.512 ms
 INSERT INTO ch05_r.src_product (id, sku, name, price_yen, qty)
 SELECT g,
        'SKU-' || lpad(g::text, 7, '0'),
@@ -53,11 +60,11 @@ SELECT g,
        100
 FROM generate_series(1, :n_products) AS g;
 INSERT 0 10000
-Time: 13.422 ms
+Time: 13.800 ms
 SELECT count(*) AS products, sum(qty) AS total_qty FROM ch05_r.src_product;
  products | total_qty 
 ----------+-----------
     10000 |   1000000
 (1 row)
 
-Time: 0.678 ms
+Time: 0.695 ms

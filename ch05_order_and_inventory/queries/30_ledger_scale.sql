@@ -22,5 +22,5 @@ EXPLAIN (ANALYZE) SELECT qty FROM ch05_c.available WHERE product_id = 1;
 
 \echo '## 同じ状態で、履歴の短い商品 500 を測る（インデックスは効いている）'
 EXPLAIN (ANALYZE) SELECT coalesce(sum(delta), 0) FROM ch05_c.inventory_entries WHERE product_id = 500;
-\echo '## 同じ状態の商品 1（テーブルの 9 割を占めるので Seq Scan が選ばれる）'
+\echo '## 同じ状態の商品 1（テーブルの大半を占めるので Seq Scan が選ばれる）'
 EXPLAIN (ANALYZE) SELECT coalesce(sum(delta), 0) FROM ch05_c.inventory_entries WHERE product_id = 1;
